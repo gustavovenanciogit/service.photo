@@ -4,6 +4,10 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "venart",
   "compatibility_date": "2026-10-01",
+  // Endereço público https://venart.gustavovesss.workers.dev
+  "workers_dev": true,
+  // Cada branch/pull request ganha um link de pré-visualização próprio.
+  "preview_urls": true,
   "assets": {
     "directory": "./dist",
     "not_found_handling": "404-page"

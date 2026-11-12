@@ -1,13 +1,24 @@
 ---
+/**
+ * Topo da página inicial.
+ * Visual: mosaico de 3 fotos definido em src/data/portfolio.ts (heroMosaic).
+ * Se as fotos do mosaico não existirem, usa a 1ª foto de src/assets/hero/ ou um espaço reservado.
+ */
 import { Image } from 'astro:assets';
 import Icon from './Icon.astro';
 import { showPendingNotices, site } from '@/config/site';
-import { heroImage } from '@/lib/images';
+import { heroMosaic } from '@/data/portfolio';
+import { getPortfolioPhoto, heroImage } from '@/lib/images';
 import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const mosaic = heroMosaic
+  .map((m) => ({ ...m, photo: getPortfolioPhoto(m.file) }))
+  .filter((m): m is typeof m & { photo: NonNullable<typeof m.photo> } => !!m.photo);
+const useMosaic = mosaic.length === 3;
 ---
 
 <section id="inicio" class="relative overflow-hidden" data-wa-message={messages.general()}>
-  <div class="container-site grid items-center gap-10 pt-8 pb-16 md:pt-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14 lg:pb-24">
+  <div class="container-site grid items-center gap-10 pt-8 pb-16 md:pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:pb-24">
     <div data-reveal>
       <p class="eyebrow">Fotógrafo em {site.city} · {site.stateCode}</p>
       <h1 class="mt-4 text-[3.4rem] font-extrabold sm:text-7xl lg:text-[5.6rem]">
@@ -28,7 +39,34 @@ import { messages, whatsappLink } from '@/lib/whatsapp';
     <div data-reveal class="relative">
       <div class="absolute -inset-3 -z-10 rounded-[2rem] bg-brand-deep/25 blur-2xl" aria-hidden="true"></div>
       {
-        heroImage ? (
+        useMosaic ? (
+          <div class="grid aspect-[5/6] grid-cols-[1.35fr_1fr] grid-rows-2 gap-2.5 sm:gap-3">
+            {mosaic.map((m, i) => (
+              <a
+                href="#portfolio"
+                class:list={[
+                  'group relative overflow-hidden rounded-2xl border border-line sm:rounded-3xl',
+                  i === 0 && 'row-span-2',
+                ]}
+                aria-label={`Ver portfólio: ${m.photo.alt}`}
+              >
+                <Image
+                  src={m.photo.src}
+                  alt={m.photo.alt}
+                  widths={i === 0 ? [400, 640, 900] : [300, 480]}
+                  sizes={i === 0 ? '(min-width: 1024px) 28vw, 58vw' : '(min-width: 1024px) 20vw, 42vw'}
+                  loading="eager"
+                  fetchpriority={i === 0 ? 'high' : 'auto'}
+                  style={`object-position:${m.position ?? '50% 50%'}`}
+                  class="h-full w-full object-cover transition duration-700 ease-smooth group-hover:scale-[1.04]"
+                />
+                <span class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-bg/80 to-transparent p-3 pt-10 sm:p-4 sm:pt-12">
+                  <span class="font-display text-xs font-bold tracking-[0.18em] text-ink uppercase sm:text-sm">{m.label}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        ) : heroImage ? (
           <Image
             src={heroImage}
             alt={`Fotografia de destaque — ${site.name}`}
@@ -42,8 +80,8 @@ import { messages, whatsappLink } from '@/lib/whatsapp';
           <div class="grid aspect-[4/5] w-full place-items-center rounded-3xl border border-dashed border-brand/30 bg-gradient-to-br from-card to-bg-2 text-center">
             <div class="px-8 text-muted">
               <Icon name="camera" size={48} class="mx-auto text-brand/70" />
-              <p class="mt-4 font-display text-xl tracking-wide uppercase text-ink/80">{showPendingNotices ? 'Espaço para foto de destaque' : site.tagline}</p>
-              {showPendingNotices && <p class="mt-1 text-xs">Adicione uma imagem em src/assets/hero/</p>}
+              <p class="mt-4 font-display text-xl tracking-wide uppercase text-ink/80">{site.tagline}</p>
+              {showPendingNotices && <p class="mt-1 text-xs">Configure heroMosaic em src/data/portfolio.ts</p>}
             </div>
           </div>
         )
