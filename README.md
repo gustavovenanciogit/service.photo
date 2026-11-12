@@ -6,6 +6,8 @@ Site oficial com catálogo de serviços, tabela de preços com filtros, portfól
 **Tecnologia:** [Astro](https://astro.build) + TypeScript + Tailwind CSS.
 Site 100% estático: sem servidor, sem banco de dados e sem armazenar dados de clientes.
 
+**No ar:** https://venart.gustavovesss.workers.dev
+
 Preços conforme a **Tabela 2026**. Itens a revisar e fotos a adicionar: **[PENDENCIAS.md](PENDENCIAS.md)**.
 
 ---
@@ -140,8 +142,8 @@ Recomendado: **Cloudflare** (gratuito e permite uso comercial). O projeto já te
    - **Build command:** `npm run build`
    - **Deploy command:** `npx wrangler deploy`
 3. **Deploy**. O site fica em `https://venart.<sua-conta>.workers.dev`.
-4. Em **Settings → Variables and Secrets** (ou *Build variables*), crie `SITE_URL` com o
-   endereço final e faça um novo deploy — isso corrige links de compartilhamento e o sitemap.
+4. O endereço oficial fica em `astro.config.mjs` (`SITE_URL`). Ele é usado nos links de
+   compartilhamento e no sitemap — atualize-o se mudar de domínio.
 
 A Cloudflare publica a **branch principal (`main`)**. Cada `git push` nela atualiza o site.
 
