@@ -1,0 +1,11 @@
+// Configuração de publicação na Cloudflare (Workers com arquivos estáticos).
+// O site é 100% estático: a Cloudflare só serve a pasta dist/ gerada pelo build.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "venart",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}

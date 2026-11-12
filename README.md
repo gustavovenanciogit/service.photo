@@ -129,22 +129,26 @@ git commit -m "Atualiza preços"
 git push
 ```
 
-## 5. Deploy (colocar no ar)
+## 5. Deploy (colocar no ar) — Cloudflare
 
-### Opção A — Vercel (recomendada, mais simples)
-1. Entre em https://vercel.com com sua conta do GitHub.
-2. **Add New → Project** e escolha este repositório.
-3. A Vercel detecta Astro sozinha (build `npm run build`, pasta `dist`).
-4. Em **Environment Variables**, crie `SITE_URL` com o endereço final (ex.: `https://seudominio.com.br`).
-5. **Deploy**. Cada `git push` na branch principal publica de novo automaticamente.
+Recomendado: **Cloudflare** (gratuito e permite uso comercial). O projeto já tem
+`wrangler.jsonc` (publica a pasta `dist/`) e `.node-version` (Node 24).
 
-### Opção B — Cloudflare Pages
-1. https://dash.cloudflare.com → **Workers & Pages → Create → Pages → Connect to Git**.
-2. Framework preset: **Astro** · Build command: `npm run build` · Output: `dist`.
-3. Variáveis: `SITE_URL` = seu domínio e `NODE_VERSION` = `22`.
+1. https://dash.cloudflare.com → **Workers & Pages → Create → Import a repository**.
+2. Escolha `service.photo` e preencha:
+   - **Project name:** `venart`
+   - **Build command:** `npm run build`
+   - **Deploy command:** `npx wrangler deploy`
+3. **Deploy**. O site fica em `https://venart.<sua-conta>.workers.dev`.
+4. Em **Settings → Variables and Secrets** (ou *Build variables*), crie `SITE_URL` com o
+   endereço final e faça um novo deploy — isso corrige links de compartilhamento e o sitemap.
 
-Domínio próprio (ex.: `.com.br` no Registro.br): adicione em *Settings → Domains* na
-plataforma escolhida e siga as instruções de DNS.
+A Cloudflare publica a **branch principal (`main`)**. Cada `git push` nela atualiza o site.
+
+Domínio próprio (ex.: `venart.com.br`, registrado no Registro.br): no projeto, **Settings →
+Domains & Routes → Add → Custom domain**, e depois atualize o `SITE_URL`.
+
+> Vercel também funciona (detecta Astro sozinha), mas o plano gratuito dela não permite uso comercial.
 
 ## 6. Estrutura do projeto
 
