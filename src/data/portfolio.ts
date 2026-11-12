@@ -19,3 +19,14 @@ export const portfolioCaptions: Record<string, string> = {
   'ensaios/ensaio-estudio-perfil.jpg': 'Ensaio feminino em estúdio, de perfil',
   'eventos-sociais/cha-revelacao-vela.jpg': 'Detalhe de vela personalizada no chá revelação',
 };
+
+/**
+ * MOSAICO DO TOPO DA PÁGINA INICIAL
+ * 3 fotos do portfólio: a 1ª é a grande (esquerda), as outras duas ficam empilhadas à direita.
+ * `position` ajusta o enquadramento do recorte (ex.: '50% 25%' = foca mais no alto da foto).
+ */
+export const heroMosaic: { file: string; label: string; position?: string }[] = [
+  { file: 'artes-marciais/jiu-jitsu-queda.jpg', label: 'Artes marciais', position: '50% 45%' },
+  { file: 'esportes/corredora-arco.jpg', label: 'Corrida', position: '50% 62%' },
+  { file: 'ensaios/ensaio-estudio-retrato.jpg', label: 'Ensaios', position: '50% 22%' },
+];

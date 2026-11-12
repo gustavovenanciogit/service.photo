@@ -58,3 +58,11 @@ export const portfolioPhotos: PortfolioPhoto[] = Object.keys(portfolioFiles)
     category: path.split('/').at(-2)!,
     alt: portfolioCaptions[keyOf(path)] ?? altFromFile(path),
   }));
+
+/** Busca uma foto do portfólio pelo caminho relativo ("esportes/foto.jpg"). */
+export const getPortfolioPhoto = (file: string): PortfolioPhoto | undefined => {
+  const mod = portfolioFiles[PREFIX + file];
+  return mod
+    ? { src: mod.default, category: file.split('/')[0]!, alt: portfolioCaptions[file] ?? altFromFile(file) }
+    : undefined;
+};
