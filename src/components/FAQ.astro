@@ -1,0 +1,71 @@
+---
+/**
+ * Accordion de dúvidas frequentes usando <details>/<summary>
+ * (acessível por teclado e funciona sem JavaScript).
+ */
+import Icon from './Icon.astro';
+import { faq } from '@/data/faq';
+import { showPendingNotices, site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+interface Props {
+  /** Limitar a quantidade de perguntas exibidas (ex.: na página inicial). */
+  limit?: number;
+}
+const { limit } = Astro.props;
+const items = limit ? faq.slice(0, limit) : faq;
+const paragraphs = (t: string) => t.split(/\n\s*\n/);
+---
+
+<div class="divide-y divide-line rounded-2xl border border-line bg-bg-2" data-faq>
+  {
+    items.map((item) => (
+      <details class="group" id={`faq-${item.id}`}>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-5 text-left transition-colors hover:text-brand sm:px-7 [&::-webkit-details-marker]:hidden">
+          <span class="text-base font-semibold sm:text-lg">{item.question}</span>
+          <span class="grid size-9 shrink-0 place-items-center rounded-full border border-line transition-transform duration-300 group-open:rotate-180 group-open:border-brand group-open:text-brand">
+            <Icon name="chevron-down" size={18} />
+          </span>
+        </summary>
+        <div class="space-y-3 px-5 pb-6 text-muted sm:px-7">
+          {item.confirmed ? (
+            paragraphs(item.answer).map((p) => <p>{p}</p>)
+          ) : (
+            <>
+              {showPendingNotices && (
+                <p class="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 text-sm text-amber-200">
+                  <span class="badge-pending mr-2">Pendente de confirmação</span>
+                  {item.answer}
+                </p>
+              )}
+              <p>Essa informação depende do serviço contratado. Fale comigo pelo WhatsApp que eu te explico.</p>
+            </>
+          )}
+          {item.link === 'fotto' && site.fottoUrl && (
+            <a href={site.fottoUrl} target="_blank" rel="noopener noreferrer" class="btn btn-outline mr-3 min-h-10 px-4 text-sm">
+              <Icon name="external" size={16} class="text-brand" /> Acessar a Fotto
+            </a>
+          )}
+          <a
+            href={whatsappLink(site.whatsappNumber, messages.faq(item.question))}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 text-sm font-semibold text-brand hover:underline"
+          >
+            <Icon name="whatsapp" size={16} /> Perguntar sobre isso no WhatsApp
+          </a>
+        </div>
+      </details>
+    ))
+  }
+</div>
+
+<script>
+  // Abre automaticamente a pergunta indicada na URL (ex.: /faq#faq-fotto).
+  const open = () => {
+    const el = location.hash && document.querySelector<HTMLDetailsElement>(`details${CSS.escape(location.hash)}`);
+    if (el) el.open = true;
+  };
+  open();
+  window.addEventListener('hashchange', open);
+</script>

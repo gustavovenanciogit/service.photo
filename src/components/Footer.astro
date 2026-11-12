@@ -1,0 +1,57 @@
+---
+import Icon from './Icon.astro';
+import { instagramUrl, navItems, site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-line bg-bg-2">
+  <div class="container-site grid gap-10 py-14 md:grid-cols-[1.4fr_1fr_1fr]">
+    <div>
+      <p class="font-display text-3xl font-extrabold tracking-wide">
+        {site.shortName}<span class="text-brand">.</span>
+      </p>
+      <p class="mt-2 max-w-xs text-sm text-muted">{site.tagline} em {site.city}, {site.stateCode}.</p>
+      <p class="mt-4 flex items-center gap-2 text-sm text-muted">
+        <Icon name="pin" size={16} class="text-brand" />
+        {site.city}, {site.state}
+      </p>
+    </div>
+
+    <nav aria-label="Links do rodapé">
+      <p class="eyebrow mb-4">Navegação</p>
+      <ul class="space-y-2 text-sm">
+        {navItems.map((i) => <li><a href={i.href} class="text-muted transition-colors hover:text-ink">{i.label}</a></li>)}
+      </ul>
+    </nav>
+
+    <div>
+      <p class="eyebrow mb-4">Contato</p>
+      <ul class="space-y-3 text-sm">
+        <li>
+          <a href={whatsappLink(site.whatsappNumber, messages.general())} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-muted hover:text-ink">
+            <Icon name="whatsapp" size={18} class="text-brand" /> {site.whatsappDisplay}
+          </a>
+        </li>
+        {instagramUrl && (
+          <li>
+            <a href={instagramUrl} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-muted hover:text-ink">
+              <Icon name="instagram" size={18} class="text-brand" /> @{site.instagramUser}
+            </a>
+          </li>
+        )}
+        {site.fottoUrl && (
+          <li>
+            <a href={site.fottoUrl} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-muted hover:text-ink">
+              <Icon name="external" size={18} class="text-brand" /> Fotos na Fotto
+            </a>
+          </li>
+        )}
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-line">
+    <p class="container-site py-6 text-xs text-muted">© {year} {site.name}. Todos os direitos reservados.</p>
+  </div>
+</footer>

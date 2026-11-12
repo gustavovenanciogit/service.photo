@@ -1,0 +1,31 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import PricingCatalog from '@/components/PricingCatalog.astro';
+import Icon from '@/components/Icon.astro';
+import { site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+---
+
+<BaseLayout
+  title="Tabela de preços"
+  description={`Pacotes e valores de fotografia esportiva, academias e atletas de luta, eventos e ensaios em ${site.city}.`}
+  waMessage={messages.quote()}
+>
+  <section class="py-14 lg:py-20">
+    <div class="container-site">
+      <SectionHeading as="h1" eyebrow={`${site.priceTable} · ${site.city}`} title="Tabela de" highlight="preços" intro="Filtre por categoria e clique em “Tenho interesse” para falar comigo pelo WhatsApp com o pacote já selecionado." />
+      <div class="mt-10"><PricingCatalog /></div>
+
+      <aside data-reveal class="mt-20 flex flex-col items-start gap-5 rounded-3xl border border-line bg-card/40 p-8 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-3xl font-bold">Precisa de algo sob medida?</h2>
+          <p class="mt-1 text-muted">Me conte o que você precisa e eu monto uma proposta.</p>
+        </div>
+        <a href={whatsappLink(site.whatsappNumber, messages.quote())} target="_blank" rel="noopener noreferrer" class="btn btn-primary shrink-0">
+          <Icon name="whatsapp" size={20} /> Solicitar orçamento
+        </a>
+      </aside>
+    </div>
+  </section>
+</BaseLayout>

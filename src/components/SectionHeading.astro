@@ -1,0 +1,20 @@
+---
+interface Props {
+  eyebrow?: string;
+  title: string;
+  /** Parte do título destacada em verde (opcional). */
+  highlight?: string;
+  intro?: string;
+  align?: 'left' | 'center';
+  as?: 'h1' | 'h2';
+}
+const { eyebrow, title, highlight, intro, align = 'left', as: Tag = 'h2' } = Astro.props;
+---
+
+<div data-reveal class:list={['max-w-3xl', align === 'center' && 'mx-auto text-center']}>
+  {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+  <Tag class="mt-3 text-5xl font-extrabold sm:text-6xl">
+    {title}{highlight && <span class="text-brand">{' '}{highlight}</span>}
+  </Tag>
+  {intro && <p class="mt-4 text-lg text-muted">{intro}</p>}
+</div>

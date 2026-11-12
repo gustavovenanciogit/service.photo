@@ -1,0 +1,123 @@
+---
+/**
+ * Cartão de pacote. Os dados vêm de src/data/services.ts.
+ * O valor só aparece ao público quando `confirmed: true`.
+ * Itens `addon` (extras) usam um cartão compacto.
+ */
+import Icon from './Icon.astro';
+import { getCategory } from '@/data/categories';
+import { priceText, type ServicePackage } from '@/data/services';
+import { showPendingNotices, site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+interface Props {
+  pkg: ServicePackage;
+  /** Mostrar o nome da categoria acima do título. */
+  showCategory?: boolean;
+}
+const { pkg, showCategory = true } = Astro.props;
+
+const category = getCategory(pkg.category);
+const price = priceText(pkg);
+const pending = !pkg.confirmed;
+// Inclui o subgrupo para diferenciar pacotes de mesmo nome (ex.: os dois "Plano mensal" das academias).
+const groupTitle = category?.groups?.find((g) => g.id === pkg.group)?.title;
+const context = [category?.title, groupTitle].filter(Boolean).join(' · ');
+const buyUrl = pkg.buyAt === 'fotto' ? site.fottoUrl : '';
+const href =
+  buyUrl ||
+  whatsappLink(site.whatsappNumber, pkg.addon ? messages.addon(pkg.name, price) : messages.package(pkg.name, price, context));
+
+const details = [
+  { icon: 'clock', label: 'Duração', value: pkg.duration },
+  { icon: 'image', label: 'Fotos', value: pkg.photos },
+  { icon: 'truck', label: 'Entrega', value: pkg.delivery },
+] as const;
+const visibleDetails = details.filter((d) => d.value);
+// Separa o valor do sufixo ("R$ 550" + "/mês") para estilizar como na tabela.
+const unit = price && pkg.priceUnit && price.endsWith(pkg.priceUnit) ? pkg.priceUnit : '';
+const amount = price ? price.slice(0, price.length - unit.length) : null;
+---
+
+{
+  pkg.addon ? (
+    <article data-reveal class="card card-hover flex items-center justify-between gap-4 p-5">
+      <div class="min-w-0">
+        <h3 class="font-sans text-base font-semibold normal-case tracking-normal">{pkg.name}</h3>
+        <p class="mt-0.5 text-sm text-muted">{pkg.description}</p>
+        <a href={href} target="_blank" rel="noopener noreferrer" class="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">
+          <Icon name="whatsapp" size={14} /> Perguntar <span class="sr-only">sobre {pkg.name}</span>
+        </a>
+      </div>
+      <p class="shrink-0 text-right font-display text-3xl font-extrabold text-brand">
+        {amount ?? 'Sob consulta'}
+        {unit && <span class="text-base font-bold text-muted">{unit}</span>}
+      </p>
+    </article>
+  ) : (
+    <article
+      data-category={pkg.category}
+      data-reveal
+      class:list={['card card-hover relative flex flex-col p-6', pkg.highlight && 'border-brand/60 bg-card/60']}
+    >
+      {(showCategory || pkg.highlight || (showPendingNotices && pending)) && (
+      <div class="mb-1 flex flex-wrap items-center gap-2">
+        {showCategory && category && <p class="eyebrow text-xs">{category.title}</p>}
+        {pkg.highlight && (
+          <span class="ml-auto rounded-full bg-brand px-3 py-1 text-[11px] font-bold tracking-wide text-bg uppercase">{pkg.highlight}</span>
+        )}
+        {showPendingNotices && pending && <span class="badge-pending ml-auto">Pendente de confirmação</span>}
+      </div>
+      )}
+
+      <h3 class="mt-1 text-3xl font-bold">{pkg.name}</h3>
+      <p class="mt-2 text-sm text-muted">{pkg.description}</p>
+
+      {visibleDetails.length > 0 && (
+        <dl class="mt-5 space-y-2 border-t border-line pt-4 text-sm">
+          {visibleDetails.map((d) => (
+            <div class="flex items-start gap-2">
+              <Icon name={d.icon} size={16} class="mt-0.5 shrink-0 text-brand" />
+              <dt class="text-muted">{d.label}:</dt>
+              <dd class="text-ink">{d.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {pkg.benefits.length > 0 && (
+        <ul class:list={['space-y-1.5 text-sm', visibleDetails.length ? 'mt-3' : 'mt-5 border-t border-line pt-4']}>
+          {pkg.benefits.map((b) => (
+            <li class="flex gap-2">
+              <Icon name="check" size={16} class="mt-0.5 shrink-0 text-brand" />
+              {b}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {pkg.conditions.length > 0 && <p class="mt-4 text-xs text-muted">{pkg.conditions.join(' · ')}</p>}
+
+      <div class="mt-auto pt-6">
+        <p class="text-xs tracking-widest text-muted uppercase">Valor</p>
+        <p class="font-display text-4xl font-extrabold text-brand">
+          {amount ?? <span class="text-ink">Sob consulta</span>}
+          {unit && <span class="text-lg font-bold text-muted">{unit}</span>}
+        </p>
+        <a href={href} target="_blank" rel="noopener noreferrer" class="btn btn-primary mt-4 w-full">
+          {buyUrl ? (
+            <>
+              <Icon name="external" size={20} /> Comprar na Fotto
+              <span class="sr-only">: {pkg.name}</span>
+            </>
+          ) : (
+            <>
+              <Icon name="whatsapp" size={20} /> Tenho interesse
+              <span class="sr-only">no pacote {pkg.name}</span>
+            </>
+          )}
+        </a>
+      </div>
+    </article>
+  )
+}

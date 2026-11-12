@@ -1,0 +1,128 @@
+---
+import Icon from './Icon.astro';
+import { navItems, site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isCurrent = (href: string) => !href.includes('#') && href === path;
+const quoteHref = whatsappLink(site.whatsappNumber, messages.quote());
+---
+
+<header
+  id="site-header"
+  class="fixed inset-x-0 top-0 z-50 border-b border-transparent transition-colors duration-300"
+>
+  <div class="container-site flex h-16 items-center justify-between gap-4 lg:h-20">
+    <a href="/" class="group flex flex-col leading-none" aria-label={`${site.name} — página inicial`}>
+      <span class="font-display text-2xl font-extrabold tracking-wide text-ink">
+        {site.shortName}<span class="text-brand">.</span>
+      </span>
+      <span class="hidden text-[10px] tracking-[0.25em] text-muted uppercase sm:block">{site.tagline}</span>
+    </a>
+
+    <nav aria-label="Menu principal" class="hidden lg:block">
+      <ul class="flex items-center gap-1">
+        {
+          navItems.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                aria-current={isCurrent(item.href) ? 'page' : undefined}
+                class="rounded-full px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-ink aria-[current=page]:text-brand"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-2">
+      <a
+        href={quoteHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-primary hidden min-h-10 px-5 text-sm sm:inline-flex"
+      >
+        Orçamento
+      </a>
+      <button
+        id="menu-toggle"
+        type="button"
+        class="grid size-11 place-items-center rounded-full border border-line text-ink lg:hidden"
+        aria-controls="mobile-menu"
+        aria-expanded="false"
+        aria-label="Abrir menu"
+      >
+        <Icon name="menu" class="icon-open" />
+        <Icon name="close" class="icon-close hidden" />
+      </button>
+    </div>
+  </div>
+
+  <!-- Menu mobile -->
+  <div id="mobile-menu" class="hidden border-t border-line bg-bg/98 backdrop-blur lg:hidden">
+    <nav aria-label="Menu principal (celular)" class="container-site py-4">
+      <ul class="flex flex-col">
+        {
+          navItems.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                aria-current={isCurrent(item.href) ? 'page' : undefined}
+                class="block border-b border-line/60 py-4 font-display text-2xl font-bold tracking-wide uppercase text-ink aria-[current=page]:text-brand"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      <a href={quoteHref} target="_blank" rel="noopener noreferrer" class="btn btn-primary mt-6 w-full">
+        <Icon name="whatsapp" size={20} /> Solicitar orçamento
+      </a>
+    </nav>
+  </div>
+</header>
+<!-- Espaço do menu fixo -->
+<div class="h-16 lg:h-20" aria-hidden="true"></div>
+
+<script>
+  const header = document.getElementById('site-header')!;
+  const toggle = document.getElementById('menu-toggle')!;
+  const menu = document.getElementById('mobile-menu')!;
+
+  const setOpen = (open: boolean) => {
+    menu.classList.toggle('hidden', !open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+    toggle.querySelector('.icon-open')?.classList.toggle('hidden', open);
+    toggle.querySelector('.icon-close')?.classList.toggle('hidden', !open);
+    document.body.style.overflow = open ? 'hidden' : '';
+    header.classList.toggle('is-solid', open || window.scrollY > 8);
+  };
+
+  toggle.addEventListener('click', () => setOpen(menu.classList.contains('hidden')));
+  menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menu.classList.contains('hidden')) {
+      setOpen(false);
+      toggle.focus();
+    }
+  });
+  window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => e.matches && setOpen(false));
+
+  // Fundo do menu ganha cor ao rolar.
+  const onScroll = () => header.classList.toggle('is-solid', window.scrollY > 8 || !menu.classList.contains('hidden'));
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+</script>
+
+<style>
+  #site-header.is-solid {
+    background: rgb(7 10 8 / 0.92);
+    border-color: var(--color-line);
+    backdrop-filter: blur(12px);
+  }
+</style>

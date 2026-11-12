@@ -1,0 +1,112 @@
+@import 'tailwindcss';
+
+/* Fontes hospedadas no próprio site (sem depender do Google Fonts). */
+@import '@fontsource/barlow-condensed/600.css';
+@import '@fontsource/barlow-condensed/700.css';
+@import '@fontsource/barlow-condensed/800.css';
+@import '@fontsource-variable/inter';
+
+/* ─────────── Identidade visual (baseada na tabela de preços) ─────────── */
+@theme {
+  --color-bg: #070a08; /* fundo principal */
+  --color-bg-2: #0f1a13; /* fundo secundário */
+  --color-card: #123222; /* cartões e blocos */
+  --color-brand: #8be07a; /* verde principal */
+  --color-brand-deep: #076943; /* verde complementar */
+  --color-ink: #f5faf5; /* textos */
+  --color-muted: #9ba59e; /* informações secundárias */
+  --color-line: rgb(139 224 122 / 0.14); /* bordas discretas */
+
+  --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-sans: 'Inter Variable', Inter, system-ui, sans-serif;
+
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem; /* compensa o menu fixo */
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display uppercase;
+    letter-spacing: 0.01em;
+    line-height: 0.95;
+    text-wrap: balance;
+  }
+  ::selection {
+    background: var(--color-brand);
+    color: var(--color-bg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .container-site {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+  .eyebrow {
+    @apply text-brand font-display text-sm font-semibold tracking-[0.2em] uppercase;
+  }
+  .btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 font-display text-base font-bold tracking-wider uppercase transition duration-300 ease-smooth select-none;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn-primary {
+    @apply bg-brand text-bg hover:bg-[#a4ec95] hover:shadow-[0_8px_30px_-8px_rgb(139_224_122/0.6)];
+  }
+  .btn-outline {
+    @apply border border-brand/40 text-ink hover:border-brand hover:bg-brand/10;
+  }
+  .card {
+    @apply rounded-2xl border border-line bg-bg-2 transition duration-300 ease-smooth;
+  }
+  .card-hover {
+    @apply hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_18px_40px_-20px_rgb(139_224_122/0.35)];
+  }
+  .badge-pending {
+    @apply inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-amber-300 uppercase;
+  }
+}
+
+/* ─────────── Animação ao rolar (ativada por JS em BaseLayout) ─────────── */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s var(--ease-smooth),
+    transform 0.7s var(--ease-smooth);
+}
+.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Respeita "reduzir movimento" do sistema operacional. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}

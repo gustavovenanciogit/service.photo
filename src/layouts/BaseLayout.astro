@@ -1,0 +1,124 @@
+---
+/**
+ * Layout base: SEO, Open Graph, menu, rodapé, WhatsApp flutuante,
+ * botão "voltar ao topo" e animações de rolagem.
+ */
+import '@/styles/global.css';
+import Header from '@/components/Header.astro';
+import Footer from '@/components/Footer.astro';
+import WhatsAppButton from '@/components/WhatsAppButton.astro';
+import BackToTop from '@/components/BackToTop.astro';
+import { site } from '@/config/site';
+import { messages } from '@/lib/whatsapp';
+
+interface Props {
+  /** Título da página (sem o nome do site). */
+  title?: string;
+  description?: string;
+  /** Imagem Open Graph específica (caminho em /public ou URL absoluta). */
+  ogImage?: string;
+  /** Mensagem padrão do botão flutuante do WhatsApp nesta página. */
+  waMessage?: string;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description = site.seo.defaultDescription,
+  ogImage = site.seo.ogImage,
+  waMessage = messages.general(),
+  noindex = false,
+} = Astro.props;
+
+const fullTitle = title ? `${title} | ${site.name}` : `${site.seo.defaultTitle} | ${site.name}`;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImageUrl = new URL(ogImage, Astro.site);
+
+// Dados estruturados (SEO local) — negócio de fotografia em Manaus.
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfessionalService',
+  name: site.name,
+  description: site.seo.defaultDescription,
+  url: Astro.site?.toString(),
+  image: ogImageUrl.toString(),
+  areaServed: `${site.city}, ${site.state}`,
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: site.city,
+    addressRegion: site.stateCode,
+    addressCountry: 'BR',
+  },
+};
+---
+
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta name="theme-color" content="#070A08" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <!-- Open Graph / redes sociais -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content={site.seo.locale} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+    <!-- Marca que o JS está ativo (as animações só escondem conteúdo se o JS rodar). -->
+    <script is:inline>document.documentElement.classList.add('js');</script>
+  </head>
+  <body class="flex min-h-dvh flex-col">
+    <a
+      href="#conteudo"
+      class="sr-only z-[100] rounded-full bg-brand px-4 py-2 font-semibold text-bg focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+    >
+      Pular para o conteúdo
+    </a>
+    <Header />
+    <main id="conteudo" tabindex="-1" class="flex-1 outline-none">
+      <slot />
+    </main>
+    <Footer />
+    <WhatsAppButton message={waMessage} />
+    <BackToTop />
+
+    <script>
+      // Animação discreta ao rolar: elementos com [data-reveal] aparecem ao entrar na tela.
+      const els = document.querySelectorAll<HTMLElement>('[data-reveal]');
+      if (!('IntersectionObserver' in window)) {
+        els.forEach((el) => el.classList.add('is-visible'));
+      } else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (e.isIntersecting) {
+                e.target.classList.add('is-visible');
+                io.unobserve(e.target);
+              }
+            }
+          },
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.05 },
+        );
+        els.forEach((el) => io.observe(el));
+      }
+    </script>
+  </body>
+</html>

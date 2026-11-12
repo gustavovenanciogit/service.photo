@@ -1,0 +1,90 @@
+---
+/**
+ * Tabela de preços com filtro por categoria.
+ * Funciona sem JavaScript (mostra tudo); com JS, os filtros escondem os grupos.
+ * Aceita ?categoria=<slug> na URL para abrir já filtrado.
+ */
+import CategoryPackages from './CategoryPackages.astro';
+import { categories } from '@/data/categories';
+import { packagesByCategory } from '@/data/services';
+
+const groups = categories
+  .map((c) => ({ category: c, items: packagesByCategory(c.slug) }))
+  .filter((g) => g.items.length > 0);
+---
+
+<div data-pricing>
+  <div
+    role="toolbar"
+    aria-label="Filtrar pacotes por categoria"
+    class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0"
+  >
+    <button type="button" data-filter="todos" aria-pressed="true" class="filter-btn">Todos</button>
+    {
+      groups.map(({ category }) => (
+        <button type="button" data-filter={category.slug} aria-pressed="false" class="filter-btn">
+          {category.title}
+        </button>
+      ))
+    }
+  </div>
+  <p class="sr-only" aria-live="polite" data-filter-status></p>
+
+  <div class="mt-10 space-y-16">
+    {
+      groups.map(({ category }) => (
+        <section data-group={category.slug} aria-labelledby={`grupo-${category.slug}`}>
+          <div class="mb-8 border-b border-line pb-4">
+            <p class="font-display text-sm font-semibold tracking-[0.2em] text-muted uppercase">
+              {category.number}{category.subtitle && ` · ${category.subtitle}`}
+            </p>
+            <h2 id={`grupo-${category.slug}`} class="mt-1 text-4xl font-extrabold sm:text-5xl">
+              {category.title}
+            </h2>
+          </div>
+          <CategoryPackages category={category} />
+        </section>
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  @reference '../styles/global.css';
+  .filter-btn {
+    @apply shrink-0 rounded-full border border-line px-4 py-2 text-sm font-medium whitespace-nowrap text-muted transition-colors duration-200 hover:border-brand/50 hover:text-ink;
+  }
+  .filter-btn[aria-pressed='true'] {
+    @apply border-brand bg-brand text-bg;
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-pricing]');
+  if (root) {
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-filter]')];
+    const groups = [...root.querySelectorAll<HTMLElement>('[data-group]')];
+    const status = root.querySelector<HTMLElement>('[data-filter-status]')!;
+
+    const apply = (slug: string, updateUrl = true) => {
+      if (slug !== 'todos' && !groups.some((g) => g.dataset.group === slug)) slug = 'todos';
+      buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === slug)));
+      groups.forEach((g) => {
+        g.hidden = slug !== 'todos' && g.dataset.group !== slug;
+        // Garante que cartões filtrados apareçam mesmo sem rolar.
+        g.querySelectorAll('[data-reveal]').forEach((el) => el.classList.add('is-visible'));
+      });
+      const label = buttons.find((b) => b.dataset.filter === slug)?.textContent?.trim();
+      status.textContent = `Mostrando: ${label}`;
+      if (updateUrl) {
+        const url = new URL(location.href);
+        slug === 'todos' ? url.searchParams.delete('categoria') : url.searchParams.set('categoria', slug);
+        history.replaceState(null, '', url);
+      }
+    };
+
+    buttons.forEach((b) => b.addEventListener('click', () => apply(b.dataset.filter!)));
+    const initial = new URL(location.href).searchParams.get('categoria');
+    if (initial) apply(initial, false);
+  }
+</script>
