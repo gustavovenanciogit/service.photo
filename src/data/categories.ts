@@ -1,8 +1,8 @@
 /**
- * CATEGORIAS DE SERVIÇO
+ * CATEGORIAS DE SERVIÇO (conforme a Tabela 2026)
  * ------------------------------------------------------------------
- * As 6 categorias da tabela de preços. O `slug` vira a URL:
- * /servicos/fotografia-esportiva, /servicos/academias-de-luta, etc.
+ * O `slug` vira a URL: /servicos/fotografia-esportiva, etc.
+ * `notes` são as observações do rodapé de cada página da tabela.
  */
 
 export type IconName =
@@ -24,11 +24,15 @@ export interface Category {
   /** Número exibido no cartão (01, 02...). */
   number: string;
   title: string;
+  /** Linha de apoio (ex.: "Jiu-jitsu, Muay Thai, Boxe e outros"). */
+  subtitle?: string;
   /** Descrição curta exibida no cartão. */
   summary: string;
   icon: IconName;
-  /** Itens/serviços cobertos pela categoria. */
-  items: string[];
+  /** Subgrupos de pacotes (ex.: "Cobertura geral"), na ordem de exibição. */
+  groups?: { id: string; title: string; description?: string }[];
+  /** Observações da categoria (rodapé da tabela). */
+  notes: string[];
 }
 
 export const categories: Category[] = [
@@ -36,61 +40,78 @@ export const categories: Category[] = [
     slug: 'fotografia-esportiva',
     number: '01',
     title: 'Fotografia esportiva',
-    summary: 'Registro de atletas, treinos e provas, com foco em movimento, esforço e performance.',
+    subtitle: 'Corridas, assessorias e atletas',
+    summary: 'Fotos de provas, treinos de assessoria e ensaios esportivos, com venda de fotos pela Fotto.',
     icon: 'running',
-    items: [
-      'Fotos individuais',
-      'Cobertura de atletas',
-      'Ensaios esportivos',
-      'Treinos de assessorias',
-      'Cobertura de corridas',
+    notes: [
+      'Cobertura feita em pontos estratégicos da prova, por 1 fotógrafo. Não é garantida foto de todos os participantes.',
+      'Na pré-venda, se você não for fotografado, o valor é devolvido.',
     ],
   },
   {
     slug: 'academias-de-luta',
     number: '02',
     title: 'Academias de luta',
-    summary: 'Cobertura de treinos e conteúdo visual para divulgação de academias e equipes.',
+    subtitle: 'Jiu-jitsu, Muay Thai, Boxe e outros',
+    summary: 'Cobertura de treinos e graduações, e planos de marketing com fotos para as redes da academia.',
     icon: 'gloves',
-    items: [
-      'Cobertura de treinos',
-      'Planos avulsos',
-      'Planos quinzenais',
-      'Planos mensais',
-      'Marketing para academias',
+    groups: [
+      { id: 'cobertura-geral', title: 'Cobertura geral', description: 'Fotos de todos, liberadas para academia e alunos' },
+      { id: 'marketing', title: 'Marketing da academia', description: 'Fotos para as redes da academia' },
+    ],
+    notes: [
+      'No marketing da academia, os alunos compram as próprias fotos: R$ 12,90 a avulsa ou R$ 119,90 todas.',
+      'Assinaturas com pagamento mensal antecipado e cancelamento com 30 dias de aviso.',
     ],
   },
   {
     slug: 'atletas-de-luta',
     number: '03',
     title: 'Atletas de luta',
-    summary: 'Sessões e acompanhamento fotográfico para atletas de artes marciais.',
+    subtitle: 'Marketing pessoal',
+    summary: 'Fotos suas para redes sociais, patrocinadores e campeonatos, com acompanhamento do seu treino.',
     icon: 'medal',
-    items: ['Sessões individuais', 'Planos para atletas', 'Cobertura de competições'],
+    notes: [
+      'Entrega 100% digital, em galeria online.',
+      'Plano com pagamento mensal antecipado e cancelamento com 30 dias de aviso.',
+    ],
   },
   {
     slug: 'eventos-sociais',
     number: '04',
     title: 'Eventos sociais',
-    summary: 'Aniversários, festas, formaturas e eventos corporativos registrados com naturalidade.',
+    subtitle: 'Aniversários, festas, 15 anos e formaturas',
+    summary: 'Pacotes de 2 a 6 horas para festas, 15 anos e formaturas, além de eventos corporativos.',
     icon: 'party',
-    items: ['Aniversários', 'Festas', 'Formaturas', 'Eventos corporativos'],
+    notes: [
+      'Galeria completa em até 10 dias úteis, com todas as fotos selecionadas e editadas.',
+      'Eventos acima de 100 convidados: sob consulta.',
+    ],
   },
   {
     slug: 'ensaios-externos',
     number: '05',
     title: 'Ensaios externos',
-    summary: 'Ensaios ao ar livre para retratos individuais, casais, famílias e gestantes.',
+    subtitle: 'Individual, casal, família e gestante',
+    summary: 'Ensaios ao ar livre em 1 local, de retratos profissionais a sessões de 2 horas.',
     icon: 'camera',
-    items: ['Ensaios individuais', 'Casais', 'Famílias', 'Gestantes', 'Retratos profissionais'],
+    notes: [
+      'Ensaios externos em 1 local.',
+      'Roupa e maquiagem por conta do cliente.',
+      'Remarcação sem custo em caso de chuva.',
+    ],
   },
   {
     slug: 'extras-e-pagamento',
     number: '06',
     title: 'Extras e pagamento',
-    summary: 'Horas adicionais, entrega expressa, deslocamento e condições comerciais.',
+    subtitle: 'Adicionais e condições',
+    summary: 'Hora extra, entrega expressa, deslocamento, adicionais e condições de pagamento.',
     icon: 'plus',
-    items: ['Horas adicionais', 'Entregas expressas', 'Deslocamento', 'Condições comerciais'],
+    notes: [
+      'Entrega 100% digital, em galeria online, com todas as fotos selecionadas e editadas.',
+      'Assinaturas: pagamento mensal antecipado e cancelamento com 30 dias de aviso.',
+    ],
   },
 ];
 

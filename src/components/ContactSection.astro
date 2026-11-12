@@ -11,10 +11,12 @@ import { packagesByCategory } from '@/data/services';
 import { instagramUrl, site } from '@/config/site';
 import { messages, whatsappLink } from '@/lib/whatsapp';
 
-const groups = categories.map((c) => ({ title: c.title, items: packagesByCategory(c.slug) })).filter((g) => g.items.length);
+const groups = categories
+  .map((c) => ({ title: c.title, items: packagesByCategory(c.slug).filter((p) => !p.addon) }))
+  .filter((g) => g.items.length);
 
 const links = [
-  { label: 'WhatsApp', href: whatsappLink(site.whatsappNumber, messages.general()), icon: 'whatsapp', show: true },
+  { label: site.whatsappDisplay || 'WhatsApp', href: whatsappLink(site.whatsappNumber, messages.general()), icon: 'whatsapp', show: true },
   { label: site.instagramUser ? `@${site.instagramUser}` : 'Instagram', href: instagramUrl, icon: 'instagram', show: !!instagramUrl },
   { label: 'Minhas fotos na Fotto', href: site.fottoUrl, icon: 'external', show: !!site.fottoUrl },
 ] as const;

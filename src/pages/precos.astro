@@ -14,7 +14,7 @@ import { messages, whatsappLink } from '@/lib/whatsapp';
 >
   <section class="py-14 lg:py-20">
     <div class="container-site">
-      <SectionHeading as="h1" eyebrow="Pacotes" title="Tabela de" highlight="preços" intro="Filtre por categoria e clique em “Tenho interesse” para falar comigo pelo WhatsApp com o pacote já selecionado." />
+      <SectionHeading as="h1" eyebrow={`${site.priceTable} · ${site.city}`} title="Tabela de" highlight="preços" intro="Filtre por categoria e clique em “Tenho interesse” para falar comigo pelo WhatsApp com o pacote já selecionado." />
       <div class="mt-10"><PricingCatalog /></div>
 
       <aside data-reveal class="mt-20 flex flex-col items-start gap-5 rounded-3xl border border-line bg-card/40 p-8 sm:flex-row sm:items-center sm:justify-between">

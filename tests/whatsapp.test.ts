@@ -6,11 +6,13 @@ test('formata valores em reais', () => {
   assert.equal(formatBRL(350), 'R$ 350');
   assert.equal(formatBRL(1290), 'R$ 1.290');
   assert.equal(formatBRL(99.9), 'R$ 99,90');
+  assert.equal(formatBRL(12.9), 'R$ 12,90');
+  assert.equal(formatBRL(1.5), 'R$ 1,50');
 });
 
 test('mensagem do pacote usa nome e preço dinamicamente', () => {
   assert.equal(
-    messages.package('Ensaio Esportivo', 350),
+    messages.package('Ensaio Esportivo', 'R$ 350'),
     'Olá! Vim pelo seu site e tenho interesse no pacote Ensaio Esportivo, anunciado por R$ 350. Gostaria de consultar sua disponibilidade e saber como funciona o agendamento.',
   );
 });
@@ -33,6 +35,18 @@ test('mensagem do formulário inclui só campos preenchidos', () => {
   assert.ok(!m.includes('Local'));
   assert.ok(!m.includes('Mensagem'));
   assert.equal(formatDateBR('2026-01-31'), '31/01/2026');
+});
+
+test('pacote com categoria e unidade', () => {
+  assert.match(
+    messages.package('Plano mensal', 'R$ 620/mês', 'Academias de luta'),
+    /pacote Plano mensal \(Academias de luta\), anunciado por R\$ 620\/mês\./,
+  );
+});
+
+test('mensagem de adicional', () => {
+  assert.match(messages.addon('Domingos e feriados', '+20%'), /adicional Domingos e feriados \(\+20%\)/);
+  assert.match(messages.addon('Vídeo curto', null), /orçamento para o adicional Vídeo curto/);
 });
 
 test('mensagem do FAQ cita a pergunta', () => {

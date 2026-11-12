@@ -4,16 +4,15 @@
  * Tudo que é contato, nome e links fica aqui. Altere e salve:
  * o site inteiro passa a usar os novos valores.
  *
- * Campos marcados com "PENDENTE" ainda precisam ser preenchidos.
- * Enquanto estiverem vazios, o site esconde o link correspondente
+ * Links vazios (Instagram, Fotto, e-mail) ficam escondidos no site
  * (não publica link quebrado).
  */
 
 export const site = {
-  /** Nome profissional exibido no topo, rodapé e SEO. PENDENTE: confirme o nome. */
-  name: 'Gustavo Fotografia',
+  /** Nome profissional exibido no topo, rodapé e SEO. */
+  name: 'Venart Fotógrafo',
   /** Nome curto (logo do menu). */
-  shortName: 'GUSTAVO',
+  shortName: 'VENART',
   /** Linha de apoio do logo. */
   tagline: 'Fotografia esportiva & comercial',
 
@@ -23,23 +22,26 @@ export const site = {
 
   /**
    * WhatsApp no formato internacional, só números: 55 + DDD + número.
-   * Ex.: '5592999999999'. PENDENTE: preencha com o seu número.
-   * Enquanto estiver vazio, os botões abrem o WhatsApp sem destinatário
-   * (o cliente escolhe o contato), e o site mostra um aviso no modo dev.
+   * Se ficar vazio, os botões abrem o WhatsApp sem destinatário.
    */
-  whatsappNumber: '',
+  whatsappNumber: '5592986066741',
+  /** Número formatado para exibição. */
+  whatsappDisplay: '(92) 98606-6741',
 
-  /** Usuário do Instagram, sem @. PENDENTE. */
-  instagramUser: '',
+  /** Usuário do Instagram, sem @. */
+  instagramUser: 'venart_mid',
 
-  /** Link da sua página na Fotto (venda de fotos esportivas). PENDENTE. */
-  fottoUrl: '',
+  /** Link da sua página na Fotto (venda de fotos esportivas). */
+  fottoUrl: 'https://www.fotto.com.br/venart',
+
+  /** Identificação da tabela de preços vigente. */
+  priceTable: 'Tabela 2026',
 
   /** E-mail público (opcional). */
   email: '',
 
   seo: {
-    defaultTitle: 'Fotógrafo em Manaus | Fotografia esportiva, ensaios e eventos',
+    defaultTitle: 'Fotógrafo em Manaus | Fotografia esportiva, lutas, ensaios e eventos',
     defaultDescription:
       'Fotografia esportiva, ensaios e cobertura de eventos em Manaus. Conheça os serviços, consulte os pacotes e solicite seu orçamento pelo WhatsApp.',
     /** Imagem de compartilhamento (Open Graph), dentro de /public. */
@@ -47,6 +49,16 @@ export const site = {
     locale: 'pt_BR',
   },
 } as const;
+
+/**
+ * Condições de pagamento (página 06 da tabela).
+ * Aparecem na tabela de preços, na categoria "Extras e pagamento" e no FAQ.
+ */
+export const paymentTerms = [
+  { value: '30%', label: 'de sinal para reservar a data' },
+  { value: '3x', label: 'sem juros no cartão de crédito' },
+  { value: '5%', label: 'de desconto no Pix à vista' },
+] as const;
 
 /** Exibe avisos de "pendente de confirmação" (apenas no `npm run dev`). */
 export const showPendingNotices = import.meta.env.DEV;

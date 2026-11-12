@@ -6,8 +6,7 @@ Site oficial com catálogo de serviços, tabela de preços com filtros, portfól
 **Tecnologia:** [Astro](https://astro.build) + TypeScript + Tailwind CSS.
 Site 100% estático: sem servidor, sem banco de dados e sem armazenar dados de clientes.
 
-> ⚠️ Antes de publicar, veja **[PENDENCIAS.md](PENDENCIAS.md)** — preços, WhatsApp,
-> Instagram e algumas respostas do FAQ ainda precisam ser preenchidos.
+Preços conforme a **Tabela 2026**. Itens a revisar e fotos a adicionar: **[PENDENCIAS.md](PENDENCIAS.md)**.
 
 ---
 
@@ -24,7 +23,7 @@ npm run dev
 ```
 
 Abra http://localhost:4321. As alterações aparecem na hora.
-No modo dev aparecem selos amarelos **"Pendente de confirmação"** — eles somem na versão publicada.
+Se algum pacote tiver `confirmed: false`, o modo dev mostra o selo amarelo **"Pendente de confirmação"** (ele nunca aparece na versão publicada).
 
 Outros comandos:
 
@@ -39,9 +38,9 @@ Outros comandos:
 
 | Quero mudar... | Arquivo |
 | --- | --- |
-| WhatsApp, Instagram, Fotto, nome, cidade, textos de SEO, menu | `src/config/site.ts` |
+| WhatsApp, Instagram, Fotto, nome, cidade, condições de pagamento, SEO, menu | `src/config/site.ts` |
 | **Preços, pacotes, durações, prazos, destaques** | `src/data/services.ts` |
-| Categorias (títulos, descrições, ícones) | `src/data/categories.ts` |
+| Categorias, subgrupos e observações de rodapé | `src/data/categories.ts` |
 | Perguntas e respostas do FAQ | `src/data/faq.ts` |
 | Textos das mensagens de WhatsApp | `src/lib/whatsapp.ts` |
 | Etapas do "Como contratar" | `src/components/HowToHire.astro` |
@@ -57,14 +56,17 @@ Cada pacote em `src/data/services.ts` tem este formato:
   category: 'fotografia-esportiva', // slug da categoria
   name: 'Ensaio esportivo',
   description: 'Cobertura fotográfica individual de treino ou atividade esportiva.',
-  price: 350,                       // número, sem "R$". null = sob consulta
-  priceUnit: 'por ensaio',
-  duration: '1 hora',
-  photos: '30 fotos editadas',
-  delivery: 'até 7 dias úteis',
-  benefits: ['...'],
-  conditions: ['...'],
-  highlight: 'Mais escolhido',      // opcional — só use se for verdade
+  price: 350,                       // número, sem "R$" (12,90 → 12.9). null = sob consulta
+  priceUnit: '/mês',                // opcional: '/mês', '/hora', '/km'
+  priceLabel: '+20%',               // opcional: texto no lugar do valor
+  group: 'marketing',               // opcional: subgrupo (ver categories.ts)
+  duration: '1h',
+  delivery: 'Em 7 dias',
+  benefits: ['Prévia no mesmo dia'],
+  conditions: [],
+  highlight: 'Mais escolhido',      // opcional — só use se estiver na tabela
+  addon: true,                      // opcional: item de "Adicionais"
+  buyAt: 'fotto',                   // opcional: botão "Comprar na Fotto"
   confirmed: true,                  // ⚠️ só com true o preço aparece no site
   active: true,                     // false esconde o pacote
 }
@@ -100,7 +102,9 @@ Todos os botões montam um link `wa.me` com mensagem pronta, conforme a origem:
 | Origem | Mensagem |
 | --- | --- |
 | Página inicial / menu | Interesse geral ou pedido de orçamento |
-| "Tenho interesse" no pacote | Nome do pacote + valor (se confirmado) |
+| "Tenho interesse" no pacote | Nome do pacote, categoria e valor (ex.: R$ 550/mês) |
+| "Perguntar" em adicional | Nome do adicional + valor |
+| Foto avulsa / Todas as minhas fotos | Botão leva direto para a Fotto |
 | Página de categoria | Nome da categoria |
 | FAQ | A pergunta que o cliente estava lendo |
 | Formulário de pré-orçamento | Nome, serviço, data, local e mensagem |

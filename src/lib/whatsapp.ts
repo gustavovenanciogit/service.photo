@@ -36,13 +36,22 @@ export const messages = {
     `Olá! Vim pelo seu site e tenho interesse nos serviços de ${categoryTitle}. Pode me passar mais informações?`,
 
   /**
-   * Pacote selecionado. `price` só deve ser enviado se for público/confirmado;
-   * sem preço, a mensagem pede o valor.
+   * Pacote selecionado. `price` é o valor já formatado ("R$ 350", "R$ 550/mês")
+   * e só deve ser enviado se for público/confirmado; sem ele, a mensagem pede o valor.
+   * `category` diferencia pacotes de mesmo nome (ex.: "Premium").
    */
-  package: (name: string, price?: number | null) =>
-    price != null
-      ? `Olá! Vim pelo seu site e tenho interesse no pacote ${name}, anunciado por ${formatBRL(price)}. Gostaria de consultar sua disponibilidade e saber como funciona o agendamento.`
-      : `Olá! Vim pelo seu site e tenho interesse no pacote ${name}. Gostaria de saber o valor, consultar sua disponibilidade e entender como funciona o agendamento.`,
+  package: (name: string, price?: string | null, category?: string) => {
+    const label = category ? `${name} (${category})` : name;
+    return price
+      ? `Olá! Vim pelo seu site e tenho interesse no pacote ${label}, anunciado por ${price}. Gostaria de consultar sua disponibilidade e saber como funciona o agendamento.`
+      : `Olá! Vim pelo seu site e tenho interesse no pacote ${label}. Gostaria de saber o valor, consultar sua disponibilidade e entender como funciona o agendamento.`;
+  },
+
+  /** Item adicional (extras). */
+  addon: (name: string, price?: string | null) =>
+    price
+      ? `Olá! Vim pelo seu site e tenho uma dúvida sobre o adicional ${name} (${price}). Pode me explicar como funciona?`
+      : `Olá! Vim pelo seu site e gostaria de um orçamento para o adicional ${name}.`,
 
   faq: (question?: string) =>
     question

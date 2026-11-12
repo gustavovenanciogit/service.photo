@@ -8,7 +8,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
   <rect x="40" y="40" width="1120" height="550" rx="36" fill="#0F1A13" stroke="#123222" stroke-width="2"/>
   <circle cx="1010" cy="315" r="120" fill="none" stroke="#8BE07A" stroke-width="22"/>
   <circle cx="1010" cy="315" r="44" fill="#8BE07A"/>
-  <text x="100" y="200" font-family="Arial Narrow, Arial, sans-serif" font-weight="700" font-size="30" letter-spacing="6" fill="#8BE07A">MANAUS · AM</text>
+  <text x="100" y="200" font-family="Arial Narrow, Arial, sans-serif" font-weight="700" font-size="30" letter-spacing="6" fill="#8BE07A">VENART · FOTÓGRAFO EM MANAUS</text>
   <text x="100" y="300" font-family="Arial Narrow, Arial, sans-serif" font-weight="800" font-size="74" fill="#F5FAF5">SEUS MELHORES</text>
   <text x="100" y="380" font-family="Arial Narrow, Arial, sans-serif" font-weight="800" font-size="74" fill="#F5FAF5">MOMENTOS MERECEM</text>
   <text x="100" y="460" font-family="Arial Narrow, Arial, sans-serif" font-weight="800" font-size="74" fill="#8BE07A">SER REGISTRADOS.</text>

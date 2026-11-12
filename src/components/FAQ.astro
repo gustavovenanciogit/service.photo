@@ -41,6 +41,11 @@ const paragraphs = (t: string) => t.split(/\n\s*\n/);
               <p>Essa informação depende do serviço contratado. Fale comigo pelo WhatsApp que eu te explico.</p>
             </>
           )}
+          {item.link === 'fotto' && site.fottoUrl && (
+            <a href={site.fottoUrl} target="_blank" rel="noopener noreferrer" class="btn btn-outline mr-3 min-h-10 px-4 text-sm">
+              <Icon name="external" size={16} class="text-brand" /> Acessar a Fotto
+            </a>
+          )}
           <a
             href={whatsappLink(site.whatsappNumber, messages.faq(item.question))}
             target="_blank"

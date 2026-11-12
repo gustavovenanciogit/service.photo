@@ -4,7 +4,7 @@
  * Funciona sem JavaScript (mostra tudo); com JS, os filtros escondem os grupos.
  * Aceita ?categoria=<slug> na URL para abrir já filtrado.
  */
-import PricingCard from './PricingCard.astro';
+import CategoryPackages from './CategoryPackages.astro';
 import { categories } from '@/data/categories';
 import { packagesByCategory } from '@/data/services';
 
@@ -32,19 +32,17 @@ const groups = categories
 
   <div class="mt-10 space-y-16">
     {
-      groups.map(({ category, items }) => (
+      groups.map(({ category }) => (
         <section data-group={category.slug} aria-labelledby={`grupo-${category.slug}`}>
-          <div class="mb-6 flex items-baseline gap-4 border-b border-line pb-3">
-            <span class="font-display text-2xl font-extrabold text-brand">{category.number}</span>
-            <h2 id={`grupo-${category.slug}`} class="text-3xl font-bold sm:text-4xl">
+          <div class="mb-8 border-b border-line pb-4">
+            <p class="font-display text-sm font-semibold tracking-[0.2em] text-muted uppercase">
+              {category.number}{category.subtitle && ` · ${category.subtitle}`}
+            </p>
+            <h2 id={`grupo-${category.slug}`} class="mt-1 text-4xl font-extrabold sm:text-5xl">
               {category.title}
             </h2>
           </div>
-          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((pkg) => (
-              <PricingCard pkg={pkg} showCategory={false} />
-            ))}
-          </div>
+          <CategoryPackages category={category} />
         </section>
       ))
     }

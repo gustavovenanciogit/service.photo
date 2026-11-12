@@ -31,7 +31,7 @@ const year = new Date().getFullYear();
       <ul class="space-y-3 text-sm">
         <li>
           <a href={whatsappLink(site.whatsappNumber, messages.general())} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-muted hover:text-ink">
-            <Icon name="whatsapp" size={18} class="text-brand" /> WhatsApp
+            <Icon name="whatsapp" size={18} class="text-brand" /> {site.whatsappDisplay}
           </a>
         </li>
         {instagramUrl && (

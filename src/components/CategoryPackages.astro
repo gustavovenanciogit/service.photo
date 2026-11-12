@@ -1,0 +1,89 @@
+---
+/**
+ * Pacotes de uma categoria: subgrupos (se houver), cartões, observações
+ * da tabela e, em "Extras e pagamento", as condições de pagamento.
+ * Usado na tabela de preços e nas páginas /servicos/<slug>.
+ */
+import PricingCard from './PricingCard.astro';
+import Icon from './Icon.astro';
+import type { Category } from '@/data/categories';
+import { packagesByCategory } from '@/data/services';
+import { paymentTerms } from '@/config/site';
+
+interface Props {
+  category: Category;
+  /** Nível do título dos subgrupos. */
+  headingLevel?: 'h3' | 'h4';
+}
+const { category, headingLevel: H = 'h3' } = Astro.props;
+const items = packagesByCategory(category.slug);
+const mainItems = items.filter((p) => !p.addon);
+const addons = items.filter((p) => p.addon);
+
+const sections = category.groups?.length
+  ? category.groups.map((g) => ({ ...g, items: mainItems.filter((p) => p.group === g.id) })).filter((g) => g.items.length)
+  : [{ id: 'todos', title: '', description: undefined, items: mainItems }];
+const isPayment = category.slug === 'extras-e-pagamento';
+---
+
+<div class="space-y-12">
+  {
+    sections.map((s) => s.items.length > 0 && (
+      <div>
+        {s.title && (
+          <div class="mb-5 flex flex-col gap-1 border-b border-brand/30 pb-3 sm:flex-row sm:items-end sm:justify-between">
+            <H class="font-display text-2xl font-bold tracking-wide text-brand uppercase">{s.title}</H>
+            {s.description && <p class="text-sm text-muted">{s.description}</p>}
+          </div>
+        )}
+        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {s.items.map((pkg) => <PricingCard pkg={pkg} showCategory={false} />)}
+        </div>
+      </div>
+    ))
+  }
+
+  {
+    addons.length > 0 && (
+      <div>
+        <div class="mb-5 border-b border-brand/30 pb-3">
+          <H class="font-display text-2xl font-bold tracking-wide text-brand uppercase">Adicionais</H>
+        </div>
+        <div class="grid gap-4 md:grid-cols-2">
+          {addons.map((pkg) => <PricingCard pkg={pkg} />)}
+        </div>
+      </div>
+    )
+  }
+
+  {
+    isPayment && (
+      <div>
+        <div class="mb-5 border-b border-brand/30 pb-3">
+          <H class="font-display text-2xl font-bold tracking-wide text-brand uppercase">Pagamento</H>
+        </div>
+        <ul class="grid gap-4 sm:grid-cols-3">
+          {paymentTerms.map((t) => (
+            <li data-reveal class="card p-6">
+              <p class="font-display text-5xl font-extrabold text-brand">{t.value}</p>
+              <p class="mt-1 text-sm">{t.label}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  {
+    category.notes.length > 0 && (
+      <aside data-reveal class="rounded-2xl bg-card/70 p-5 text-sm sm:p-6" aria-label={`Observações: ${category.title}`}>
+        <p class="mb-2 flex items-center gap-2 font-semibold text-brand">
+          <Icon name="check" size={16} /> Observações
+        </p>
+        <ul class="space-y-1 text-ink/85">
+          {category.notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </aside>
+    )
+  }
+</div>
