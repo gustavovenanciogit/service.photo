@@ -6,6 +6,7 @@
  * O Astro otimiza (redimensiona e converte para WebP) no build.
  */
 import type { ImageMetadata } from 'astro';
+import { portfolioCaptions } from '@/data/portfolio';
 
 const heroFiles = import.meta.glob<{ default: ImageMetadata }>(
   '/src/assets/hero/*.{jpg,jpeg,png,webp,avif,JPG,JPEG,PNG,WEBP}',
@@ -42,10 +43,18 @@ const altFromFile = (path: string) => {
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Fotografia do portfólio';
 };
 
+const PREFIX = '/src/assets/portfolio/';
+const keyOf = (path: string) => path.slice(PREFIX.length); // "esportes/foto.jpg"
+const order = Object.keys(portfolioCaptions);
+const rank = (path: string) => {
+  const i = order.indexOf(keyOf(path));
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+};
+
 export const portfolioPhotos: PortfolioPhoto[] = Object.keys(portfolioFiles)
-  .sort()
+  .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
   .map((path) => ({
     src: portfolioFiles[path]!.default,
     category: path.split('/').at(-2)!,
-    alt: altFromFile(path),
+    alt: portfolioCaptions[keyOf(path)] ?? altFromFile(path),
   }));

@@ -82,13 +82,13 @@ const labelOf = (folder: string) => portfolioCategories.find((c) => c.folder ===
       <dialog data-lightbox aria-label="Visualizador de fotos" class="m-auto h-dvh max-h-none w-screen max-w-none bg-transparent p-0 text-ink backdrop:bg-bg/95">
         <div class="flex h-full flex-col">
           <div class="flex items-center justify-between p-4">
-            <p data-caption class="text-sm text-muted"></p>
+            <p data-caption class="pr-4 text-sm text-muted"></p>
             <button type="button" data-close class="grid size-11 place-items-center rounded-full border border-line hover:border-brand" aria-label="Fechar visualizador">
               <Icon name="close" />
             </button>
           </div>
-          <div class="relative flex flex-1 items-center justify-center px-2 pb-6 sm:px-16">
-            <img data-image alt="" class="max-h-full max-w-full rounded-lg object-contain" />
+          <div class="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-6 sm:px-20">
+            <img data-image alt="" class="h-full max-h-full w-full max-w-full rounded-lg object-contain" />
             <button type="button" data-prev class="lb-nav left-2 sm:left-4" aria-label="Foto anterior"><Icon name="chevron-left" /></button>
             <button type="button" data-next class="lb-nav right-2 sm:right-4" aria-label="Próxima foto"><Icon name="chevron-right" /></button>
           </div>
@@ -139,7 +139,7 @@ const labelOf = (folder: string) => portfolioCategories.find((c) => c.folder ===
       const t = thumbs[current]!;
       img.src = t.dataset.full!;
       img.alt = t.dataset.alt!;
-      caption.textContent = `${t.dataset.label} · ${current + 1} de ${thumbs.length}`;
+      caption.textContent = `${t.dataset.alt} · ${t.dataset.label} · ${current + 1} de ${thumbs.length}`;
     };
 
     root.addEventListener('click', (e) => {
