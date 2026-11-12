@@ -1,0 +1,29 @@
+---
+import Icon from './Icon.astro';
+---
+
+<a
+  id="back-to-top"
+  href="#conteudo"
+  aria-label="Voltar ao início da página"
+  class="fixed right-5 bottom-22 z-40 grid size-11 translate-y-3 place-items-center rounded-full border border-line bg-bg-2/90 text-ink opacity-0 backdrop-blur transition duration-300 ease-smooth pointer-events-none hover:border-brand hover:text-brand sm:right-7 sm:bottom-24 data-[show]:pointer-events-auto data-[show]:translate-y-0 data-[show]:opacity-100"
+  tabindex="-1"
+>
+  <Icon name="arrow-up" size={20} />
+</a>
+
+<script>
+  const el = document.getElementById('back-to-top')!;
+  const onScroll = () => {
+    const show = window.scrollY > 700;
+    el.toggleAttribute('data-show', show);
+    el.tabIndex = show ? 0 : -1;
+  };
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+  el.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.scrollTo({ top: 0 });
+    document.getElementById('conteudo')?.focus({ preventScroll: true });
+  });
+</script>

@@ -1,0 +1,102 @@
+---
+/**
+ * Cartão de pacote. Os dados vêm de src/data/services.ts.
+ * O preço só aparece ao público quando `confirmed: true`.
+ */
+import Icon from './Icon.astro';
+import { getCategory } from '@/data/categories';
+import { isPricePublic, type ServicePackage } from '@/data/services';
+import { showPendingNotices, site } from '@/config/site';
+import { formatBRL, messages, whatsappLink } from '@/lib/whatsapp';
+
+interface Props {
+  pkg: ServicePackage;
+  /** Mostrar o nome da categoria acima do título. */
+  showCategory?: boolean;
+}
+const { pkg, showCategory = true } = Astro.props;
+
+const category = getCategory(pkg.category);
+const publicPrice = isPricePublic(pkg);
+const pending = !pkg.confirmed;
+const href = whatsappLink(site.whatsappNumber, messages.package(pkg.name, publicPrice ? pkg.price : null));
+
+const details = [
+  { icon: 'clock', label: 'Duração', value: pkg.duration },
+  { icon: 'image', label: 'Fotografias', value: pkg.photos },
+  { icon: 'truck', label: 'Entrega', value: pkg.delivery },
+] as const;
+// Em produção, só mostra detalhes preenchidos. No dev, mostra "A confirmar".
+const visibleDetails = details.filter((d) => d.value || showPendingNotices);
+---
+
+<article
+  data-category={pkg.category}
+  data-reveal
+  class:list={[
+    'card card-hover relative flex flex-col p-6',
+    pkg.highlight && 'border-brand/50 bg-gradient-to-b from-card/80 to-bg-2',
+  ]}
+>
+  <div class="flex flex-wrap items-center gap-2">
+    {showCategory && category && <p class="eyebrow text-xs">{category.title}</p>}
+    {pkg.highlight && <span class="ml-auto rounded-full bg-brand px-3 py-1 text-[11px] font-bold tracking-wide text-bg uppercase">{pkg.highlight}</span>}
+    {showPendingNotices && pending && <span class="badge-pending ml-auto">Pendente de confirmação</span>}
+  </div>
+
+  <h3 class="mt-3 text-3xl font-bold">{pkg.name}</h3>
+  <p class="mt-2 text-sm text-muted">{pkg.description}</p>
+
+  {
+    visibleDetails.length > 0 && (
+      <dl class="mt-5 space-y-2 border-t border-line pt-4 text-sm">
+        {visibleDetails.map((d) => (
+          <div class="flex items-center gap-2">
+            <Icon name={d.icon} size={16} class="shrink-0 text-brand" />
+            <dt class="text-muted">{d.label}:</dt>
+            <dd class:list={[d.value ? 'text-ink' : 'text-amber-300']}>{d.value ?? 'A confirmar'}</dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
+
+  {
+    pkg.benefits.length > 0 && (
+      <ul class="mt-4 space-y-1.5 text-sm">
+        {pkg.benefits.map((b) => (
+          <li class="flex gap-2">
+            <Icon name="check" size={16} class="mt-0.5 shrink-0 text-brand" />
+            {b}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  {pkg.conditions.length > 0 && <p class="mt-4 text-xs text-muted">{pkg.conditions.join(' · ')}</p>}
+
+  <div class="mt-auto pt-6">
+    <p class="text-xs tracking-widest text-muted uppercase">Valor</p>
+    {
+      publicPrice ? (
+        <p class="font-display text-4xl font-extrabold text-brand">
+          {pkg.pricePrefix && <span class="mr-1 text-base font-semibold text-muted normal-case">{pkg.pricePrefix}</span>}
+          {formatBRL(pkg.price!)}
+          {pkg.priceUnit && <span class="ml-1 font-sans text-sm font-normal text-muted">{pkg.priceUnit}</span>}
+        </p>
+      ) : (
+        <p class="font-display text-3xl font-bold text-ink">
+          Sob consulta
+          {showPendingNotices && pkg.price !== null && (
+            <span class="block font-sans text-xs font-normal text-amber-300">Rascunho: {formatBRL(pkg.price)} (não publicado)</span>
+          )}
+        </p>
+      )
+    }
+    <a href={href} target="_blank" rel="noopener noreferrer" class="btn btn-primary mt-4 w-full">
+      <Icon name="whatsapp" size={20} /> Tenho interesse
+      <span class="sr-only">no pacote {pkg.name}</span>
+    </a>
+  </div>
+</article>

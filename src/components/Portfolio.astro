@@ -1,0 +1,171 @@
+---
+/**
+ * Galeria do portfólio com filtros e visualizador ampliado.
+ * As fotos são lidas das pastas src/assets/portfolio/<categoria>/ (ver src/lib/images.ts).
+ * Sem fotos, exibe espaços reservados (nunca fotos fictícias).
+ */
+import { Image, getImage } from 'astro:assets';
+import Icon from './Icon.astro';
+import { portfolioCategories, portfolioPhotos } from '@/lib/images';
+import { showPendingNotices } from '@/config/site';
+
+interface Props {
+  /** Limite de fotos (ex.: 12 na página inicial). */
+  limit?: number;
+}
+const { limit } = Astro.props;
+const photos = limit ? portfolioPhotos.slice(0, limit) : portfolioPhotos;
+
+// Versão grande (para o visualizador), otimizada em WebP.
+const large = await Promise.all(
+  photos.map((p) => getImage({ src: p.src, width: Math.min(p.src.width, 1800), format: 'webp' })),
+);
+const usedCategories = portfolioCategories.filter((c) => photos.some((p) => p.category === c.folder));
+const labelOf = (folder: string) => portfolioCategories.find((c) => c.folder === folder)?.label ?? folder;
+---
+
+{
+  photos.length === 0 ? (
+    <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+      {portfolioCategories.map((c, i) => (
+        <div
+          data-reveal
+          class:list={[
+            'grid place-items-center rounded-2xl border border-dashed border-brand/25 bg-gradient-to-br from-card/60 to-bg-2 p-4 text-center',
+            i === 0 ? 'col-span-2 aspect-[2/1] md:col-span-1 md:row-span-2 md:aspect-auto' : 'aspect-square',
+          ]}
+        >
+          <div>
+            <Icon name="image" size={32} class="mx-auto text-brand/60" />
+            <p class="mt-3 font-display text-lg tracking-wide uppercase">{c.label}</p>
+            <p class="text-xs text-muted">{showPendingNotices ? `src/assets/portfolio/${c.folder}/` : 'Em breve'}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div data-gallery>
+      <div role="toolbar" aria-label="Filtrar portfólio" class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0">
+        <button type="button" data-filter="todos" aria-pressed="true" class="pf-btn">Todos</button>
+        {usedCategories.map((c) => (
+          <button type="button" data-filter={c.folder} aria-pressed="false" class="pf-btn">
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <ul class="mt-8 columns-2 gap-3 sm:gap-4 md:columns-3">
+        {photos.map((p, i) => (
+          <li data-category={p.category} class="mb-3 break-inside-avoid sm:mb-4">
+            <button
+              type="button"
+              data-index={i}
+              data-full={large[i]!.src}
+              data-alt={p.alt}
+              data-label={labelOf(p.category)}
+              class="group block w-full overflow-hidden rounded-2xl border border-line"
+              aria-label={`Ampliar foto: ${p.alt}`}
+            >
+              <Image
+                src={p.src}
+                alt={p.alt}
+                widths={[400, 700]}
+                sizes="(min-width: 768px) 33vw, 50vw"
+                loading="lazy"
+                class="h-auto w-full transition duration-500 ease-smooth group-hover:scale-[1.03] group-hover:opacity-90"
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <dialog data-lightbox aria-label="Visualizador de fotos" class="m-auto h-dvh max-h-none w-screen max-w-none bg-transparent p-0 text-ink backdrop:bg-bg/95">
+        <div class="flex h-full flex-col">
+          <div class="flex items-center justify-between p-4">
+            <p data-caption class="text-sm text-muted"></p>
+            <button type="button" data-close class="grid size-11 place-items-center rounded-full border border-line hover:border-brand" aria-label="Fechar visualizador">
+              <Icon name="close" />
+            </button>
+          </div>
+          <div class="relative flex flex-1 items-center justify-center px-2 pb-6 sm:px-16">
+            <img data-image alt="" class="max-h-full max-w-full rounded-lg object-contain" />
+            <button type="button" data-prev class="lb-nav left-2 sm:left-4" aria-label="Foto anterior"><Icon name="chevron-left" /></button>
+            <button type="button" data-next class="lb-nav right-2 sm:right-4" aria-label="Próxima foto"><Icon name="chevron-right" /></button>
+          </div>
+        </div>
+      </dialog>
+    </div>
+  )
+}
+
+<style>
+  @reference '../styles/global.css';
+  .pf-btn {
+    @apply shrink-0 rounded-full border border-line px-4 py-2 text-sm font-medium whitespace-nowrap text-muted transition-colors hover:border-brand/50 hover:text-ink;
+  }
+  .pf-btn[aria-pressed='true'] {
+    @apply border-brand bg-brand text-bg;
+  }
+  .lb-nav {
+    @apply absolute top-1/2 grid size-12 -translate-y-1/2 place-items-center rounded-full border border-line bg-bg/70 backdrop-blur hover:border-brand hover:text-brand;
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-gallery]');
+  if (root) {
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-filter]')];
+    const items = [...root.querySelectorAll<HTMLLIElement>('li[data-category]')];
+    const dialog = root.querySelector<HTMLDialogElement>('[data-lightbox]')!;
+    const img = dialog.querySelector<HTMLImageElement>('[data-image]')!;
+    const caption = dialog.querySelector<HTMLElement>('[data-caption]')!;
+    let current = 0;
+    let lastTrigger: HTMLElement | null = null;
+
+    const visibleThumbs = () => items.filter((li) => !li.hidden).map((li) => li.querySelector<HTMLButtonElement>('button')!);
+
+    buttons.forEach((b) =>
+      b.addEventListener('click', () => {
+        const f = b.dataset.filter;
+        buttons.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        items.forEach((li) => (li.hidden = f !== 'todos' && li.dataset.category !== f));
+      }),
+    );
+
+    const show = (i: number) => {
+      const thumbs = visibleThumbs();
+      if (!thumbs.length) return;
+      current = (i + thumbs.length) % thumbs.length;
+      const t = thumbs[current]!;
+      img.src = t.dataset.full!;
+      img.alt = t.dataset.alt!;
+      caption.textContent = `${t.dataset.label} · ${current + 1} de ${thumbs.length}`;
+    };
+
+    root.addEventListener('click', (e) => {
+      const t = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-full]');
+      if (!t) return;
+      lastTrigger = t;
+      show(visibleThumbs().indexOf(t));
+      dialog.showModal();
+    });
+    dialog.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
+    dialog.querySelector('[data-prev]')!.addEventListener('click', () => show(current - 1));
+    dialog.querySelector('[data-next]')!.addEventListener('click', () => show(current + 1));
+    dialog.addEventListener('click', (e) => e.target === dialog && dialog.close());
+    dialog.addEventListener('close', () => lastTrigger?.focus());
+    dialog.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') show(current - 1);
+      if (e.key === 'ArrowRight') show(current + 1);
+    });
+    // Gesto de deslizar no celular.
+    let x0: number | null = null;
+    dialog.addEventListener('touchstart', (e) => (x0 = e.touches[0]!.clientX), { passive: true });
+    dialog.addEventListener('touchend', (e) => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0]!.clientX - x0;
+      if (Math.abs(dx) > 50) show(current + (dx < 0 ? 1 : -1));
+      x0 = null;
+    });
+  }
+</script>

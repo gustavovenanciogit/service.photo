@@ -1,0 +1,38 @@
+---
+import Icon from './Icon.astro';
+import SectionHeading from './SectionHeading.astro';
+import type { IconName } from '@/data/categories';
+
+const steps: { title: string; text: string; icon: IconName }[] = [
+  { title: 'Escolha seu serviço', text: 'Navegue pelas categorias e escolha o pacote desejado.', icon: 'search' },
+  { title: 'Consulte a disponibilidade', text: 'Entre em contato pelo WhatsApp e informe a data, o local e o serviço pretendido.', icon: 'chat' },
+  { title: 'Confirme os detalhes', text: 'Definimos horário, duração, localização, condições comerciais e demais informações necessárias.', icon: 'check' },
+  { title: 'Realize o agendamento', text: 'Após a confirmação das condições acordadas, o serviço é agendado.', icon: 'calendar' },
+  { title: 'Receba suas fotografias', text: 'As fotografias são entregues conforme o prazo e o formato estabelecidos para o pacote contratado.', icon: 'image' },
+];
+---
+
+<section id="como-contratar" class="border-y border-line bg-bg-2 py-20 lg:py-28">
+  <div class="container-site">
+    <SectionHeading eyebrow="Passo a passo" title="Como" highlight="contratar" intro="Um processo simples, do primeiro contato à entrega das fotos." />
+
+    <ol class="relative mt-14 grid gap-8 lg:grid-cols-5 lg:gap-6">
+      <!-- Linha de progresso -->
+      <span class="absolute top-7 bottom-7 left-7 w-px bg-gradient-to-b from-brand via-brand-deep to-transparent lg:top-7 lg:right-[10%] lg:bottom-auto lg:left-[10%] lg:h-px lg:w-auto lg:bg-gradient-to-r" aria-hidden="true"></span>
+      {
+        steps.map((s, i) => (
+          <li data-reveal class="relative flex gap-5 lg:flex-col lg:items-center lg:text-center" style={`transition-delay:${i * 80}ms`}>
+            <span class="relative z-10 grid size-14 shrink-0 place-items-center rounded-full border border-brand/50 bg-bg text-brand">
+              <Icon name={s.icon} size={24} />
+            </span>
+            <div>
+              <p class="font-display text-sm font-semibold tracking-[0.2em] text-brand uppercase">Etapa {i + 1}</p>
+              <h3 class="mt-1 text-2xl font-bold">{s.title}</h3>
+              <p class="mt-2 text-sm text-muted">{s.text}</p>
+            </div>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>

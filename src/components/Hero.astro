@@ -1,0 +1,53 @@
+---
+import { Image } from 'astro:assets';
+import Icon from './Icon.astro';
+import { showPendingNotices, site } from '@/config/site';
+import { heroImage } from '@/lib/images';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+---
+
+<section id="inicio" class="relative overflow-hidden" data-wa-message={messages.general()}>
+  <div class="container-site grid items-center gap-10 pt-8 pb-16 md:pt-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14 lg:pb-24">
+    <div data-reveal>
+      <p class="eyebrow">Fotógrafo em {site.city} · {site.stateCode}</p>
+      <h1 class="mt-4 text-[3.4rem] font-extrabold sm:text-7xl lg:text-[5.6rem]">
+        Seus melhores momentos <span class="text-brand">merecem ser registrados.</span>
+      </h1>
+      <p class="mt-6 max-w-xl text-lg text-muted">
+        Fotografia esportiva, ensaios e cobertura de eventos em {site.city}. Conheça meus serviços e encontre o
+        pacote ideal para você.
+      </p>
+      <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+        <a href="#servicos" class="btn btn-primary">Conhecer serviços <Icon name="arrow-right" size={18} /></a>
+        <a href={whatsappLink(site.whatsappNumber, messages.quote())} target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+          <Icon name="whatsapp" size={20} class="text-brand" /> Solicitar orçamento
+        </a>
+      </div>
+    </div>
+
+    <div data-reveal class="relative">
+      <div class="absolute -inset-3 -z-10 rounded-[2rem] bg-brand-deep/25 blur-2xl" aria-hidden="true"></div>
+      {
+        heroImage ? (
+          <Image
+            src={heroImage}
+            alt={`Fotografia de destaque — ${site.name}`}
+            widths={[480, 800, 1200]}
+            sizes="(min-width: 1024px) 45vw, 100vw"
+            loading="eager"
+            fetchpriority="high"
+            class="aspect-[4/5] w-full rounded-3xl border border-line object-cover"
+          />
+        ) : (
+          <div class="grid aspect-[4/5] w-full place-items-center rounded-3xl border border-dashed border-brand/30 bg-gradient-to-br from-card to-bg-2 text-center">
+            <div class="px-8 text-muted">
+              <Icon name="camera" size={48} class="mx-auto text-brand/70" />
+              <p class="mt-4 font-display text-xl tracking-wide uppercase text-ink/80">{showPendingNotices ? 'Espaço para foto de destaque' : site.tagline}</p>
+              {showPendingNotices && <p class="mt-1 text-xs">Adicione uma imagem em src/assets/hero/</p>}
+            </div>
+          </div>
+        )
+      }
+    </div>
+  </div>
+</section>

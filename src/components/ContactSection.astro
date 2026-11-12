@@ -1,0 +1,159 @@
+---
+/**
+ * Contato + formulário de pré-orçamento.
+ * O formulário NÃO envia nem armazena dados: ele apenas monta a mensagem
+ * e abre o WhatsApp para o próprio cliente confirmar o envio.
+ */
+import Icon from './Icon.astro';
+import SectionHeading from './SectionHeading.astro';
+import { categories } from '@/data/categories';
+import { packagesByCategory } from '@/data/services';
+import { instagramUrl, site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const groups = categories.map((c) => ({ title: c.title, items: packagesByCategory(c.slug) })).filter((g) => g.items.length);
+
+const links = [
+  { label: 'WhatsApp', href: whatsappLink(site.whatsappNumber, messages.general()), icon: 'whatsapp', show: true },
+  { label: site.instagramUser ? `@${site.instagramUser}` : 'Instagram', href: instagramUrl, icon: 'instagram', show: !!instagramUrl },
+  { label: 'Minhas fotos na Fotto', href: site.fottoUrl, icon: 'external', show: !!site.fottoUrl },
+] as const;
+
+const field =
+  'mt-2 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 transition-colors focus:border-brand focus:outline-none';
+---
+
+<section id="contato" class="py-20 lg:py-28" data-wa-message={messages.quote()}>
+  <div class="container-site grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+    <div>
+      <SectionHeading eyebrow="Contato" title="Vamos conversar sobre" highlight="o seu projeto?" intro="Preencha o pré-orçamento ou fale direto comigo. Respondo pelo WhatsApp." />
+
+      <dl data-reveal class="mt-10 space-y-5">
+        <div>
+          <dt class="text-xs tracking-widest text-muted uppercase">Fotógrafo</dt>
+          <dd class="mt-1 font-display text-2xl font-bold uppercase">{site.name}</dd>
+        </div>
+        <div>
+          <dt class="text-xs tracking-widest text-muted uppercase">Localidade</dt>
+          <dd class="mt-1 flex items-center gap-2"><Icon name="pin" size={18} class="text-brand" /> {site.city}, {site.state}</dd>
+        </div>
+      </dl>
+
+      <ul data-reveal class="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        {
+          links.filter((l) => l.show).map((l) => (
+            <li>
+              <a href={l.href} target="_blank" rel="noopener noreferrer" class="btn btn-outline w-full sm:w-auto">
+                <Icon name={l.icon} size={20} class="text-brand" /> {l.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <form id="quote-form" data-reveal class="card p-6 sm:p-8" novalidate data-number={site.whatsappNumber}>
+      <h3 class="text-3xl font-bold">Pré-orçamento</h3>
+      <p class="mt-1 text-sm text-muted">Seus dados não ficam salvos no site: eles vão apenas na mensagem do WhatsApp.</p>
+
+      <div class="mt-6 grid gap-5 sm:grid-cols-2">
+        <label class="block sm:col-span-2">
+          <span class="text-sm font-medium">Seu nome <span class="text-brand" aria-hidden="true">*</span></span>
+          <input name="name" type="text" required autocomplete="name" maxlength="80" class={field} placeholder="Como posso te chamar?" />
+        </label>
+
+        <label class="block sm:col-span-2">
+          <span class="text-sm font-medium">Serviço desejado <span class="text-brand" aria-hidden="true">*</span></span>
+          <select name="service" required class={field}>
+            <option value="">Selecione um serviço</option>
+            {
+              groups.map((g) => (
+                <optgroup label={g.title}>
+                  {g.items.map((p) => (
+                    <option value={`${p.name} (${g.title})`}>{p.name}</option>
+                  ))}
+                </optgroup>
+              ))
+            }
+            <option value="Cobertura personalizada">Outro / personalizado</option>
+          </select>
+        </label>
+
+        <label class="block">
+          <span class="text-sm font-medium">Data prevista</span>
+          <input name="date" type="date" class={field} />
+        </label>
+
+        <label class="block">
+          <span class="text-sm font-medium">Local do evento</span>
+          <input name="location" type="text" maxlength="120" class={field} placeholder="Bairro, espaço ou cidade" />
+        </label>
+
+        <label class="block sm:col-span-2">
+          <span class="text-sm font-medium">Mensagem adicional</span>
+          <textarea name="message" rows="4" maxlength="800" class={field} placeholder="Conte um pouco sobre o que você precisa"></textarea>
+        </label>
+      </div>
+
+      <p data-error role="alert" class="mt-4 hidden text-sm text-red-300"></p>
+
+      <button type="submit" class="btn btn-primary mt-6 w-full">
+        <Icon name="whatsapp" size={20} /> Enviar solicitação
+      </button>
+      <p class="mt-3 text-center text-xs text-muted">O WhatsApp abrirá com a mensagem pronta para você confirmar o envio.</p>
+    </form>
+  </div>
+</section>
+
+<script>
+  import { messages, whatsappLink } from '@/lib/whatsapp';
+
+  const form = document.getElementById('quote-form') as HTMLFormElement | null;
+  if (form) {
+    const error = form.querySelector<HTMLElement>('[data-error]')!;
+    const dateInput = form.elements.namedItem('date') as HTMLInputElement;
+    // Bloqueia datas passadas (data local do cliente).
+    const now = new Date();
+    dateInput.min = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const get = (k: string) => String(data.get(k) ?? '').trim();
+      const missing: string[] = [];
+      const name = form.elements.namedItem('name') as HTMLInputElement;
+      const service = form.elements.namedItem('service') as HTMLSelectElement;
+      [name, service].forEach((el) => el.removeAttribute('aria-invalid'));
+      if (!get('name')) missing.push('seu nome'), name.setAttribute('aria-invalid', 'true');
+      if (!get('service')) missing.push('o serviço desejado'), service.setAttribute('aria-invalid', 'true');
+      if (get('date') && dateInput.min && get('date') < dateInput.min) {
+        missing.push('uma data futura');
+        dateInput.setAttribute('aria-invalid', 'true');
+      }
+      if (missing.length) {
+        error.textContent = `Por favor, informe ${missing.join(' e ')}.`;
+        error.classList.remove('hidden');
+        form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+        return;
+      }
+      error.classList.add('hidden');
+      const text = messages.form({
+        name: get('name'),
+        service: get('service'),
+        date: get('date'),
+        location: get('location'),
+        message: get('message'),
+      });
+      const url = whatsappLink(form.dataset.number ?? '', text);
+      // Abre em nova aba via link (window.open com 'noopener' não informa se abriu).
+      const a = Object.assign(document.createElement('a'), { href: url, target: '_blank', rel: 'noopener noreferrer' });
+      a.click();
+    });
+  }
+</script>
+
+<style>
+  [aria-invalid='true'] {
+    border-color: rgb(252 165 165);
+  }
+</style>

@@ -1,0 +1,50 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Hero from '@/components/Hero.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import ServiceCard from '@/components/ServiceCard.astro';
+import HowToHire from '@/components/HowToHire.astro';
+import Portfolio from '@/components/Portfolio.astro';
+import FAQ from '@/components/FAQ.astro';
+import ContactSection from '@/components/ContactSection.astro';
+import Icon from '@/components/Icon.astro';
+import { categories } from '@/data/categories';
+import { messages } from '@/lib/whatsapp';
+---
+
+<BaseLayout>
+  <Hero />
+
+  <section id="servicos" class="py-20 lg:py-28" data-wa-message={messages.general()}>
+    <div class="container-site">
+      <div class="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+        <SectionHeading eyebrow="Serviços" title="O que eu" highlight="fotografo" intro="Seis frentes de trabalho, do esporte aos eventos sociais. Escolha a categoria e veja os pacotes." />
+        <a href="/precos" data-reveal class="btn btn-outline shrink-0">Tabela completa <Icon name="arrow-right" size={18} /></a>
+      </div>
+      <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {categories.map((c) => <ServiceCard category={c} />)}
+      </div>
+    </div>
+  </section>
+
+  <HowToHire />
+
+  <section id="portfolio" class="py-20 lg:py-28">
+    <div class="container-site">
+      <SectionHeading eyebrow="Portfólio" title="Trabalhos" highlight="recentes" intro="Esporte, artes marciais, ensaios e eventos." />
+      <div class="mt-10"><Portfolio /></div>
+    </div>
+  </section>
+
+  <section id="duvidas" class="border-t border-line bg-bg-2 py-20 lg:py-28" data-wa-message={messages.faq()}>
+    <div class="container-site grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+      <div>
+        <SectionHeading eyebrow="FAQ" title="Dúvidas" highlight="frequentes" />
+        <a href="/faq" data-reveal class="btn btn-outline mt-8">Ver todas as dúvidas</a>
+      </div>
+      <div data-reveal><FAQ limit={5} /></div>
+    </div>
+  </section>
+
+  <ContactSection />
+</BaseLayout>

@@ -1,1 +1,193 @@
-# service.photo
+# Site de serviços fotográficos — Manaus/AM
+
+Site oficial com catálogo de serviços, tabela de preços com filtros, portfólio,
+"como contratar", dúvidas frequentes e pedidos de orçamento pelo WhatsApp.
+
+**Tecnologia:** [Astro](https://astro.build) + TypeScript + Tailwind CSS.
+Site 100% estático: sem servidor, sem banco de dados e sem armazenar dados de clientes.
+
+> ⚠️ Antes de publicar, veja **[PENDENCIAS.md](PENDENCIAS.md)** — preços, WhatsApp,
+> Instagram e algumas respostas do FAQ ainda precisam ser preenchidos.
+
+---
+
+## 1. Instalar e rodar no seu computador
+
+Pré-requisito: [Node.js](https://nodejs.org) **22.23 ou mais recente**.
+
+```bash
+npm install
+```
+
+```bash
+npm run dev
+```
+
+Abra http://localhost:4321. As alterações aparecem na hora.
+No modo dev aparecem selos amarelos **"Pendente de confirmação"** — eles somem na versão publicada.
+
+Outros comandos:
+
+| Comando | O que faz |
+| --- | --- |
+| `npm run build` | Checa os tipos (TypeScript) e gera o site final em `dist/` |
+| `npm run preview` | Abre a versão final gerada, como o cliente vai ver |
+| `npm test` | Testa as mensagens de WhatsApp e a integridade do catálogo |
+| `npm run check` | Só a verificação de TypeScript |
+
+## 2. Onde editar cada coisa
+
+| Quero mudar... | Arquivo |
+| --- | --- |
+| WhatsApp, Instagram, Fotto, nome, cidade, textos de SEO, menu | `src/config/site.ts` |
+| **Preços, pacotes, durações, prazos, destaques** | `src/data/services.ts` |
+| Categorias (títulos, descrições, ícones) | `src/data/categories.ts` |
+| Perguntas e respostas do FAQ | `src/data/faq.ts` |
+| Textos das mensagens de WhatsApp | `src/lib/whatsapp.ts` |
+| Etapas do "Como contratar" | `src/components/HowToHire.astro` |
+| Cores e fontes | `src/styles/global.css` (bloco `@theme`) |
+| Imagem de compartilhamento (redes sociais) | `public/og-image.png` (1200×630) |
+
+### Preços (o mais importante)
+Cada pacote em `src/data/services.ts` tem este formato:
+
+```ts
+{
+  id: 'ensaio-esportivo',          // único, sem espaços
+  category: 'fotografia-esportiva', // slug da categoria
+  name: 'Ensaio esportivo',
+  description: 'Cobertura fotográfica individual de treino ou atividade esportiva.',
+  price: 350,                       // número, sem "R$". null = sob consulta
+  priceUnit: 'por ensaio',
+  duration: '1 hora',
+  photos: '30 fotos editadas',
+  delivery: 'até 7 dias úteis',
+  benefits: ['...'],
+  conditions: ['...'],
+  highlight: 'Mais escolhido',      // opcional — só use se for verdade
+  confirmed: true,                  // ⚠️ só com true o preço aparece no site
+  active: true,                     // false esconde o pacote
+}
+```
+
+*(os valores acima são só exemplo de formato)*
+
+Regra de segurança: **enquanto `confirmed` for `false`, o preço não é publicado**. O cartão
+mostra "Sob consulta" e a mensagem de WhatsApp pede o valor em vez de citar um preço.
+
+### Fotos
+Coloque arquivos `.jpg`, `.png`, `.webp` ou `.avif` nas pastas — o site encontra sozinho:
+
+```
+src/assets/hero/                         → foto de destaque da página inicial (a 1ª em ordem alfabética)
+src/assets/portfolio/esportes/
+src/assets/portfolio/artes-marciais/
+src/assets/portfolio/ensaios/
+src/assets/portfolio/eventos-sociais/
+src/assets/portfolio/eventos-corporativos/
+```
+
+- O Astro redimensiona e converte para WebP automaticamente (carregamento rápido).
+- O **nome do arquivo vira a descrição** da foto (acessibilidade/SEO):
+  `corrida-ponta-negra.jpg` → "Corrida ponta negra". Use nomes descritivos.
+- Exporte do Lightroom em JPG com lado maior de ~2000px. Não precisa mais que isso.
+- Sem fotos, o site mostra espaços reservados elegantes (nunca fotos de terceiros).
+
+## 3. Como o WhatsApp funciona
+
+Todos os botões montam um link `wa.me` com mensagem pronta, conforme a origem:
+
+| Origem | Mensagem |
+| --- | --- |
+| Página inicial / menu | Interesse geral ou pedido de orçamento |
+| "Tenho interesse" no pacote | Nome do pacote + valor (se confirmado) |
+| Página de categoria | Nome da categoria |
+| FAQ | A pergunta que o cliente estava lendo |
+| Formulário de pré-orçamento | Nome, serviço, data, local e mensagem |
+| Botão flutuante | Muda conforme a seção que está na tela |
+
+O formulário **não envia nem guarda dados**: ele só abre o WhatsApp do cliente com o texto
+pronto para ele confirmar.
+
+## 4. Publicar no GitHub
+
+O código já está no repositório do GitHub. Para enviar novas alterações:
+
+```bash
+git add -A
+```
+
+```bash
+git commit -m "Atualiza preços"
+```
+
+```bash
+git push
+```
+
+## 5. Deploy (colocar no ar)
+
+### Opção A — Vercel (recomendada, mais simples)
+1. Entre em https://vercel.com com sua conta do GitHub.
+2. **Add New → Project** e escolha este repositório.
+3. A Vercel detecta Astro sozinha (build `npm run build`, pasta `dist`).
+4. Em **Environment Variables**, crie `SITE_URL` com o endereço final (ex.: `https://seudominio.com.br`).
+5. **Deploy**. Cada `git push` na branch principal publica de novo automaticamente.
+
+### Opção B — Cloudflare Pages
+1. https://dash.cloudflare.com → **Workers & Pages → Create → Pages → Connect to Git**.
+2. Framework preset: **Astro** · Build command: `npm run build` · Output: `dist`.
+3. Variáveis: `SITE_URL` = seu domínio e `NODE_VERSION` = `22`.
+
+Domínio próprio (ex.: `.com.br` no Registro.br): adicione em *Settings → Domains* na
+plataforma escolhida e siga as instruções de DNS.
+
+## 6. Estrutura do projeto
+
+```
+src/
+  config/site.ts          ← contatos e configurações gerais
+  data/
+    categories.ts         ← 6 categorias de serviço
+    services.ts           ← TODOS os pacotes e preços
+    faq.ts                ← dúvidas frequentes
+  lib/
+    whatsapp.ts           ← mensagens e links de WhatsApp
+    images.ts             ← leitura automática das fotos
+  components/             ← Header, Footer, Hero, ServiceCard, PricingCard,
+                            PricingCatalog, HowToHire, FAQ, Portfolio,
+                            ContactSection, WhatsAppButton, BackToTop, Icon...
+  layouts/BaseLayout.astro← SEO, Open Graph, estrutura das páginas
+  pages/
+    index.astro           ← página inicial (todas as seções)
+    precos.astro          ← tabela de preços com filtros (/precos)
+    faq.astro             ← /faq
+    servicos/[slug].astro ← /servicos/<categoria> (gerada automaticamente)
+    404.astro
+  styles/global.css       ← cores, fontes, botões
+  assets/                 ← fotos (hero e portfólio)
+public/                   ← favicon, og-image, robots.txt
+tests/                    ← testes automáticos
+scripts/og-image.mjs      ← regera a imagem de compartilhamento
+```
+
+## 7. Preparado para o futuro
+
+A organização já separa **dados** (`src/data`), **regras** (`src/lib`) e **visual**
+(`src/components`), o que facilita evoluir sem reescrever o site:
+
+- **Painel administrativo:** trocar `src/data/services.ts` por um CMS (ex.: Decap, Sanity) ou pelas
+  *Content Collections* do Astro — os componentes continuam recebendo o mesmo tipo `ServicePackage`.
+- **Agenda, agendamento com confirmação, pagamentos, área do cliente, galerias com senha:**
+  o Astro aceita páginas dinâmicas e rotas de API com um *adapter* (`@astrojs/vercel` ou
+  `@astrojs/cloudflare`) sem mudar o resto do projeto.
+- **Fotto / atendimento por IA:** novas integrações entram em `src/lib/` e são chamadas pelos
+  componentes existentes.
+
+## Acessibilidade e desempenho
+- Navegação completa por teclado, link "pular para o conteúdo", foco visível.
+- FAQ com `<details>` (funciona até sem JavaScript); visualizador de fotos com `<dialog>`
+  (Esc fecha, setas navegam, deslizar no celular).
+- Respeita "reduzir movimento" do sistema.
+- Fontes hospedadas no próprio site; imagens otimizadas e com carregamento progressivo.
+- SEO: título e descrição por página, Open Graph, dados estruturados (negócio local), sitemap.
