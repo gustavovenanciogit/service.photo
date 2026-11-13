@@ -113,6 +113,27 @@ Os valores de hora extra (R$ 150) e entrega expressa (R$ 120) vêm do catálogo.
 
 Cada cartão da tabela tem o link "Simular com extras", que abre o simulador já com o pacote escolhido.
 
+## 3.2 Gerador de propostas (`/proposta/nova`) — uso interno
+
+Página só sua (não aparece no menu nem no Google). Guarde nos favoritos:
+`https://venart.gustavovesss.workers.dev/proposta/nova`
+
+1. Escolha o **tipo de cliente** (academia, assessoria, evento…), o nome e o responsável.
+2. A **apresentação** é preenchida automaticamente e pode ser editada.
+3. **Adicione os serviços** da tabela (ou itens personalizados). Ajuste quantidade e valor —
+   se der desconto, o cliente vê "de R$ X por R$ Y".
+4. Defina data, local, **validade** e observações.
+5. **Enviar pelo WhatsApp** (com o número do cliente, se informado), **Copiar link** ou **Visualizar**.
+
+O cliente abre uma página com a proposta, fotos do portfólio do tipo de serviço, as condições
+de pagamento e os botões **Aceitar proposta**, **Tenho uma dúvida** e **Salvar em PDF**.
+
+- Não há servidor: a proposta vai **dentro do link** (depois do `#`). Os valores ficam
+  congelados no link — mudar a tabela depois não altera propostas já enviadas.
+- Como o link carrega os valores, **o valor oficial é o da conversa em que você enviou**.
+  Ao receber um "aceite", confira com o link original (fica nas *Propostas recentes* deste navegador).
+- Textos de apresentação por tipo de cliente: `src/data/proposal.ts`.
+
 ## 3.1 Como o WhatsApp funciona
 
 Todos os botões montam um link `wa.me` com mensagem pronta, conforme a origem:
