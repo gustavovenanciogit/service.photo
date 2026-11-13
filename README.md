@@ -45,6 +45,9 @@ Outros comandos:
 | Categorias, subgrupos e observações de rodapé | `src/data/categories.ts` |
 | Perguntas e respostas do FAQ | `src/data/faq.ts` |
 | Textos das mensagens de WhatsApp | `src/lib/whatsapp.ts` |
+| Simulador: percentuais, sinal, Pix, parcelas e quais pacotes aparecem | `src/data/simulator.ts` |
+| Simulador: regras de cálculo (domingo, após 22h etc.) | `src/lib/quote.ts` |
+| Fotos e legendas do portfólio, mosaico do topo | `src/data/portfolio.ts` |
 | Etapas do "Como contratar" | `src/components/HowToHire.astro` |
 | Cores e fontes | `src/styles/global.css` (bloco `@theme`) |
 | Imagem de compartilhamento (redes sociais) | `public/og-image.png` (1200×630) |
@@ -97,7 +100,20 @@ src/assets/portfolio/eventos-corporativos/
 - Exporte do Lightroom em JPG com lado maior de ~2000px. Não precisa mais que isso.
 - Sem fotos, o site mostra espaços reservados elegantes (nunca fotos de terceiros).
 
-## 3. Como o WhatsApp funciona
+## 3. Simulador de orçamento (`/simulador`)
+
+O cliente escolhe o pacote, soma extras e vê o total na hora; depois envia tudo pelo WhatsApp.
+Os valores de hora extra (R$ 150) e entrega expressa (R$ 120) vêm do catálogo. Regras:
+
+- **Domingo/feriado:** +20% sobre o pacote + horas extras
+- **Após 22h:** +15% sobre o pacote
+- **Corporativo:** por hora, mínimo de 2h · **Assinaturas:** valor mensal, sem extras
+- **Pagamento:** Pix à vista com 5% de desconto, 3x sem juros no cartão, sinal de 30%
+- Deslocamento não é cobrado no simulador · vídeo curto aparece como "sob consulta"
+
+Cada cartão da tabela tem o link "Simular com extras", que abre o simulador já com o pacote escolhido.
+
+## 3.1 Como o WhatsApp funciona
 
 Todos os botões montam um link `wa.me` com mensagem pronta, conforme a origem:
 

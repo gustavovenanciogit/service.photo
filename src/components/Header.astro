@@ -17,10 +17,10 @@ const quoteHref = whatsappLink(site.whatsappNumber, messages.quote());
       <span class="font-display text-2xl font-extrabold tracking-wide text-ink">
         {site.shortName}<span class="text-brand">.</span>
       </span>
-      <span class="hidden text-[10px] tracking-[0.25em] text-muted uppercase sm:block">{site.tagline}</span>
+      <span class="hidden text-[10px] tracking-[0.25em] text-muted uppercase sm:block xl:hidden 2xl:block">{site.tagline}</span>
     </a>
 
-    <nav aria-label="Menu principal" class="hidden lg:block">
+    <nav aria-label="Menu principal" class="hidden xl:block">
       <ul class="flex items-center gap-1">
         {
           navItems.map((item) => (
@@ -28,7 +28,7 @@ const quoteHref = whatsappLink(site.whatsappNumber, messages.quote());
               <a
                 href={item.href}
                 aria-current={isCurrent(item.href) ? 'page' : undefined}
-                class="rounded-full px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-ink aria-[current=page]:text-brand"
+                class="rounded-full px-2.5 py-2 text-sm font-medium whitespace-nowrap text-muted transition-colors hover:text-ink aria-[current=page]:text-brand"
               >
                 {item.label}
               </a>
@@ -50,7 +50,7 @@ const quoteHref = whatsappLink(site.whatsappNumber, messages.quote());
       <button
         id="menu-toggle"
         type="button"
-        class="grid size-11 place-items-center rounded-full border border-line text-ink lg:hidden"
+        class="grid size-11 place-items-center rounded-full border border-line text-ink xl:hidden"
         aria-controls="mobile-menu"
         aria-expanded="false"
         aria-label="Abrir menu"
@@ -62,7 +62,7 @@ const quoteHref = whatsappLink(site.whatsappNumber, messages.quote());
   </div>
 
   <!-- Menu mobile -->
-  <div id="mobile-menu" class="hidden border-t border-line bg-bg/98 backdrop-blur lg:hidden">
+  <div id="mobile-menu" class="hidden border-t border-line bg-bg/98 backdrop-blur xl:hidden">
     <nav aria-label="Menu principal (celular)" class="container-site py-4">
       <ul class="flex flex-col">
         {
@@ -111,7 +111,7 @@ const quoteHref = whatsappLink(site.whatsappNumber, messages.quote());
       toggle.focus();
     }
   });
-  window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => e.matches && setOpen(false));
+  window.matchMedia('(min-width: 1280px)').addEventListener('change', (e) => e.matches && setOpen(false));
 
   // Fundo do menu ganha cor ao rolar.
   const onScroll = () => header.classList.toggle('is-solid', window.scrollY > 8 || !menu.classList.contains('hidden'));

@@ -15,6 +15,17 @@ import { messages, whatsappLink } from '@/lib/whatsapp';
   <section class="py-14 lg:py-20">
     <div class="container-site">
       <SectionHeading as="h1" eyebrow={`${site.priceTable} · ${site.city}`} title="Tabela de" highlight="preços" intro="Filtre por categoria e clique em “Tenho interesse” para falar comigo pelo WhatsApp com o pacote já selecionado." />
+      <a
+        href="/simulador"
+        data-reveal
+        class="card card-hover mt-8 flex items-center justify-between gap-4 border-brand/40 bg-card/40 p-5 sm:p-6"
+      >
+        <span>
+          <span class="block font-display text-2xl font-bold uppercase">Simulador de orçamento</span>
+          <span class="text-sm text-muted">Some horas extras, domingo, entrega expressa e veja o total com Pix ou cartão.</span>
+        </span>
+        <Icon name="arrow-right" size={24} class="shrink-0 text-brand" />
+      </a>
       <div class="mt-10"><PricingCatalog /></div>
 
       <aside data-reveal class="mt-20 flex flex-col items-start gap-5 rounded-3xl border border-line bg-card/40 p-8 sm:flex-row sm:items-center sm:justify-between">

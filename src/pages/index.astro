@@ -19,7 +19,10 @@ import { messages } from '@/lib/whatsapp';
     <div class="container-site">
       <div class="flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <SectionHeading eyebrow="Serviços" title="O que eu" highlight="fotografo" intro="Seis frentes de trabalho, do esporte aos eventos sociais. Escolha a categoria e veja os pacotes." />
-        <a href="/precos" data-reveal class="btn btn-outline shrink-0">Tabela completa <Icon name="arrow-right" size={18} /></a>
+        <div data-reveal class="flex shrink-0 flex-col gap-3 sm:flex-row">
+          <a href="/simulador" class="btn btn-primary">Simular orçamento</a>
+          <a href="/precos" class="btn btn-outline">Tabela completa <Icon name="arrow-right" size={18} /></a>
+        </div>
       </div>
       <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((c) => <ServiceCard category={c} />)}
