@@ -110,3 +110,41 @@
     transform: none;
   }
 }
+
+/* ─────────── Impressão / "Salvar em PDF" (propostas) ─────────── */
+@media print {
+  :root {
+    --color-bg: #ffffff;
+    --color-bg-2: #ffffff;
+    --color-card: #eef5ee;
+    --color-ink: #111811;
+    --color-muted: #4d574f;
+    --color-brand: #076943;
+    --color-line: #d5e0d6;
+  }
+  #site-header,
+  #site-header + div,
+  footer,
+  #wa-float,
+  #back-to-top,
+  .no-print {
+    display: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  .js [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .card {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+  @page {
+    margin: 14mm;
+  }
+}

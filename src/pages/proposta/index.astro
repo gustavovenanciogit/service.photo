@@ -1,0 +1,231 @@
+---
+/**
+ * Página da proposta (o que o cliente vê).
+ * O conteúdo vem do link (/proposta/#d=...) e é montado no navegador.
+ * Não aparece no Google (noindex) nem no sitemap.
+ */
+import { Image } from 'astro:assets';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { paymentTerms, site } from '@/config/site';
+import { portfolioCategories, portfolioPhotos } from '@/lib/images';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+import { clientTypes } from '@/data/proposal';
+
+// Até 3 fotos por categoria do portfólio; a página mostra as do tipo de cliente.
+const typeFolders = JSON.stringify(Object.fromEntries(clientTypes.map((t) => [t.id, t.portfolio])));
+const folders = [...portfolioCategories.map((c) => c.folder), ''];
+const samples = folders.map((folder) => ({
+  folder,
+  photos: (folder ? portfolioPhotos.filter((p) => p.category === folder) : portfolioPhotos).slice(0, 3),
+}));
+---
+
+<BaseLayout title="Proposta comercial" description={`Proposta de serviços fotográficos — ${site.name}.`} noindex waMessage={messages.general()}>
+  <section class="py-10 lg:py-16" data-proposal data-number={site.whatsappNumber} data-folders={typeFolders}>
+    <div class="container-site max-w-4xl">
+      <!-- Link inválido -->
+      <div data-error hidden class="card p-8 text-center">
+        <Icon name="search" size={40} class="mx-auto text-brand" />
+        <h1 class="mt-4 text-4xl font-extrabold">Proposta não encontrada</h1>
+        <p class="mt-3 text-muted">O link pode estar incompleto. Peça um novo link ou fale comigo pelo WhatsApp.</p>
+        <a href={whatsappLink(site.whatsappNumber, messages.general())} target="_blank" rel="noopener noreferrer" class="btn btn-primary mt-6">
+          <Icon name="whatsapp" size={20} /> Falar no WhatsApp
+        </a>
+      </div>
+
+      <article data-content hidden>
+        <!-- Cabeçalho -->
+        <header class="border-b border-line pb-8">
+          <p class="eyebrow">Proposta comercial · <span data-f="id"></span></p>
+          <h1 class="mt-3 text-5xl font-extrabold sm:text-6xl">
+            Proposta para <span class="text-brand" data-f="client"></span>
+          </h1>
+          <dl class="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4" data-meta></dl>
+          <p data-expired hidden class="mt-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200">
+            Esta proposta venceu. Os valores podem ter mudado — fale comigo para receber uma versão atualizada.
+          </p>
+        </header>
+
+        <!-- Apresentação -->
+        <div class="mt-8 space-y-3 text-lg leading-relaxed text-ink/90" data-msg></div>
+
+        <!-- Serviços -->
+        <section class="mt-10" aria-labelledby="servicos-titulo">
+          <h2 id="servicos-titulo" class="text-3xl font-bold">Serviços</h2>
+          <ul class="mt-5 space-y-3" data-items></ul>
+        </section>
+
+        <!-- Investimento -->
+        <section class="mt-8 card border-brand/40 p-6 sm:p-8" aria-labelledby="investimento-titulo">
+          <h2 id="investimento-titulo" class="text-3xl font-bold">Investimento</h2>
+          <dl class="mt-5 space-y-4" data-totals></dl>
+          <div data-payment hidden class="mt-6 border-t border-line pt-6">
+            <p class="text-xs tracking-widest text-muted uppercase">Formas de pagamento</p>
+            <ul class="mt-3 grid gap-3 sm:grid-cols-3">
+              {
+                paymentTerms.map((t) => (
+                  <li class="rounded-xl bg-card/60 p-4">
+                    <p class="font-display text-3xl font-extrabold text-brand">{t.value}</p>
+                    <p class="text-sm">{t.label}</p>
+                  </li>
+                ))
+              }
+            </ul>
+            <p class="mt-3 text-sm text-muted" data-pix></p>
+          </div>
+        </section>
+
+        <!-- Observações -->
+        <section data-notes-wrap hidden class="mt-8 rounded-2xl bg-card/60 p-6 text-sm" aria-label="Observações">
+          <p class="mb-2 flex items-center gap-2 font-semibold text-brand"><Icon name="check" size={16} /> Observações</p>
+          <ul class="space-y-1.5 text-ink/85" data-notes></ul>
+        </section>
+
+        <!-- Trabalhos -->
+        {
+          portfolioPhotos.length > 0 && (
+            <section class="mt-12 no-print" aria-labelledby="trabalhos-titulo">
+              <h2 id="trabalhos-titulo" class="text-3xl font-bold">Alguns trabalhos</h2>
+              {samples.map((s) =>
+                s.photos.length ? (
+                  <ul data-samples={s.folder} hidden class="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+                    {s.photos.map((p) => (
+                      <li>
+                        <Image src={p.src} alt={p.alt} widths={[240, 400]} sizes="(min-width: 768px) 280px, 33vw" class="aspect-[4/5] w-full rounded-xl border border-line object-cover" />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null,
+              )}
+              <a href="/#portfolio" class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand hover:underline">
+                Ver portfólio completo <Icon name="arrow-right" size={16} />
+              </a>
+            </section>
+          )
+        }
+
+        <!-- Ações -->
+        <section class="mt-12 card p-6 text-center sm:p-8 no-print">
+          <h2 class="text-3xl font-bold">Vamos fechar?</h2>
+          <p class="mt-2 text-muted">Clique para aceitar ou tirar dúvidas direto comigo pelo WhatsApp.</p>
+          <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <a data-accept href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+              <Icon name="whatsapp" size={20} /> Aceitar proposta
+            </a>
+            <a data-question href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline">Tenho uma dúvida</a>
+            <button type="button" data-print class="btn btn-outline">Salvar em PDF</button>
+          </div>
+        </section>
+
+        <p class="mt-8 text-center text-xs text-muted">
+          {site.name} · {site.city}, {site.stateCode} · {site.whatsappDisplay}{site.instagramUser && ` · @${site.instagramUser}`}
+        </p>
+      </article>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { acceptMessage, decodeProposal, formatDateBR, isExpired, lineTotal, proposalTotals, questionMessage } from '@/lib/proposal';
+  import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+
+  const root = document.querySelector<HTMLElement>('[data-proposal]')!;
+  const number = root.dataset.number ?? '';
+  const q = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  // Sempre textContent: o conteúdo do link nunca vira HTML.
+  const el = (tag: string, cls = '', text = '') => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  };
+
+  const render = () => {
+    const code = new URLSearchParams(location.hash.slice(1)).get('d');
+    const p = code ? decodeProposal(code) : null;
+    q('[data-error]').hidden = !!p;
+    q('[data-content]').hidden = !p;
+    if (!p) return;
+
+    document.title = `Proposta para ${p.cl} | ${document.title.split('|').pop()!.trim()}`;
+    q('[data-f="id"]').textContent = p.id;
+    q('[data-f="client"]').textContent = p.cl;
+
+    const meta: [string, string | undefined][] = [
+      ['Emitida em', formatDateBR(p.em)],
+      ['Válida até', p.val && formatDateBR(p.val)],
+      ['Data', p.ev && formatDateBR(p.ev)],
+      ['Local', p.loc],
+    ];
+    q('[data-meta]').replaceChildren(
+      ...meta.filter(([, v]) => v).map(([k, v]) => {
+        const d = el('div');
+        d.append(el('dt', 'text-xs tracking-widest text-muted uppercase', k), el('dd', 'mt-1 font-medium', v!));
+        return d;
+      }),
+    );
+    q('[data-expired]').hidden = !isExpired(p);
+
+    q('[data-msg]').replaceChildren(...p.msg.split(/\n\s*\n|\n/).filter((t) => t.trim()).map((t) => el('p', '', t)));
+
+    // Itens
+    q('[data-items]').replaceChildren(
+      ...p.it.map((i) => {
+        const li = el('li', 'card p-5');
+        const top = el('div', 'flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6');
+        const left = el('div', 'min-w-0');
+        if (i.c) left.append(el('p', 'eyebrow text-xs', i.c));
+        left.append(el('h3', 'mt-1 text-2xl font-bold', i.n));
+        const right = el('div', 'shrink-0 sm:text-right');
+        if (i.o && i.o > i.p) right.append(el('p', 'text-sm text-muted line-through', formatBRL(i.o * i.q)));
+        right.append(el('p', 'font-display text-3xl font-extrabold text-brand', formatBRL(lineTotal(i)) + (i.m ? '/mês' : '')));
+        const unit = `${i.q} × ${formatBRL(i.p)}${i.u ?? ''}`;
+        if (i.q > 1 || i.u) right.append(el('p', 'text-xs text-muted', unit));
+        top.append(left, right);
+        li.append(top);
+        if (i.d?.length) {
+          const ul = el('ul', 'mt-3 flex flex-wrap gap-2');
+          i.d.forEach((d) => ul.append(el('li', 'rounded-full bg-card/70 px-3 py-1 text-xs text-ink/85', d)));
+          li.append(ul);
+        }
+        return li;
+      }),
+    );
+
+    // Totais
+    const t = proposalTotals(p);
+    const row = (label: string, value: string, big = false) => {
+      const d = el('div', 'flex items-baseline justify-between gap-4');
+      d.append(el('dt', big ? 'text-ink' : 'text-muted', label), el('dd', big ? 'font-display text-4xl font-extrabold text-brand' : 'font-semibold', value));
+      return d;
+    };
+    const rows: HTMLElement[] = [];
+    if (t.once) rows.push(row(t.monthly ? 'Serviços avulsos' : 'Total', formatBRL(t.once), true));
+    if (t.monthly) rows.push(row(t.once ? 'Assinatura mensal' : 'Total mensal', `${formatBRL(t.monthly)}/mês`, true));
+    if (t.savings) rows.push(row('Desconto nesta proposta', `− ${formatBRL(t.savings)}`));
+    q('[data-totals]').replaceChildren(...rows);
+
+    q('[data-payment]').hidden = !p.pay;
+    q('[data-pix]').textContent = p.pay && t.once ? `${t.monthly ? 'Serviços avulsos no' : 'No'} Pix à vista: ${formatBRL(Math.round(t.once * 95) / 100)}.` : '';
+
+    // Observações
+    const notes = [...(p.nt ?? []), ...(p.obs ? p.obs.split('\n').filter((x) => x.trim()) : [])];
+    q('[data-notes-wrap]').hidden = notes.length === 0;
+    q('[data-notes]').replaceChildren(...notes.map((n) => el('li', '', `• ${n}`)));
+
+    // Fotos do tipo de cliente (ou um mix)
+    const map = JSON.parse(root.dataset.folders ?? '{}') as Record<string, string>;
+    const want = map[p.t] ?? '';
+    const lists = [...root.querySelectorAll<HTMLElement>('[data-samples]')];
+    const pick = lists.find((l) => l.dataset.samples === want) ?? lists.find((l) => l.dataset.samples === '');
+    lists.forEach((l) => (l.hidden = l !== pick));
+
+    q<HTMLAnchorElement>('[data-accept]').href = whatsappLink(number, acceptMessage(p));
+    q<HTMLAnchorElement>('[data-question]').href = whatsappLink(number, questionMessage(p));
+  };
+
+  q('[data-print]').addEventListener('click', () => window.print());
+  window.addEventListener('hashchange', render);
+  render();
+</script>
