@@ -48,6 +48,8 @@ export interface ServicePackage {
   addon?: boolean;
   /** Compra direta numa plataforma (o botão leva para lá, e não para o WhatsApp). */
   buyAt?: 'fotto';
+  /** Assinatura/plano recorrente (no simulador: sem extras, pagamento mensal). */
+  subscription?: boolean;
   /** Conferido com a tabela oficial? */
   confirmed: boolean;
   /** Exibir no site? */
@@ -116,6 +118,7 @@ export const packages: ServicePackage[] = [
   }),
   item({
     id: 'plano-mensal-assessoria',
+    subscription: true,
     category: 'fotografia-esportiva',
     name: 'Plano mensal assessoria',
     description: '4 treinos por mês.',
@@ -146,6 +149,7 @@ export const packages: ServicePackage[] = [
   }),
   item({
     id: 'academia-cobertura-quinzenal',
+    subscription: true,
     category: 'academias-de-luta',
     group: 'cobertura-geral',
     name: 'Plano quinzenal',
@@ -156,6 +160,7 @@ export const packages: ServicePackage[] = [
   }),
   item({
     id: 'academia-cobertura-mensal',
+    subscription: true,
     category: 'academias-de-luta',
     group: 'cobertura-geral',
     name: 'Plano mensal',
@@ -185,6 +190,7 @@ export const packages: ServicePackage[] = [
   }),
   item({
     id: 'academia-marketing-quinzenal',
+    subscription: true,
     category: 'academias-de-luta',
     group: 'marketing',
     name: 'Plano quinzenal',
@@ -195,6 +201,7 @@ export const packages: ServicePackage[] = [
   }),
   item({
     id: 'academia-marketing-mensal',
+    subscription: true,
     category: 'academias-de-luta',
     group: 'marketing',
     name: 'Plano mensal',
@@ -216,6 +223,7 @@ export const packages: ServicePackage[] = [
   }),
   item({
     id: 'plano-atleta',
+    subscription: true,
     category: 'atletas-de-luta',
     name: 'Plano atleta',
     description: '2 sessões de treino por mês.',
@@ -344,8 +352,8 @@ export const packages: ServicePackage[] = [
     price: 1.5,
     priceUnit: '/km',
   }),
-  item({ id: 'extra-domingos-feriados', category: 'extras-e-pagamento', addon: true, name: 'Domingos e feriados', description: 'Acréscimo sobre o valor do serviço.', price: null, priceLabel: '+20%' }),
-  item({ id: 'extra-apos-22h', category: 'extras-e-pagamento', addon: true, name: 'Horas após 22h', description: 'Acréscimo sobre as horas após as 22h.', price: null, priceLabel: '+15%' }),
+  item({ id: 'extra-domingos-feriados', category: 'extras-e-pagamento', addon: true, name: 'Domingos e feriados', description: 'Acréscimo sobre o pacote e as horas extras.', price: null, priceLabel: '+20%' }),
+  item({ id: 'extra-apos-22h', category: 'extras-e-pagamento', addon: true, name: 'Horas após 22h', description: 'Acréscimo sobre o pacote quando o evento passa das 22h.', price: null, priceLabel: '+15%' }),
   item({ id: 'extra-video-curto', category: 'extras-e-pagamento', addon: true, name: 'Vídeo curto', description: 'Somente a pedido do cliente.', price: null }),
 ];
 

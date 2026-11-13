@@ -1,0 +1,26 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import QuoteSimulator from '@/components/QuoteSimulator.astro';
+import { site } from '@/config/site';
+import { messages } from '@/lib/whatsapp';
+---
+
+<BaseLayout
+  title="Simulador de orçamento"
+  description={`Simule o valor do seu ensaio, evento ou cobertura esportiva em ${site.city}: escolha o pacote, adicione extras e envie pelo WhatsApp.`}
+  waMessage={messages.quote()}
+>
+  <section class="py-14 lg:py-20">
+    <div class="container-site">
+      <SectionHeading
+        as="h1"
+        eyebrow={`${site.priceTable} · ${site.city}`}
+        title="Simule seu"
+        highlight="orçamento"
+        intro="Escolha o serviço, adicione o que precisar e veja o valor na hora. Depois é só enviar pelo WhatsApp para confirmar a data."
+      />
+      <div class="mt-10"><QuoteSimulator /></div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,313 @@
+---
+/**
+ * Simulador de orçamento (interativo).
+ * Cálculo: src/lib/quote.ts · Regras e pacotes: src/data/simulator.ts.
+ * Nada é enviado nem salvo: o resultado vira uma mensagem de WhatsApp
+ * que o cliente confirma antes de enviar.
+ */
+import Icon from './Icon.astro';
+import { simulatorGroups, quoteRules } from '@/data/simulator';
+import { packages } from '@/data/services';
+import { site } from '@/config/site';
+import { formatBRL } from '@/lib/whatsapp';
+
+// Detalhes exibidos ao escolher o pacote.
+const details = Object.fromEntries(
+  simulatorGroups
+    .flatMap((g) => g.items)
+    .map((i) => {
+      const p = packages.find((x) => x.id === i.id)!;
+      return [i.id, [p.description, p.duration && `Duração: ${p.duration}`, p.delivery && `Entrega: ${p.delivery}`].filter(Boolean)];
+    }),
+);
+const payload = { groups: simulatorGroups, rules: quoteRules, details, number: site.whatsappNumber };
+
+const toggle =
+  'flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-bg p-4 transition-colors hover:border-brand/40 has-[:checked]:border-brand has-[:checked]:bg-card/50';
+const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
+---
+
+<div id="simulador" class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:gap-8">
+  <noscript>
+    <p class="card p-6 text-muted">
+      O simulador precisa de JavaScript. Consulte os valores na <a href="/precos" class="text-brand underline">tabela de preços</a>.
+    </p>
+  </noscript>
+
+  <form data-sim class="card space-y-8 p-5 sm:p-8" novalidate>
+    <!-- 1. Serviço -->
+    <fieldset>
+      <legend class="flex items-center gap-3 font-display text-2xl font-bold uppercase">
+        <span class="grid size-8 place-items-center rounded-full bg-brand font-sans text-sm text-bg">1</span> Escolha o serviço
+      </legend>
+      <label class="mt-4 block">
+        <span class="sr-only">Serviço</span>
+        <select
+          name="package"
+          class="w-full rounded-xl border border-line bg-bg px-4 py-3.5 text-ink transition-colors focus:border-brand focus:outline-none"
+        >
+          {
+            simulatorGroups.map((g) => (
+              <optgroup label={g.title}>
+                {g.items.map((p) => (
+                  <option value={p.id}>
+                    {p.label} · {formatBRL(p.price)}
+                    {p.hourly ? '/hora' : p.subscription ? '/mês' : ''}
+                  </option>
+                ))}
+              </optgroup>
+            ))
+          }
+        </select>
+      </label>
+      <ul data-details class="mt-3 flex flex-wrap gap-2 text-xs text-muted"></ul>
+    </fieldset>
+
+    <!-- 2. Opções -->
+    <fieldset data-options>
+      <legend class="flex items-center gap-3 font-display text-2xl font-bold uppercase">
+        <span class="grid size-8 place-items-center rounded-full bg-brand font-sans text-sm text-bg">2</span> Personalize
+      </legend>
+
+      <p data-sub-note class="mt-4 hidden rounded-xl bg-card/60 p-4 text-sm text-ink/85">
+        Planos de assinatura têm valor mensal fixo. Extras são combinados pelo WhatsApp.
+      </p>
+
+      <div class="mt-4 space-y-3">
+        <!-- Horas (pacotes por hora) -->
+        <div data-row="hours" class="hidden items-center justify-between gap-4 rounded-xl border border-line bg-bg p-4">
+          <div>
+            <p class="font-medium">Horas de cobertura</p>
+            <p class="text-sm text-muted" data-hours-hint></p>
+          </div>
+          <div class="flex items-center gap-2" data-stepper="hours">
+            <button type="button" data-step="-1" class="step-btn" aria-label="Menos uma hora">−</button>
+            <input name="hours" type="number" inputmode="numeric" class="step-input" aria-label="Horas de cobertura" />
+            <button type="button" data-step="1" class="step-btn" aria-label="Mais uma hora">+</button>
+          </div>
+        </div>
+
+        <!-- Horas extras -->
+        <div data-row="extra" class="flex items-center justify-between gap-4 rounded-xl border border-line bg-bg p-4">
+          <div>
+            <p class="font-medium">Horas extras</p>
+            <p class="text-sm text-muted">{formatBRL(quoteRules.extraHour)} por hora</p>
+          </div>
+          <div class="flex items-center gap-2" data-stepper="extra">
+            <button type="button" data-step="-1" class="step-btn" aria-label="Menos uma hora extra">−</button>
+            <input name="extraHours" type="number" inputmode="numeric" value="0" min="0" max={quoteRules.maxExtraHours} class="step-input" aria-label="Horas extras" />
+            <button type="button" data-step="1" class="step-btn" aria-label="Mais uma hora extra">+</button>
+          </div>
+        </div>
+
+        <label data-row="sunday" class={toggle}>
+          <input type="checkbox" name="sunday" class={box} />
+          <span>
+            <span class="font-medium">Domingo ou feriado</span>
+            <span class="block text-sm text-muted">+{quoteRules.sundayPct}% sobre o pacote e as horas extras</span>
+          </span>
+        </label>
+
+        <label data-row="after22" class={toggle}>
+          <input type="checkbox" name="after22" class={box} />
+          <span>
+            <span class="font-medium">O evento passa das 22h</span>
+            <span class="block text-sm text-muted">+{quoteRules.after22Pct}% sobre o pacote</span>
+          </span>
+        </label>
+
+        <label data-row="express" class={toggle}>
+          <input type="checkbox" name="express" class={box} />
+          <span>
+            <span class="font-medium">Entrega expressa (48h)</span>
+            <span class="block text-sm text-muted">+{formatBRL(quoteRules.expressDelivery)}</span>
+          </span>
+        </label>
+
+        <label data-row="video" class={toggle}>
+          <input type="checkbox" name="video" class={box} />
+          <span>
+            <span class="font-medium">Quero vídeo curto</span>
+            <span class="block text-sm text-muted">Sob consulta · somente a pedido do cliente</span>
+          </span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- 3. Data -->
+    <fieldset>
+      <legend class="flex items-center gap-3 font-display text-2xl font-bold uppercase">
+        <span class="grid size-8 place-items-center rounded-full bg-brand font-sans text-sm text-bg">3</span> Data prevista
+        <span class="font-sans text-sm font-normal tracking-normal text-muted normal-case">(opcional)</span>
+      </legend>
+      <input
+        name="date"
+        type="date"
+        aria-label="Data prevista"
+        class="mt-4 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink transition-colors focus:border-brand focus:outline-none sm:w-auto"
+      />
+    </fieldset>
+  </form>
+
+  <!-- Resumo -->
+  <aside id="resumo" class="card border-brand/40 p-5 sm:p-8 lg:sticky lg:top-24" aria-labelledby="resumo-titulo">
+    <p class="eyebrow">Resumo</p>
+    <h2 id="resumo-titulo" class="mt-1 text-3xl font-bold" data-sum-title>Seu orçamento</h2>
+
+    <dl data-lines class="mt-5 space-y-2 border-t border-line pt-4 text-sm"></dl>
+
+    <div class="mt-5 border-t border-line pt-4" aria-live="polite">
+      <p class="text-xs tracking-widest text-muted uppercase">Total estimado</p>
+      <p class="font-display text-5xl font-extrabold text-brand" data-total>—</p>
+      <ul data-payment class="mt-3 space-y-1.5 text-sm"></ul>
+    </div>
+
+    <ul data-notes class="mt-4 space-y-1 text-xs text-muted"></ul>
+
+    <a data-send href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary mt-6 w-full">
+      <Icon name="whatsapp" size={20} /> Enviar pelo WhatsApp
+    </a>
+    <p class="mt-3 text-center text-xs text-muted">
+      Valor estimado com base na {site.priceTable}. O valor final é confirmado no atendimento.
+    </p>
+  </aside>
+</div>
+
+<script type="application/json" id="sim-data" set:html={JSON.stringify(payload)} />
+
+<style>
+  @reference '../styles/global.css';
+  .step-btn {
+    @apply grid size-10 place-items-center rounded-full border border-line text-xl leading-none text-ink transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-line disabled:hover:text-ink;
+  }
+  .step-input {
+    @apply w-12 rounded-lg bg-transparent text-center font-display text-2xl font-bold text-ink focus:outline-none;
+    -moz-appearance: textfield;
+  }
+  .step-input::-webkit-inner-spin-button,
+  .step-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+  }
+</style>
+
+<script>
+  import { calculateQuote, quoteMessage, type QuotePackage, type QuoteRules } from '@/lib/quote';
+  import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+
+  type Item = QuotePackage & { label: string };
+  const data = JSON.parse(document.getElementById('sim-data')!.textContent!) as {
+    groups: { slug: string; title: string; items: Item[] }[];
+    rules: QuoteRules;
+    details: Record<string, string[]>;
+    number: string;
+  };
+  const items = data.groups.flatMap((g) => g.items);
+  const form = document.querySelector<HTMLFormElement>('[data-sim]')!;
+  const $ = <T extends Element = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+  const el = (tag: string, cls: string, text: string) => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+
+  const select = form.elements.namedItem('package') as HTMLSelectElement;
+  const hours = form.elements.namedItem('hours') as HTMLInputElement;
+  const extra = form.elements.namedItem('extraHours') as HTMLInputElement;
+  const checked = (n: string) => (form.elements.namedItem(n) as HTMLInputElement).checked;
+  const row = (n: string) => $(`[data-row="${n}"]`);
+  const show = (n: string, on: boolean, flex = false) => {
+    row(n).classList.toggle('hidden', !on);
+    if (flex) row(n).classList.toggle('flex', on);
+  };
+
+  // Data mínima = hoje.
+  const today = new Date();
+  ($('[name="date"]') as HTMLInputElement).min = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+  // Pacote inicial vindo da URL: /simulador?pacote=evento-classico
+  const fromUrl = new URL(location.href).searchParams.get('pacote');
+  if (fromUrl && items.some((i) => i.id === fromUrl)) select.value = fromUrl;
+
+  const clampInput = (input: HTMLInputElement, min: number, max: number) => {
+    const v = Math.min(max, Math.max(min, Math.floor(Number(input.value) || min)));
+    input.value = String(v);
+    const box = input.parentElement!;
+    (box.querySelector('[data-step="-1"]') as HTMLButtonElement).disabled = v <= min;
+    (box.querySelector('[data-step="1"]') as HTMLButtonElement).disabled = v >= max;
+    return v;
+  };
+
+  let lastPkg = '';
+  const render = () => {
+    const pkg = items.find((i) => i.id === select.value) ?? items[0]!;
+
+    // Ao trocar de pacote, ajusta as opções disponíveis.
+    if (pkg.id !== lastPkg) {
+      lastPkg = pkg.id;
+      if (pkg.hourly) {
+        hours.value = String(Math.max(pkg.hourly.min, Number(hours.value) || 0));
+        $('[data-hours-hint]').textContent = `${formatBRL(pkg.price)} por hora · mínimo de ${pkg.hourly.min}h`;
+      }
+      const url = new URL(location.href);
+      url.searchParams.set('pacote', pkg.id);
+      history.replaceState(null, '', url);
+    }
+    const sub = !!pkg.subscription;
+    show('hours', !!pkg.hourly && !sub, true);
+    show('extra', !pkg.hourly && !sub, true);
+    show('sunday', !sub);
+    show('after22', !sub);
+    show('express', pkg.allowExpress);
+    $('[data-sub-note]').classList.toggle('hidden', !sub);
+
+    const h = pkg.hourly ? clampInput(hours, pkg.hourly.min, 24) : undefined;
+    const x = clampInput(extra, 0, data.rules.maxExtraHours);
+
+    const result = calculateQuote(
+      pkg,
+      { hours: h, extraHours: x, sunday: checked('sunday'), after22: checked('after22'), express: checked('express'), video: checked('video') },
+      data.rules,
+    );
+
+    // Detalhes do pacote
+    const det = $('[data-details]');
+    det.replaceChildren(...(data.details[pkg.id] ?? []).map((d) => el('li', 'rounded-full bg-card/70 px-3 py-1', d)));
+
+    // Linhas do resumo
+    $('[data-sum-title]').textContent = pkg.name;
+    $('[data-lines]').replaceChildren(
+      ...result.lines.map((l) => {
+        const div = el('div', 'flex justify-between gap-4', '');
+        div.append(el('dt', 'text-muted', l.label), el('dd', 'shrink-0 text-right text-ink', l.amount === null ? 'Sob consulta' : formatBRL(l.amount)));
+        return div;
+      }),
+    );
+    $('[data-total]').textContent = formatBRL(result.total) + (sub ? '/mês' : '');
+
+    const pay = $('[data-payment]');
+    if (result.payment) {
+      const p = result.payment;
+      pay.replaceChildren(
+        el('li', '', `Pix à vista: ${formatBRL(p.pix)} (5% de desconto)`),
+        el('li', '', `Cartão: ${p.installments}x de ${formatBRL(p.installment)} sem juros`),
+        el('li', 'text-muted', `Sinal para reservar a data: ${formatBRL(p.deposit)} (30%)`),
+      );
+    } else {
+      pay.replaceChildren(el('li', 'text-muted', 'Pagamento mensal antecipado.'));
+    }
+    $('[data-notes]').replaceChildren(...(pkg.notes ?? []).map((n) => el('li', '', `• ${n}`)));
+
+    const date = ($('[name="date"]') as HTMLInputElement).value;
+    ($('[data-send]') as HTMLAnchorElement).href = whatsappLink(data.number, quoteMessage(pkg, result, { date }));
+  };
+
+  form.querySelectorAll<HTMLElement>('[data-stepper]').forEach((s) => {
+    const input = s.querySelector('input')!;
+    s.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) =>
+      b.addEventListener('click', () => {
+        input.value = String((Number(input.value) || 0) + Number(b.dataset.step));
+        render();
+      }),
+    );
+  });
+  form.addEventListener('input', render);
+  form.addEventListener('change', render);
+  form.addEventListener('submit', (e) => e.preventDefault());
+  render();
+</script>

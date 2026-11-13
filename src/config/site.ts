@@ -61,7 +61,7 @@ export const paymentTerms = [
 ] as const;
 
 /** Exibe avisos de "pendente de confirmação" (apenas no `npm run dev`). */
-export const showPendingNotices = import.meta.env.DEV;
+export const showPendingNotices = import.meta.env?.DEV ?? false;
 
 export const instagramUrl = site.instagramUser
   ? `https://www.instagram.com/${site.instagramUser}/`
@@ -72,6 +72,7 @@ export const navItems = [
   { label: 'Início', href: '/#inicio' },
   { label: 'Serviços', href: '/#servicos' },
   { label: 'Tabela de preços', href: '/precos' },
+  { label: 'Simulador', href: '/simulador' },
   { label: 'Como contratar', href: '/#como-contratar' },
   { label: 'Dúvidas frequentes', href: '/faq' },
   { label: 'Contato', href: '/#contato' },
