@@ -32,3 +32,18 @@ test('status "vencida" calculado pela validade', () => {
   assert.equal(displayStatus({ status: 'enviada', valid_until: '2026-11-13' }, '2026-11-13').id, 'enviada');
   assert.equal(displayStatus({ status: 'aceita', valid_until: '2026-11-01' }, '2026-11-13').id, 'aceita');
 });
+
+import { parseLead } from '../src/lib/crm.ts';
+
+test('pedido do site: limpa e limita os dados públicos', () => {
+  assert.equal(parseLead({ source: 'outro', name: 'Ana' }).ok, false);
+  assert.equal(parseLead({ source: 'formulario' }).ok, false);
+  const r = parseLead({ source: 'simulador', name: 'Ana <b>', phone: '(92) 9 8888-7777<x>', package_id: 'evento-classico"; DROP', total: '1411.5', event_date: 'amanhã', message: 'x'.repeat(5000) });
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  assert.equal(r.value.phone, '(92) 9 8888-7777');
+  assert.equal(r.value.package_id, 'evento-classico'); // só letras minúsculas, números e hífen
+  assert.equal(r.value.total, 1411.5);
+  assert.equal(r.value.event_date, '');
+  assert.equal(r.value.message.length, 1200);
+});

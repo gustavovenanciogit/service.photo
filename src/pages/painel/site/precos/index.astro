@@ -1,0 +1,209 @@
+---
+/**
+ * EDITAR PREÇOS — /painel/site/precos/
+ * Lê o pricing.json do GitHub, edita e publica (commit na branch principal).
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import PublishStatus from '@/components/PublishStatus.astro';
+import { categories } from '@/data/categories';
+
+const cats = JSON.stringify(categories.map((c) => ({ slug: c.slug, title: c.title, groups: c.groups ?? [] })));
+---
+
+<PanelLayout title="Site: preços">
+  <p class="eyebrow">Site</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Editar <span class="text-brand">preços</span></h1>
+  <p class="mt-2 max-w-2xl text-muted">Altere valores, textos e destaques. Ao publicar, o site, o simulador e o gerador de propostas passam a usar os novos valores em 1 a 2 minutos. Propostas já enviadas não mudam.</p>
+
+  <div class="mt-6"><PublishStatus /></div>
+
+  <p data-loading class="mt-8 text-muted">Carregando a tabela atual…</p>
+  <p data-fail hidden role="alert" class="mt-8 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-amber-100"></p>
+  <div data-editor hidden class="mt-8 space-y-10 pb-28"></div>
+
+  <!-- Barra de publicação -->
+  <div data-bar hidden class="fixed inset-x-0 bottom-0 z-40 border-t border-brand/40 bg-bg-2/95 backdrop-blur lg:left-[240px]">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-10">
+      <p class="text-sm"><strong data-dirty-count></strong> <span class="text-muted" data-dirty-names></span></p>
+      <div class="flex gap-2">
+        <button type="button" data-discard class="btn btn-outline min-h-10 px-4 text-sm">Descartar</button>
+        <button type="button" data-publish-btn class="btn btn-primary min-h-10 px-5 text-sm">Publicar no site</button>
+      </div>
+    </div>
+  </div>
+</PanelLayout>
+
+<script type="application/json" id="cats" set:html={cats} />
+
+<script>
+  import { ApiError, h, toast } from '@/lib/panel-api';
+  import { formatBRL } from '@/lib/whatsapp';
+
+  type Pkg = {
+    id: string; category: string; group?: string; name: string; description: string; price: number | null;
+    priceUnit?: string; priceLabel?: string; duration: string | null; delivery: string | null; benefits: string[];
+    highlight?: string; active?: boolean; addon?: boolean; subscription?: boolean; confirmed?: boolean;
+  };
+  const cats = JSON.parse(document.getElementById('cats')!.textContent!) as { slug: string; title: string; groups: { id: string; title: string }[] }[];
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  let sha = '';
+  let original: Pkg[] = [];
+  let edited: Pkg[] = [];
+
+  const editable = (p: Pkg) => ({
+    id: p.id, name: p.name, description: p.description, price: p.price, duration: p.duration ?? null, delivery: p.delivery ?? null,
+    benefits: p.benefits ?? [], highlight: p.highlight ?? '', active: p.active !== false,
+  });
+  const isDirty = (p: Pkg) => JSON.stringify(editable(p)) !== JSON.stringify(editable(original.find((o) => o.id === p.id)!));
+
+  const updateBar = () => {
+    const dirty = edited.filter(isDirty);
+    $('[data-bar]').hidden = dirty.length === 0;
+    $('[data-dirty-count]').textContent = dirty.length === 1 ? '1 alteração' : `${dirty.length} alterações`;
+    $('[data-dirty-names]').textContent = dirty.length ? `· ${dirty.map((p) => p.name).slice(0, 3).join(', ')}${dirty.length > 3 ? '…' : ''}` : '';
+    document.querySelectorAll<HTMLElement>('[data-card]').forEach((c) => {
+      const p = edited.find((x) => x.id === c.dataset.card)!;
+      c.classList.toggle('border-brand/70', isDirty(p));
+      c.querySelector<HTMLElement>('[data-changed]')!.hidden = !isDirty(p);
+    });
+  };
+
+  const input = (label: string, value: string, onInput: (v: string) => void, opts: { type?: string; placeholder?: string; area?: boolean; disabled?: boolean; hint?: string; full?: boolean; list?: string } = {}) => {
+    const wrap = h('label', `block ${opts.full ? 'sm:col-span-2' : ''}`);
+    wrap.append(h('span', 'text-xs font-medium text-muted', label));
+    const el = (opts.area ? h('textarea', '') : h('input', '')) as HTMLInputElement;
+    el.className = 'mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-muted/50 focus:border-brand focus:outline-none disabled:opacity-50';
+    if (!opts.area) el.type = opts.type ?? 'text';
+    if (opts.area) (el as unknown as HTMLTextAreaElement).rows = 3;
+    if (opts.type === 'number') { el.step = '0.01'; el.min = '0'; el.inputMode = 'decimal'; }
+    if (opts.list) el.setAttribute('list', opts.list);
+    el.value = value;
+    el.placeholder = opts.placeholder ?? '';
+    el.disabled = !!opts.disabled;
+    el.addEventListener('input', () => { onInput(el.value); updateBar(); });
+    wrap.append(el);
+    if (opts.hint) wrap.append(h('span', 'mt-1 block text-[11px] text-muted', opts.hint));
+    return wrap;
+  };
+
+  const card = (p: Pkg) => {
+    const c = h('details', 'card group p-0');
+    c.dataset.card = p.id;
+    const sum = h('summary', 'flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:px-5 [&::-webkit-details-marker]:hidden');
+    const left = h('div', 'min-w-0');
+    const title = h('p', 'flex flex-wrap items-center gap-2 font-semibold');
+    title.append(h('span', '', p.name));
+    const changed = h('span', 'rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-bg uppercase', 'alterado');
+    changed.dataset.changed = '';
+    changed.hidden = true;
+    title.append(changed);
+    if (p.active === false) title.append(h('span', 'rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase text-muted', 'oculto'));
+    if (p.highlight) title.append(h('span', 'rounded-full bg-brand/20 px-2 py-0.5 text-[10px] uppercase text-brand', p.highlight));
+    const group = cats.find((x) => x.slug === p.category)?.groups.find((g) => g.id === p.group)?.title;
+    left.append(title, h('p', 'text-xs text-muted', group ?? (p.addon ? 'Adicional' : '')));
+    const price = h('p', 'shrink-0 font-display text-xl font-bold text-brand', p.priceLabel ?? (p.price === null ? 'Sob consulta' : `${formatBRL(p.price)}${p.priceUnit ?? ''}`));
+    price.dataset.price = '';
+    sum.append(left, price);
+    c.append(sum);
+
+    const body = h('div', 'grid gap-3 border-t border-line p-4 sm:grid-cols-2 sm:px-5');
+    const refreshPrice = () => (price.textContent = p.priceLabel ?? (p.price === null ? 'Sob consulta' : `${formatBRL(p.price)}${p.priceUnit ?? ''}`));
+    body.append(
+      input('Nome', p.name, (v) => (p.name = v)),
+      p.priceLabel
+        ? input('Valor', p.priceLabel, () => {}, { disabled: true, hint: 'Percentual da tabela — não editável aqui.' })
+        : input(`Valor (R$)${p.priceUnit ? ` ${p.priceUnit}` : ''}`, p.price === null ? '' : String(p.price), (v) => { p.price = v.trim() === '' ? null : Number(v.replace(',', '.')); refreshPrice(); }, { type: 'number', placeholder: 'Vazio = sob consulta', hint: 'Use ponto ou vírgula para centavos. Vazio = "sob consulta".' }),
+      input('Descrição', p.description, (v) => (p.description = v), { full: true }),
+      input('Duração', p.duration ?? '', (v) => (p.duration = v || null), { placeholder: 'Ex.: 2 horas' }),
+      input('Entrega', p.delivery ?? '', (v) => (p.delivery = v || null), { placeholder: 'Ex.: Em 7 dias' }),
+      input('Inclusos (um por linha)', (p.benefits ?? []).join('\n'), (v) => (p.benefits = v.split('\n').map((x) => x.trim()).filter(Boolean)), { area: true, full: true }),
+      input('Etiqueta de destaque', p.highlight ?? '', (v) => (p.highlight = v.trim() || undefined), { placeholder: 'Ex.: Mais escolhido', list: 'highlights', hint: 'Deixe vazio para não destacar.' }),
+    );
+    const active = h('label', 'flex items-center gap-3 self-end pb-2 text-sm');
+    const cb = h('input', 'size-5 accent-[#8be07a]') as HTMLInputElement;
+    cb.type = 'checkbox';
+    cb.checked = p.active !== false;
+    cb.addEventListener('change', () => { p.active = cb.checked; updateBar(); });
+    active.append(cb, h('span', '', 'Mostrar no site'));
+    body.append(active);
+    c.append(body);
+    return c;
+  };
+
+  const render = () => {
+    const box = $('[data-editor]');
+    box.replaceChildren(
+      ...cats
+        .filter((c) => edited.some((p) => p.category === c.slug))
+        .map((c) => {
+          const sec = h('section', '');
+          sec.append(h('h2', 'text-3xl font-bold', c.title));
+          const list = h('div', 'mt-4 grid gap-3 xl:grid-cols-2');
+          edited.filter((p) => p.category === c.slug).forEach((p) => list.append(card(p)));
+          sec.append(list);
+          return sec;
+        }),
+    );
+    const dl = h('datalist', '');
+    dl.id = 'highlights';
+    ['Mais escolhido', 'Assinatura', 'Novidade', 'Promoção'].forEach((v) => dl.append(Object.assign(document.createElement('option'), { value: v })));
+    box.append(dl);
+    updateBar();
+  };
+
+  async function load() {
+    $('[data-loading]').hidden = false;
+    try {
+      const res = await fetch('/api/site/pricing', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (res.status === 401) { location.href = `/painel/login/?next=${encodeURIComponent(location.pathname)}`; return; }
+      if (!res.ok) throw new ApiError(res.status, data.error);
+      sha = data.sha;
+      original = structuredClone(data.data.packages);
+      edited = structuredClone(data.data.packages);
+      render();
+      $('[data-editor]').hidden = false;
+      $('[data-fail]').hidden = true;
+    } catch (e) {
+      $('[data-fail]').hidden = false;
+      $('[data-fail]').textContent = (e as Error).message || 'Não foi possível carregar os preços.';
+    } finally {
+      $('[data-loading]').hidden = true;
+    }
+  }
+
+  $('[data-discard]').addEventListener('click', () => {
+    if (!confirm('Descartar todas as alterações não publicadas?')) return;
+    edited = structuredClone(original);
+    render();
+  });
+  $('[data-publish-btn]').addEventListener('click', async () => {
+    const dirty = edited.filter(isDirty);
+    const bad = dirty.find((p) => !p.name.trim() || (p.price !== null && (!Number.isFinite(p.price) || p.price < 0)));
+    if (bad) { toast(`Confira o nome e o valor de "${bad.name || 'sem nome'}".`, 'error'); return; }
+    if (!confirm(`Publicar ${dirty.length} alteração(ões) no site? Fica no ar em 1 a 2 minutos.`)) return;
+    const btn = $('[data-publish-btn]') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Publicando…';
+    try {
+      const res = await fetch('/api/site/pricing', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha, edits: dirty.map(editable) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast(data.changed.length ? 'Publicado! O site atualiza em 1 a 2 minutos.' : 'Nada mudou.');
+      window.dispatchEvent(new Event('venart:published'));
+      await load();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Publicar no site';
+    }
+  });
+  window.addEventListener('beforeunload', (e) => { if (edited.some(isDirty)) e.preventDefault(); });
+  load();
+</script>

@@ -31,18 +31,15 @@ test('FAQ: IDs únicos', () => {
   assert.equal(new Set(faq.map((f) => f.id)).size, faq.length);
 });
 
-test('valores transcritos da Tabela 2026 (amostra de conferência)', async () => {
+test('formato dos valores exibidos (independe dos preços atuais)', async () => {
   const { priceText } = await import('../src/data/services.ts');
-  const byId = (id: string) => packages.find((p) => p.id === id)!;
-  assert.equal(priceText(byId('foto-avulsa')), 'R$ 12,90');
-  assert.equal(priceText(byId('todas-as-minhas-fotos')), 'R$ 119,90');
-  assert.equal(priceText(byId('plano-mensal-assessoria')), 'R$ 1.500');
-  assert.equal(priceText(byId('academia-cobertura-mensal')), 'R$ 1.000/mês');
-  assert.equal(priceText(byId('plano-atleta')), 'R$ 590/mês');
-  assert.equal(priceText(byId('evento-premium')), 'R$ 1.290');
-  assert.equal(priceText(byId('evento-corporativo')), 'R$ 180/hora');
-  assert.equal(priceText(byId('ensaio-intermediario')), 'R$ 490');
-  assert.equal(priceText(byId('extra-deslocamento')), 'R$ 1,50/km');
-  assert.equal(priceText(byId('extra-domingos-feriados')), '+20%');
-  assert.equal(priceText(byId('extra-video-curto')), null);
+  const { formatBRL } = await import('../src/lib/whatsapp.ts');
+  for (const p of packages) {
+    const t = priceText(p);
+    if (!p.confirmed || (p.price === null && !p.priceLabel)) assert.equal(t, null, p.id);
+    else if (p.priceLabel) assert.equal(t, p.priceLabel, p.id);
+    else assert.equal(t, `${formatBRL(p.price!)}${p.priceUnit ?? ''}`, p.id);
+  }
+  const fake = { ...packages[0]!, price: 1000, priceUnit: '/mês', priceLabel: undefined, confirmed: true };
+  assert.equal(priceText(fake), 'R$ 1.000/mês');
 });

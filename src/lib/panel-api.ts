@@ -2,7 +2,7 @@
  * Acesso à API do painel (roda no navegador).
  * Se a sessão expirar, leva de volta para a tela de login.
  */
-import type { Client, ProposalRecord } from './crm';
+import type { Client, Lead, ProposalRecord } from './crm';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -41,6 +41,11 @@ export const api = {
   createClient: (c: Partial<Client>) => request<Client>('POST', '/api/clients', c),
   updateClient: (id: string, c: Partial<Client>) => request<Client>('PUT', `/api/clients/${encodeURIComponent(id)}`, c),
   deleteClient: (id: string) => request<{ ok: true }>('DELETE', `/api/clients/${encodeURIComponent(id)}`),
+
+  leads: () => request<Lead[]>('GET', '/api/leads'),
+  leadCount: () => request<{ novo: number }>('GET', '/api/leads/count'),
+  setLeadStatus: (id: string, status: string) => request<Lead>('PATCH', `/api/leads/${encodeURIComponent(id)}`, { status }),
+  deleteLead: (id: string) => request<{ ok: true }>('DELETE', `/api/leads/${encodeURIComponent(id)}`),
 
   proposals: () => request<ProposalSummary[]>('GET', '/api/proposals'),
   proposal: (id: string) => request<ProposalRecord>('GET', `/api/proposals/${encodeURIComponent(id)}`),

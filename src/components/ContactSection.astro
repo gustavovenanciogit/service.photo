@@ -56,12 +56,22 @@ const field =
 
     <form id="quote-form" data-reveal class="card p-6 sm:p-8" novalidate data-number={site.whatsappNumber}>
       <h3 class="text-3xl font-bold">Pré-orçamento</h3>
-      <p class="mt-1 text-sm text-muted">Seus dados não ficam salvos no site: eles vão apenas na mensagem do WhatsApp.</p>
+      <p class="mt-1 text-sm text-muted">Preencha e o WhatsApp abre com a mensagem pronta. Sua solicitação também fica registrada para eu te responder. <a href="/privacidade" class="underline hover:text-ink">Privacidade</a>.</p>
 
       <div class="mt-6 grid gap-5 sm:grid-cols-2">
-        <label class="block sm:col-span-2">
+        <label class="block">
           <span class="text-sm font-medium">Seu nome <span class="text-brand" aria-hidden="true">*</span></span>
           <input name="name" type="text" required autocomplete="name" maxlength="80" class={field} placeholder="Como posso te chamar?" />
+        </label>
+
+        <label class="block">
+          <span class="text-sm font-medium">Seu WhatsApp</span>
+          <input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" class={field} placeholder="(92) 99999-9999" />
+        </label>
+
+        <!-- Campo-armadilha anti-robô: invisível para pessoas. -->
+        <label class="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+          Não preencha <input name="website" type="text" tabindex="-1" autocomplete="off" />
         </label>
 
         <label class="block sm:col-span-2">
@@ -72,7 +82,7 @@ const field =
               groups.map((g) => (
                 <optgroup label={g.title}>
                   {g.items.map((p) => (
-                    <option value={`${p.name} (${g.title})`}>{p.name}</option>
+                    <option value={`${p.name} (${g.title})`} data-id={p.id}>{p.name}</option>
                   ))}
                 </optgroup>
               ))
@@ -109,6 +119,7 @@ const field =
 
 <script>
   import { messages, whatsappLink } from '@/lib/whatsapp';
+  import { sendLead } from '@/lib/leads';
 
   const form = document.getElementById('quote-form') as HTMLFormElement | null;
   if (form) {
@@ -145,6 +156,17 @@ const field =
         date: get('date'),
         location: get('location'),
         message: get('message'),
+      });
+      sendLead({
+        source: 'formulario',
+        name: get('name'),
+        phone: get('phone'),
+        service: get('service'),
+        package_id: service.selectedOptions[0]?.dataset.id ?? '',
+        event_date: get('date'),
+        location: get('location'),
+        message: get('message'),
+        website: get('website'),
       });
       const url = whatsappLink(form.dataset.number ?? '', text);
       // Abre em nova aba via link (window.open com 'noopener' não informa se abriu).

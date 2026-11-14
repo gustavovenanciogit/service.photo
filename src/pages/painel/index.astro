@@ -19,6 +19,11 @@ import Icon from '@/components/Icon.astro';
   <p data-fail hidden role="alert" class="mt-10 rounded-xl border border-red-300/40 bg-red-500/10 p-4 text-red-200"></p>
 
   <div data-ready hidden>
+    <a data-leads-alert hidden href="/painel/pedidos/" class="mt-8 flex items-center justify-between gap-4 rounded-2xl border border-brand/50 bg-card/60 p-5 transition-colors hover:bg-card">
+      <span><span class="font-display text-2xl font-bold uppercase" data-leads-text></span><span class="block text-sm text-muted">Pedidos feitos pelo formulário ou pelo simulador do site</span></span>
+      <span class="btn btn-primary min-h-10 shrink-0 px-4 text-sm">Ver pedidos</span>
+    </a>
+
     <!-- Números -->
     <section class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo">
       <div class="card p-5"><p class="text-xs tracking-widest text-muted uppercase">Propostas em aberto</p><p class="mt-2 font-display text-4xl font-extrabold" data-k="open"></p><p class="text-sm text-muted" data-k="open-sub"></p></div>
@@ -81,7 +86,11 @@ import Icon from '@/components/Icon.astro';
 
   (async () => {
   try {
-    const [clients, proposals] = await Promise.all([api.clients(), api.proposals()]);
+    const [clients, proposals, leadCount] = await Promise.all([api.clients(), api.proposals(), api.leadCount().catch(() => ({ novo: 0 }))]);
+    if (leadCount.novo) {
+      $('[data-leads-alert]').hidden = false;
+      $('[data-leads-text]').textContent = leadCount.novo === 1 ? '1 pedido novo' : `${leadCount.novo} pedidos novos`;
+    }
     const month = today.slice(0, 7);
     const st = (p: (typeof proposals)[number]) => displayStatus(p, today).id;
     const money = (once: number, monthly: number) => [once && formatBRL(once), monthly && `${formatBRL(monthly)}/mês`].filter(Boolean).join(' + ') || formatBRL(0);

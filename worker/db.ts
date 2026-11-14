@@ -3,7 +3,7 @@
  * As tabelas são criadas automaticamente no primeiro acesso.
  * Todas as consultas usam parâmetros (?), nunca texto concatenado.
  */
-import type { Client, ClientInput, ProposalInput, ProposalRecord } from '../src/lib/crm.ts';
+import type { Client, ClientInput, Lead, LeadInput, ProposalInput, ProposalRecord } from '../src/lib/crm.ts';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS clients (
@@ -34,6 +34,27 @@ const SCHEMA = [
     notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS leads (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'novo',
+    source TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    service TEXT NOT NULL DEFAULT '',
+    package_id TEXT NOT NULL DEFAULT '',
+    event_date TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL DEFAULT '',
+    total REAL NOT NULL DEFAULT 0,
+    details TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS lead_attempts (
+    ip_hash TEXT PRIMARY KEY,
+    count INTEGER NOT NULL,
+    first_at INTEGER NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
@@ -129,3 +150,47 @@ export async function patchProposal(db: D1Database, id: string, fields: { status
 
 export const deleteProposal = async (db: D1Database, id: string) =>
   (await db.prepare('DELETE FROM proposals WHERE id = ?').bind(id).run()).meta.changes > 0;
+
+// ───────── Pedidos do site ─────────
+
+export async function insertLead(db: D1Database, id: string, l: LeadInput) {
+  const t = now();
+  await db
+    .prepare(
+      `INSERT INTO leads (id, created_at, updated_at, status, source, name, phone, service, package_id, event_date, location, message, total, details)
+       VALUES (?, ?, ?, 'novo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(id, t, t, l.source, l.name, l.phone, l.service, l.package_id, l.event_date, l.location, l.message, l.total, l.details)
+    .run();
+}
+
+export const listLeads = async (db: D1Database) =>
+  (await db.prepare('SELECT * FROM leads ORDER BY created_at DESC LIMIT 500').all<Lead>()).results;
+
+export const countNewLeads = async (db: D1Database) =>
+  (await db.prepare("SELECT COUNT(*) AS n FROM leads WHERE status = 'novo'").first<{ n: number }>())?.n ?? 0;
+
+export async function setLeadStatus(db: D1Database, id: string, status: string) {
+  const r = await db.prepare('UPDATE leads SET status = ?, updated_at = ? WHERE id = ?').bind(status, now(), id).run();
+  return r.meta.changes ? db.prepare('SELECT * FROM leads WHERE id = ?').bind(id).first<Lead>() : null;
+}
+
+export const deleteLead = async (db: D1Database, id: string) =>
+  (await db.prepare('DELETE FROM leads WHERE id = ?').bind(id).run()).meta.changes > 0;
+
+/** Limite de pedidos por IP (anti-spam). Retorna true se ainda pode enviar. */
+export async function allowLead(db: D1Database, ipHash: string, max = 6, windowMs = 60 * 60 * 1000) {
+  const t = Date.now();
+  const row = await db.prepare('SELECT count, first_at FROM lead_attempts WHERE ip_hash = ?').bind(ipHash).first<{ count: number; first_at: number }>();
+  if (row && t - row.first_at < windowMs && row.count >= max) return false;
+  await db
+    .prepare(
+      `INSERT INTO lead_attempts (ip_hash, count, first_at) VALUES (?1, 1, ?2)
+       ON CONFLICT(ip_hash) DO UPDATE SET
+         count = CASE WHEN ?2 - first_at > ?3 THEN 1 ELSE count + 1 END,
+         first_at = CASE WHEN ?2 - first_at > ?3 THEN ?2 ELSE first_at END`,
+    )
+    .bind(ipHash, t, windowMs)
+    .run();
+  return true;
+}

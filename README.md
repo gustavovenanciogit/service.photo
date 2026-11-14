@@ -4,7 +4,8 @@ Site oficial com catálogo de serviços, tabela de preços com filtros, portfól
 "como contratar", dúvidas frequentes e pedidos de orçamento pelo WhatsApp.
 
 **Tecnologia:** [Astro](https://astro.build) + TypeScript + Tailwind CSS.
-Site 100% estático: sem servidor, sem banco de dados e sem armazenar dados de clientes.
+Site público estático (rápido e bem posicionado no Google). Um pequeno servidor na Cloudflare cuida
+apenas do **painel profissional** (com senha) e de registrar os pedidos feitos pelo site.
 
 **No ar:** https://venart.gustavovesss.workers.dev
 
@@ -41,7 +42,7 @@ Outros comandos:
 | Quero mudar... | Arquivo |
 | --- | --- |
 | WhatsApp, Instagram, Fotto, nome, cidade, condições de pagamento, SEO, menu | `src/config/site.ts` |
-| **Preços, pacotes, durações, prazos, destaques** | `src/data/services.ts` |
+| **Preços, pacotes, durações, prazos, destaques** | **Painel → Site: preços** (ou `src/data/pricing.json`) |
 | Categorias, subgrupos e observações de rodapé | `src/data/categories.ts` |
 | Perguntas e respostas do FAQ | `src/data/faq.ts` |
 | Textos das mensagens de WhatsApp | `src/lib/whatsapp.ts` |
@@ -49,13 +50,14 @@ Outros comandos:
 | Simulador: regras de cálculo (domingo, após 22h etc.) | `src/lib/quote.ts` |
 | Textos das propostas por tipo de cliente | `src/data/proposal.ts` |
 | Kit de mensagens do painel | `src/data/messages.ts` |
-| Fotos e legendas do portfólio, mosaico do topo | `src/data/portfolio.ts` |
+| **Fotos, legendas, ordem e mosaico do topo** | **Painel → Site: fotos** (ou `src/data/portfolio.json`) |
 | Etapas do "Como contratar" | `src/components/HowToHire.astro` |
 | Cores e fontes | `src/styles/global.css` (bloco `@theme`) |
 | Imagem de compartilhamento (redes sociais) | `public/og-image.png` (1200×630) |
 
 ### Preços (o mais importante)
-Cada pacote em `src/data/services.ts` tem este formato:
+O jeito mais fácil é pelo painel (**Site: preços**). Direto no código, cada pacote em
+`src/data/pricing.json` tem este formato (os comentários abaixo são só explicação — JSON não aceita comentários):
 
 ```ts
 {
@@ -132,6 +134,37 @@ Cada cartão da tabela tem o link "Simular com extras", que abre o simulador já
 Os dados (clientes e propostas) ficam no banco **D1** da Cloudflare (gratuito), criado sozinho no
 primeiro deploy. Você acessa do Mac, do Windows ou do celular.
 
+### Pedidos do site
+Tudo que chega pelo **formulário de pré-orçamento** e pelo **simulador** aparece em **Pedidos do site**
+(com contador no menu e aviso na tela inicial). Em cada pedido: responder no WhatsApp, **Criar proposta**
+(já preenchida com nome, telefone, data, local e pacote), **Cadastrar cliente**, mudar o status ou excluir.
+Proteção anti-spam: campo invisível para robôs, limite de 6 pedidos por hora por conexão e checagem de origem.
+Se alguém pedir a exclusão dos dados (LGPD), use **Excluir** no pedido.
+
+### Editar preços e fotos pelo painel (Site: preços / Site: fotos)
+Ao clicar em **Publicar no site**, o painel grava a alteração direto no GitHub (um commit na `main`)
+e a Cloudflare publica sozinha em 1 a 2 minutos. O indicador no topo mostra **Publicando…** / **No ar**.
+- **Preços:** nome, descrição, valor, duração, entrega, inclusos, etiqueta de destaque e mostrar/ocultar.
+  Outros campos (categoria, unidade, percentuais) só mudam no código — de propósito, para não quebrar o site.
+- **Fotos:** enviar até 10 por vez (reduzidas para 2000 px e sem dados de localização), legenda, ordem,
+  ocultar, excluir e escolher as 3 fotos do mosaico do topo.
+- Se o site for alterado em outro lugar enquanto você edita, o painel avisa e não sobrescreve nada.
+- Cada publicação fica no histórico do GitHub — dá para desfazer (reverter o commit).
+
+**Configuração (uma vez): token do GitHub**
+1. GitHub → sua foto → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+2. Nome: `Venart painel` · Expiração: até 1 ano (anote para renovar) · **Repository access: Only select repositories → service.photo**.
+3. **Permissions → Repository permissions → Contents: Read and write**. (Opcional: *Commit statuses* e *Checks*
+   como Read-only para o indicador "No ar".)
+4. **Generate token** e copie (começa com `github_pat_`).
+5. Cloudflare → **Workers & Pages → venart → Settings → Variables and Secrets → Add** → tipo **Secret** →
+   nome `GITHUB_TOKEN` → cole o token → salve.
+
+Quando o token vencer, o painel avisa; gere um novo e troque o segredo.
+
+> Se você também edita o código no computador, rode `git pull` antes de começar —
+> as edições feitas pelo painel entram direto na `main`.
+
 ### Definir (ou trocar) a senha — uma vez só
 1. https://dash.cloudflare.com → **Workers & Pages** → **venart** → **Settings** → **Variables and Secrets**.
 2. **Add** → tipo **Secret** → nome `ADMIN_PASSWORD` → valor: sua senha (longa, que você não use em outro lugar).
@@ -181,8 +214,9 @@ Todos os botões montam um link `wa.me` com mensagem pronta, conforme a origem:
 | Formulário de pré-orçamento | Nome, serviço, data, local e mensagem |
 | Botão flutuante | Muda conforme a seção que está na tela |
 
-O formulário **não envia nem guarda dados**: ele só abre o WhatsApp do cliente com o texto
-pronto para ele confirmar.
+O formulário e o simulador abrem o WhatsApp do cliente com o texto pronto **e** registram o pedido
+no painel (**Pedidos do site**). Se o registro falhar, o WhatsApp abre do mesmo jeito.
+O que é registrado está descrito em `/privacidade` (`src/pages/privacidade.astro`).
 
 ## 4. Publicar no GitHub
 

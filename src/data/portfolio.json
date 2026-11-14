@@ -1,0 +1,53 @@
+{
+  "photos": [
+    {
+      "file": "artes-marciais/jiu-jitsu-queda.jpg",
+      "caption": "Queda em campeonato de jiu-jitsu"
+    },
+    {
+      "file": "esportes/corredora-arco.jpg",
+      "caption": "Corredora em treino de rua"
+    },
+    {
+      "file": "ensaios/ensaio-estudio-retrato.jpg",
+      "caption": "Ensaio feminino em estúdio"
+    },
+    {
+      "file": "eventos-sociais/cha-revelacao-confete.jpg",
+      "caption": "Casal comemorando no chá revelação"
+    },
+    {
+      "file": "artes-marciais/jiu-jitsu-infantil.jpg",
+      "caption": "Luta infantil de jiu-jitsu"
+    },
+    {
+      "file": "esportes/treino-caminhada.jpg",
+      "caption": "Atleta em treino ao ar livre"
+    },
+    {
+      "file": "ensaios/ensaio-estudio-perfil.jpg",
+      "caption": "Ensaio feminino em estúdio, de perfil"
+    },
+    {
+      "file": "eventos-sociais/cha-revelacao-vela.jpg",
+      "caption": "Detalhe de vela personalizada no chá revelação"
+    }
+  ],
+  "hero": [
+    {
+      "file": "artes-marciais/jiu-jitsu-queda.jpg",
+      "label": "Artes marciais",
+      "position": "50% 45%"
+    },
+    {
+      "file": "esportes/corredora-arco.jpg",
+      "label": "Corrida",
+      "position": "50% 62%"
+    },
+    {
+      "file": "ensaios/ensaio-estudio-retrato.jpg",
+      "label": "Ensaios",
+      "position": "50% 22%"
+    }
+  ]
+}

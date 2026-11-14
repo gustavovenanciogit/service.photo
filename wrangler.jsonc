@@ -24,5 +24,11 @@
       "database_name": "venart"
     }
   ],
+  // Repositório onde o painel grava as edições de preços e fotos.
+  // O token fica no segredo GITHUB_TOKEN (definido no painel da Cloudflare).
+  "vars": {
+    "GITHUB_REPO": "gustavovenanciogit/service.photo",
+    "GITHUB_BRANCH": "main"
+  },
   "observability": { "enabled": true }
 }

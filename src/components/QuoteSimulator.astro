@@ -134,18 +134,30 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
       </div>
     </fieldset>
 
-    <!-- 3. Data -->
+    <!-- 3. Seus dados -->
     <fieldset>
       <legend class="flex items-center gap-3 font-display text-2xl font-bold uppercase">
-        <span class="grid size-8 place-items-center rounded-full bg-brand font-sans text-sm text-bg">3</span> Data prevista
+        <span class="grid size-8 place-items-center rounded-full bg-brand font-sans text-sm text-bg">3</span> Seus dados
         <span class="font-sans text-sm font-normal tracking-normal text-muted normal-case">(opcional)</span>
       </legend>
-      <input
-        name="date"
-        type="date"
-        aria-label="Data prevista"
-        class="mt-4 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink transition-colors focus:border-brand focus:outline-none sm:w-auto"
-      />
+      <div class="mt-4 grid gap-4 sm:grid-cols-3">
+        <label class="block">
+          <span class="text-sm font-medium">Data prevista</span>
+          <input name="date" type="date" class="mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 transition-colors focus:border-brand focus:outline-none" />
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium">Seu nome</span>
+          <input name="name" type="text" autocomplete="name" maxlength="80" class="mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 transition-colors focus:border-brand focus:outline-none" />
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium">Seu WhatsApp</span>
+          <input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" class="mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 transition-colors focus:border-brand focus:outline-none" placeholder="(92) 99999-9999" />
+        </label>
+      </div>
+      <label class="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+        Não preencha <input name="website" type="text" tabindex="-1" autocomplete="off" />
+      </label>
+      <p class="mt-3 text-xs text-muted">Ao enviar, sua simulação também fica registrada para eu te responder. <a href="/privacidade" class="underline hover:text-ink">Privacidade</a>.</p>
     </fieldset>
   </form>
 
@@ -193,6 +205,7 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
 <script>
   import { calculateQuote, quoteMessage, type QuotePackage, type QuoteRules } from '@/lib/quote';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+  import { sendLead } from '@/lib/leads';
 
   type Item = QuotePackage & { label: string };
   const data = JSON.parse(document.getElementById('sim-data')!.textContent!) as {
@@ -234,6 +247,8 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
   };
 
   let lastPkg = '';
+  // Última simulação calculada (usada ao registrar o pedido).
+  let current: { pkg: Item; result: ReturnType<typeof calculateQuote>; date: string } | null = null;
   const render = () => {
     const pkg = items.find((i) => i.id === select.value) ?? items[0]!;
 
@@ -295,6 +310,7 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
 
     const date = ($('[name="date"]') as HTMLInputElement).value;
     ($('[data-send]') as HTMLAnchorElement).href = whatsappLink(data.number, quoteMessage(pkg, result, { date }));
+    current = { pkg, result, date };
   };
 
   form.querySelectorAll<HTMLElement>('[data-stepper]').forEach((s) => {
@@ -309,5 +325,23 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
   form.addEventListener('input', render);
   form.addEventListener('change', render);
   form.addEventListener('submit', (e) => e.preventDefault());
+
+  // Ao enviar pelo WhatsApp, registra o pedido no painel do fotógrafo.
+  $('[data-send]').addEventListener('click', () => {
+    if (!current) return;
+    const val = (n: string) => ((form.elements.namedItem(n) as HTMLInputElement | null)?.value ?? '').trim();
+    const { pkg, result, date } = current;
+    sendLead({
+      source: 'simulador',
+      name: val('name'),
+      phone: val('phone'),
+      service: `${pkg.name} (${pkg.category})`,
+      package_id: pkg.id,
+      event_date: date,
+      total: result.total,
+      details: result.lines.map((l) => `${l.label}: ${l.amount === null ? 'sob consulta' : formatBRL(l.amount)}`).join('\n'),
+      website: val('website'),
+    });
+  });
   render();
 </script>
