@@ -6,10 +6,11 @@
   "description": "Site oficial de serviços fotográficos — Manaus/AM",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro check && astro build",
+    "build": "astro check && tsc -p worker && astro build",
     "preview": "astro preview",
-    "check": "astro check",
-    "test": "node --test \"tests/*.test.ts\""
+    "check": "astro check && tsc -p worker",
+    "test": "node --test \"tests/*.test.ts\"",
+    "dev:full": "astro build && wrangler dev"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
@@ -17,10 +18,13 @@
     "@fontsource/barlow-condensed": "^5.3.0",
     "@tailwindcss/vite": "^4.3.5",
     "astro": "^7.4.11",
+    "qrcode-generator": "^2.0.4",
     "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
-    "typescript": "^6.0.3"
+    "@cloudflare/workers-types": "^5.20261113.1",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.162.0"
   }
 }

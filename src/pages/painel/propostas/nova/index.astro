@@ -1,0 +1,495 @@
+---
+/**
+ * GERADOR DE PROPOSTAS — /painel/propostas/nova/  (área com login)
+ * Monta a proposta e gera o link para o cliente.
+ * Ao enviar, copiar ou salvar, a proposta fica guardada no painel (nuvem).
+ * ?id=VEN-...      → abre uma proposta salva para editar (ou duplicar)
+ * ?cliente=cli_... → já começa com um cliente cadastrado
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { categoryNotes, clientTypes, defaultValidityDays, proposalCatalog, proposalSignature } from '@/data/proposal';
+
+const payload = {
+  catalog: proposalCatalog,
+  types: clientTypes,
+  notes: categoryNotes,
+  validity: defaultValidityDays,
+  signature: proposalSignature,
+  siteUrl: (Astro.site?.toString() ?? '').replace(/\/$/, ''),
+};
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 transition-colors focus:border-brand focus:outline-none';
+const label = 'text-sm font-medium';
+const step = (n: number, t: string) => `<span class="grid size-8 place-items-center rounded-full bg-brand font-sans text-sm text-bg">${n}</span> ${t}`;
+---
+
+<PanelLayout title="Nova proposta">
+  <p class="eyebrow" data-mode>Nova proposta</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Gerador de <span class="text-brand">propostas</span></h1>
+  <p class="mt-2 max-w-2xl text-muted">Monte, confira na visualização e envie o link pelo WhatsApp. Ao enviar ou copiar, a proposta fica salva em <a href="/painel/propostas/" class="text-brand hover:underline">Propostas</a>.</p>
+
+  <div class="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:items-start xl:gap-8">
+    <form data-builder class="space-y-6" novalidate>
+      <!-- 1. Cliente -->
+      <fieldset class="card space-y-4 p-5 sm:p-7">
+        <legend class="sr-only">Cliente</legend>
+        <h2 class="flex items-center gap-3 font-display text-2xl font-bold uppercase" set:html={step(1, 'Cliente')} />
+        <label class="block">
+          <span class={label}>Cliente cadastrado <span class="font-normal text-muted">(opcional)</span></span>
+          <select name="client_id" class={field}>
+            <option value="">— Novo / sem cadastro —</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class={label}>Tipo de cliente</span>
+          <select name="t" class={field}>
+            {clientTypes.map((t) => <option value={t.id}>{t.label}</option>)}
+          </select>
+        </label>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class={label}>Nome do cliente <span class="text-brand">*</span></span>
+            <input name="cl" required maxlength="80" class={field} placeholder="Ex.: Academia Força Total" />
+          </label>
+          <label class="block">
+            <span class={label}>Responsável</span>
+            <input name="r" maxlength="60" class={field} placeholder="Ex.: Mestre João" />
+          </label>
+        </div>
+        <label class="block">
+          <span class={label}>WhatsApp do cliente <span class="font-normal text-muted">(opcional, não vai no link)</span></span>
+          <input name="phone" type="tel" inputmode="tel" class={field} placeholder="(92) 99999-9999" />
+        </label>
+      </fieldset>
+
+      <!-- 2. Apresentação -->
+      <fieldset class="card space-y-3 p-5 sm:p-7">
+        <legend class="sr-only">Apresentação</legend>
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="flex items-center gap-3 font-display text-2xl font-bold uppercase" set:html={step(2, 'Apresentação')} />
+          <button type="button" data-reset-msg class="text-xs font-semibold text-brand hover:underline">Restaurar texto padrão</button>
+        </div>
+        <textarea name="msg" rows="6" maxlength="1200" class={field}></textarea>
+        <p class="text-xs text-muted">O texto muda com o tipo de cliente até você editá-lo.</p>
+      </fieldset>
+
+      <!-- 3. Serviços -->
+      <fieldset class="card space-y-4 p-5 sm:p-7">
+        <legend class="sr-only">Serviços</legend>
+        <h2 class="flex items-center gap-3 font-display text-2xl font-bold uppercase" set:html={step(3, 'Serviços')} />
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <label class="block flex-1">
+            <span class="sr-only">Serviço da tabela</span>
+            <select name="pick" class={field.replace('mt-1.5 ', '')}>
+              {
+                proposalCatalog.map((g) => (
+                  <optgroup label={g.title}>
+                    {g.items.map((i) => (
+                      <option value={i.id}>
+                        {i.label} · R$ {i.price.toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(i.price) ? 0 : 2 })}
+                        {i.unit ?? (i.monthly ? '/mês' : '')}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))
+              }
+            </select>
+          </label>
+          <button type="button" data-add class="btn btn-primary shrink-0">Adicionar</button>
+        </div>
+        <button type="button" data-add-custom class="text-sm font-semibold text-brand hover:underline">+ Item personalizado</button>
+        <ul data-items class="space-y-3"></ul>
+        <p data-empty class="rounded-xl border border-dashed border-line p-4 text-center text-sm text-muted">Nenhum serviço adicionado.</p>
+      </fieldset>
+
+      <!-- 4. Detalhes -->
+      <fieldset class="card space-y-4 p-5 sm:p-7">
+        <legend class="sr-only">Detalhes</legend>
+        <h2 class="flex items-center gap-3 font-display text-2xl font-bold uppercase" set:html={step(4, 'Detalhes')} />
+        <div class="grid gap-4 sm:grid-cols-3">
+          <label class="block">
+            <span class={label}>Data do evento/início</span>
+            <input name="ev" type="date" class={field} />
+          </label>
+          <label class="block">
+            <span class={label}>Local</span>
+            <input name="loc" maxlength="80" class={field} placeholder="Ex.: Ponta Negra" />
+          </label>
+          <label class="block">
+            <span class={label}>Válida até</span>
+            <input name="val" type="date" class={field} />
+          </label>
+        </div>
+        <label class="block">
+          <span class={label}>Observações <span class="font-normal text-muted">(uma por linha)</span></span>
+          <textarea name="obs" rows="3" maxlength="600" class={field}></textarea>
+        </label>
+        <label class="flex items-center gap-3">
+          <input type="checkbox" name="pay" checked class="size-5 accent-[#8be07a]" />
+          <span class="text-sm">Mostrar condições de pagamento (30% de sinal · 3x sem juros · 5% no Pix)</span>
+        </label>
+        <label class="flex items-center gap-3">
+          <input type="checkbox" name="nt" checked class="size-5 accent-[#8be07a]" />
+          <span class="text-sm">Incluir as observações da tabela dos serviços escolhidos</span>
+        </label>
+      </fieldset>
+    </form>
+
+    <!-- Resumo e envio -->
+    <aside class="space-y-6 xl:sticky xl:top-8">
+      <div class="card border-brand/40 p-5 sm:p-7">
+        <p class="eyebrow">Resumo · <span data-id></span></p>
+        <p class="mt-1 font-display text-3xl font-bold uppercase" data-sum-client>Nova proposta</p>
+        <dl data-totals class="mt-4 space-y-2 border-t border-line pt-4 text-sm"></dl>
+        <p data-hint class="mt-4 text-sm text-amber-300"></p>
+        <div class="mt-5 grid gap-2">
+          <a data-send href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+            <Icon name="whatsapp" size={20} /> Enviar pelo WhatsApp
+          </a>
+          <div class="grid grid-cols-2 gap-2">
+            <a data-preview href="#" target="_blank" rel="noopener" class="btn btn-outline">Visualizar</a>
+            <button type="button" data-copy class="btn btn-outline">Copiar link</button>
+          </div>
+          <button type="button" data-save class="btn btn-outline">Salvar sem enviar</button>
+          <div class="mt-1 flex justify-between gap-3 text-sm">
+            <button type="button" data-duplicate class="hidden text-muted hover:text-ink">Duplicar como nova</button>
+            <button type="button" data-new class="ml-auto text-muted hover:text-ink">Começar nova proposta</button>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-muted" aria-live="polite" data-status></p>
+      </div>
+    </aside>
+  </div>
+</PanelLayout>
+
+<script type="application/json" id="builder-data" set:html={JSON.stringify(payload)} />
+
+<script>
+  import {
+    PROPOSAL_VERSION, addDays, decodeProposal, encodeProposal, fillTemplate, formatDateBR, isoDate, lineTotal,
+    newProposalId, proposalTotals, sendMessage, type Proposal, type ProposalItem,
+  } from '@/lib/proposal';
+  import { api, toast, waNumber } from '@/lib/panel-api';
+  import type { Client } from '@/lib/crm';
+  import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+
+  type CatalogItem = { id: string; name: string; label: string; category: string; categorySlug: string; price: number; unit?: string; monthly: boolean; details: string[] };
+  type Row = ProposalItem & { key: string; slug?: string; custom?: boolean };
+  const data = JSON.parse(document.getElementById('builder-data')!.textContent!) as {
+    catalog: { title: string; items: CatalogItem[] }[];
+    types: { id: string; label: string; intro: string }[];
+    notes: Record<string, string[]>;
+    validity: number;
+    signature: string;
+    siteUrl: string;
+  };
+  const catalog = data.catalog.flatMap((g) => g.items);
+  const form = document.querySelector<HTMLFormElement>('[data-builder]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const f = <T extends HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement = HTMLInputElement>(n: string) => form.elements.namedItem(n) as T;
+  const el = (tag: string, cls = '', text = '') => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  };
+  const store = {
+    get: <T,>(k: string, fb: T): T => { try { return JSON.parse(localStorage.getItem(k) ?? '') as T; } catch { return fb; } },
+    set: (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } },
+    del: (k: string) => { try { localStorage.removeItem(k); } catch { /* */ } },
+  };
+  const DRAFT = 'venart-proposta-rascunho';
+
+  let id = newProposalId();
+  let editing = false; // editando uma proposta já salva
+  let rows: Row[] = [];
+  let msgEdited = false;
+  let seq = 0;
+  let clients: Client[] = [];
+  let savedNotes: string[] = []; // observações de tabela de uma proposta carregada
+
+  const intro = () => fillTemplate(data.types.find((t) => t.id === f('t').value)?.intro ?? '', { cliente: f('cl').value, responsavel: f('r').value });
+
+  const build = (): Proposal => {
+    const slugs = [...new Set(rows.map((r) => r.slug).filter(Boolean))] as string[];
+    const nt = (f('nt') as HTMLInputElement).checked ? [...new Set([...savedNotes, ...slugs.flatMap((s) => data.notes[s] ?? [])])] : undefined;
+    const clean = (v: string) => v.trim() || undefined;
+    return {
+      v: PROPOSAL_VERSION,
+      id,
+      t: f('t').value,
+      cl: f('cl').value.trim(),
+      r: clean(f('r').value),
+      msg: f('msg').value.trim(),
+      em: isoDate(new Date()),
+      val: clean(f('val').value),
+      ev: clean(f('ev').value),
+      loc: clean(f('loc').value),
+      it: rows.filter((r) => r.n.trim() && r.q > 0).map(({ key: _k, slug: _s, custom: _c, ...i }) => ({ ...i, n: i.n.trim(), o: i.o && i.o !== i.p ? i.o : undefined })),
+      obs: clean(f('obs').value),
+      nt: nt?.length ? nt : undefined,
+      pay: (f('pay') as HTMLInputElement).checked,
+    };
+  };
+
+  // ───────── Itens ─────────
+  const renderRows = () => {
+    $('[data-empty]').hidden = rows.length > 0;
+    $('[data-items]').replaceChildren(
+      ...rows.map((r) => {
+        const li = el('li', 'rounded-xl border border-line bg-bg p-4');
+        li.dataset.key = r.key;
+        const head = el('div', 'flex items-start justify-between gap-3');
+        const title = el('div', 'min-w-0 flex-1');
+        if (r.custom) {
+          const name = el('input', 'w-full rounded-lg border border-line bg-bg-2 px-3 py-2 text-ink focus:border-brand focus:outline-none') as HTMLInputElement;
+          name.value = r.n; name.placeholder = 'Descrição do serviço'; name.dataset.field = 'n'; name.setAttribute('aria-label', 'Descrição do item');
+          title.append(name);
+        } else {
+          title.append(el('p', 'font-semibold', r.n), el('p', 'text-xs text-muted', r.c ?? ''));
+        }
+        const rm = el('button', 'grid size-9 shrink-0 place-items-center rounded-full border border-line text-muted hover:border-red-300 hover:text-red-300', '✕');
+        rm.setAttribute('type', 'button'); rm.dataset.remove = ''; rm.setAttribute('aria-label', `Remover ${r.n || 'item'}`);
+        head.append(title, rm);
+
+        const controls = el('div', 'mt-3 grid grid-cols-[auto_1fr_auto] items-end gap-3');
+        const qWrap = el('label', 'block');
+        qWrap.append(el('span', 'text-xs text-muted', 'Qtd.'));
+        const qty = el('input', 'mt-1 block w-16 rounded-lg border border-line bg-bg-2 px-2 py-2 text-center focus:border-brand focus:outline-none') as HTMLInputElement;
+        Object.assign(qty, { type: 'number', min: '1', max: '999', value: String(r.q) }); qty.dataset.field = 'q';
+        qWrap.append(qty);
+        const pWrap = el('label', 'block');
+        const tableHint = r.o !== undefined ? ` · tabela ${formatBRL(r.o)}${r.u ?? ''}` : '';
+        pWrap.append(el('span', 'text-xs text-muted', `Valor unitário (R$)${tableHint}`));
+        const price = el('input', 'mt-1 block w-full rounded-lg border border-line bg-bg-2 px-3 py-2 focus:border-brand focus:outline-none') as HTMLInputElement;
+        Object.assign(price, { type: 'number', min: '0', step: '0.01', value: String(r.p) }); price.dataset.field = 'p'; price.inputMode = 'decimal';
+        pWrap.append(price);
+        const total = el('p', 'pb-2 text-right font-display text-xl font-bold text-brand', formatBRL(lineTotal(r)) + (r.m ? '/mês' : ''));
+        total.dataset.total = '';
+        controls.append(qWrap, pWrap, total);
+        li.append(head, controls);
+
+        if (r.custom) {
+          const m = el('label', 'mt-3 flex items-center gap-2 text-sm');
+          const cb = el('input', 'size-4 accent-[#8be07a]') as HTMLInputElement;
+          cb.type = 'checkbox'; cb.checked = !!r.m; cb.dataset.field = 'm';
+          m.append(cb, el('span', '', 'Cobrança mensal'));
+          li.append(m);
+        }
+        if (r.o !== undefined && r.p < r.o) li.append(el('p', 'mt-2 text-xs text-brand', `Desconto de ${formatBRL((r.o - r.p) * r.q)} em relação à tabela`));
+        return li;
+      }),
+    );
+  };
+
+  $('[data-items]').addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement;
+    const key = t.closest<HTMLElement>('li[data-key]')?.dataset.key;
+    const r = rows.find((x) => x.key === key);
+    if (!r || !t.dataset.field) return;
+    if (t.dataset.field === 'n') r.n = t.value;
+    if (t.dataset.field === 'q') r.q = Math.max(1, Math.floor(Number(t.value) || 1));
+    if (t.dataset.field === 'p') r.p = Math.max(0, Math.round((Number(t.value) || 0) * 100) / 100);
+    if (t.dataset.field === 'm') r.m = t.checked;
+    t.closest('li')!.querySelector('[data-total]')!.textContent = formatBRL(lineTotal(r)) + (r.m ? '/mês' : '');
+    update();
+  });
+  $('[data-items]').addEventListener('change', (e) => {
+    if ((e.target as HTMLElement).dataset.field !== 'n') { renderRows(); update(); }
+  });
+  $('[data-items]').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('[data-remove]');
+    if (!b) return;
+    const key = b.closest<HTMLElement>('li[data-key]')!.dataset.key;
+    rows = rows.filter((r) => r.key !== key);
+    renderRows(); update();
+  });
+
+  $('[data-add]').addEventListener('click', () => {
+    const c = catalog.find((i) => i.id === f('pick').value);
+    if (!c) return;
+    const existing = rows.find((r) => r.key.startsWith(`${c.id}:`));
+    if (existing) existing.q += 1;
+    else rows.push({ key: `${c.id}:${++seq}`, slug: c.categorySlug, n: c.name, c: c.category, p: c.price, o: c.price, q: 1, m: c.monthly || undefined, u: c.unit, d: c.details });
+    renderRows(); update();
+  });
+  $('[data-add-custom]').addEventListener('click', () => {
+    rows.push({ key: `custom:${++seq}`, custom: true, n: '', p: 0, q: 1 });
+    renderRows(); update();
+    $<HTMLInputElement>(`li[data-key="custom:${seq}"] input[data-field="n"]`).focus();
+  });
+
+  // ───────── Cliente cadastrado ─────────
+  const fillClient = (c: Client | undefined) => {
+    if (!c) return;
+    f('cl').value = c.name;
+    f('r').value = c.contact;
+    f('phone').value = c.phone;
+    if (data.types.some((t) => t.id === c.type)) f('t').value = c.type;
+  };
+  f('client_id').addEventListener('change', () => {
+    fillClient(clients.find((c) => c.id === f('client_id').value));
+    update();
+  });
+
+  // ───────── Resumo, links e salvamento ─────────
+  const update = () => {
+    if (!msgEdited) f('msg').value = intro();
+    const p = build();
+    const t = proposalTotals(p);
+    $('[data-id]').textContent = id;
+    $('[data-sum-client]').textContent = p.cl || 'Nova proposta';
+    $('[data-mode]').textContent = editing ? `Editando ${id}` : 'Nova proposta';
+    $('[data-duplicate]').classList.toggle('hidden', !editing);
+
+    const row = (k: string, v: string, strong = false) => {
+      const d = el('div', 'flex justify-between gap-4');
+      d.append(el('dt', 'text-muted', k), el('dd', strong ? 'font-display text-2xl font-extrabold text-brand' : 'font-medium', v));
+      return d;
+    };
+    const lines = [row('Itens', String(p.it.length))];
+    if (t.once || !t.monthly) lines.push(row('Avulsos', formatBRL(t.once), true));
+    if (t.monthly) lines.push(row('Mensal', `${formatBRL(t.monthly)}/mês`, true));
+    if (t.savings) lines.push(row('Desconto', `− ${formatBRL(t.savings)}`));
+    if (p.val) lines.push(row('Validade', formatDateBR(p.val)));
+    $('[data-totals]').replaceChildren(...lines);
+
+    const missing = [!p.cl && 'o nome do cliente', !p.it.length && 'pelo menos um serviço', p.it.some((i) => !i.p) && 'o valor dos itens zerados'].filter(Boolean);
+    $('[data-hint]').textContent = missing.length ? `Falta informar ${missing.join(', ')}.` : '';
+    const ready = missing.length === 0;
+
+    const hash = `/proposta/#d=${encodeProposal(p)}`;
+    const shareUrl = `${data.siteUrl}${hash}`;
+    const send = $<HTMLAnchorElement>('[data-send]');
+    const preview = $<HTMLAnchorElement>('[data-preview]');
+    send.href = ready ? whatsappLink(waNumber(f('phone').value), sendMessage(p, shareUrl, data.signature)) : '#';
+    preview.href = ready ? `${location.origin}${hash}` : '#';
+    for (const a of [send, preview, $('[data-copy]'), $('[data-save]')]) {
+      a.toggleAttribute('aria-disabled', !ready);
+      a.classList.toggle('pointer-events-none', !ready);
+      a.classList.toggle('opacity-40', !ready);
+    }
+    if (!editing) {
+      store.set(DRAFT, { id, rows, msgEdited, values: Object.fromEntries(['client_id', 't', 'cl', 'r', 'phone', 'msg', 'ev', 'loc', 'val', 'obs'].map((n) => [n, f(n).value])), pay: (f('pay') as HTMLInputElement).checked, nt: (f('nt') as HTMLInputElement).checked });
+    }
+    return { p, shareUrl, ready };
+  };
+
+  /** Salva no painel (nuvem). */
+  const save = async () => {
+    const { p, shareUrl, ready } = update();
+    if (!ready) return false;
+    const t = proposalTotals(p);
+    try {
+      await api.saveProposal(p.id, {
+        client_id: f('client_id').value,
+        client_name: p.cl,
+        type: p.t,
+        total_once: t.once,
+        total_monthly: t.monthly,
+        valid_until: p.val ?? '',
+        url: shareUrl,
+        data: JSON.stringify(p),
+      });
+      editing = true;
+      store.del(DRAFT);
+      history.replaceState(null, '', `?id=${encodeURIComponent(p.id)}`);
+      update();
+      $('[data-status]').textContent = `Salva no painel às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`;
+      return true;
+    } catch (e) {
+      toast((e as Error).message, 'error');
+      return false;
+    }
+  };
+
+  $('[data-copy]').addEventListener('click', async () => {
+    const { shareUrl, ready } = update();
+    if (!ready) return;
+    try { await navigator.clipboard.writeText(shareUrl); toast('Link copiado!'); } catch { window.prompt('Copie o link da proposta:', shareUrl); }
+    await save();
+  });
+  $('[data-send]').addEventListener('click', () => { if (update().ready) void save(); });
+  $('[data-save]').addEventListener('click', async () => { if (await save()) toast('Proposta salva.'); });
+
+  const startNew = () => {
+    id = newProposalId(); rows = []; msgEdited = false; editing = false; savedNotes = [];
+    form.reset();
+    f('val').value = addDays(isoDate(new Date()), data.validity);
+    $('[data-status]').textContent = '';
+    history.replaceState(null, '', location.pathname);
+    renderRows(); update();
+  };
+  $('[data-new]').addEventListener('click', () => {
+    if (rows.length && !editing && !confirm('Começar uma proposta nova? O rascunho atual será descartado.')) return;
+    store.del(DRAFT);
+    startNew();
+  });
+  $('[data-duplicate]').addEventListener('click', () => {
+    id = newProposalId(); editing = false;
+    f('val').value = addDays(isoDate(new Date()), data.validity);
+    history.replaceState(null, '', location.pathname);
+    $('[data-status]').textContent = 'Cópia criada com um novo código. Ajuste e envie.';
+    update();
+  });
+  $('[data-reset-msg]').addEventListener('click', () => { msgEdited = false; update(); });
+  f('msg').addEventListener('input', () => { msgEdited = true; });
+  form.addEventListener('input', (e) => { if (!(e.target as HTMLElement).closest('[data-items]')) update(); });
+  form.addEventListener('change', (e) => { if (!(e.target as HTMLElement).closest('[data-items]')) update(); });
+  form.addEventListener('submit', (e) => e.preventDefault());
+
+  // ───────── Início ─────────
+  const loadSaved = async (pid: string) => {
+    const rec = await api.proposal(pid);
+    const p = decodeProposal(encodeProposal(JSON.parse(rec.data) as Proposal));
+    if (!p) throw new Error('Não foi possível abrir essa proposta.');
+    id = p.id; editing = true; msgEdited = true;
+    f('client_id').value = rec.client_id;
+    f('t').value = p.t; f('cl').value = p.cl; f('r').value = p.r ?? ''; f('msg').value = p.msg;
+    f('ev').value = p.ev ?? ''; f('loc').value = p.loc ?? ''; f('val').value = p.val ?? ''; f('obs').value = p.obs ?? '';
+    (f('pay') as HTMLInputElement).checked = p.pay;
+    (f('nt') as HTMLInputElement).checked = !!p.nt?.length;
+    savedNotes = p.nt ?? [];
+    const client = clients.find((c) => c.id === rec.client_id);
+    if (client) f('phone').value = client.phone;
+    rows = p.it.map((i, n) => ({ ...i, key: `saved:${n + 1}`, custom: i.o === undefined && !i.c }));
+    seq = rows.length;
+  };
+
+  (async () => {
+    const params = new URL(location.href).searchParams;
+    try {
+      clients = await api.clients();
+      const sel = f('client_id') as HTMLSelectElement;
+      clients
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+        .forEach((c) => sel.append(Object.assign(document.createElement('option'), { value: c.id, textContent: c.name })));
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+
+    const pid = params.get('id');
+    const cid = params.get('cliente');
+    if (pid) {
+      try { await loadSaved(pid); } catch (e) { toast((e as Error).message, 'error'); }
+    } else {
+      const draft = store.get<{ id: string; rows: Row[]; msgEdited: boolean; values: Record<string, string>; pay: boolean; nt: boolean } | null>(DRAFT, null);
+      if (draft?.rows && !cid) {
+        id = draft.id; rows = draft.rows; msgEdited = draft.msgEdited;
+        seq = Math.max(0, ...rows.map((r) => Number(r.key.split(':').pop()) || 0));
+        Object.entries(draft.values).forEach(([k, v]) => { if (f(k)) f(k).value = v; });
+        (f('pay') as HTMLInputElement).checked = draft.pay;
+        (f('nt') as HTMLInputElement).checked = draft.nt;
+      } else {
+        f('val').value = addDays(isoDate(new Date()), data.validity);
+        if (cid && clients.some((c) => c.id === cid)) {
+          f('client_id').value = cid;
+          fillClient(clients.find((c) => c.id === cid));
+        }
+      }
+    }
+    renderRows();
+    update();
+  })();
+</script>

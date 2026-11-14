@@ -1,0 +1,89 @@
+---
+/**
+ * KIT DE MENSAGENS — /painel/mensagens/
+ * Textos em src/data/messages.ts.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { messageGroups } from '@/data/messages';
+import { site } from '@/config/site';
+
+const vars = {
+  site: (Astro.site?.toString() ?? '').replace(/\/$/, ''),
+  fotto: site.fottoUrl,
+  instagram: site.instagramUser ? `@${site.instagramUser}` : '',
+};
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+---
+
+<PanelLayout title="Mensagens">
+  <p class="eyebrow">Comunicação</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Kit de <span class="text-brand">mensagens</span></h1>
+  <p class="mt-2 max-w-2xl text-muted">Preencha o nome do contato e do cliente: as mensagens se ajustam sozinhas. Depois é só copiar ou abrir no WhatsApp.</p>
+
+  <form data-vars class="card mt-8 grid gap-4 p-5 sm:grid-cols-2 sm:p-6" novalidate>
+    <label class="block"><span class="text-sm font-medium">Nome do contato</span><input name="nome" class={field} placeholder="Ex.: Mestre João" /></label>
+    <label class="block"><span class="text-sm font-medium">Cliente / empresa / evento</span><input name="cliente" class={field} placeholder="Ex.: Academia Força Total" /></label>
+  </form>
+
+  {
+    messageGroups.map((g) => (
+      <section class="mt-10" aria-label={g.title}>
+        <h2 class="text-3xl font-bold">{g.title}</h2>
+        <ul class="mt-4 grid gap-4 xl:grid-cols-2">
+          {g.items.map((m) => (
+            <li class="card flex flex-col p-5" data-msg={m.text}>
+              <h3 class="font-sans text-base font-semibold tracking-normal normal-case">{m.title}</h3>
+              <p class="mt-0.5 text-xs text-muted">{m.when}</p>
+              <p class="mt-4 flex-1 rounded-xl bg-bg p-4 text-sm leading-relaxed whitespace-pre-line text-ink/90" data-out />
+              <div class="mt-4 flex gap-2">
+                <button type="button" data-copy class="btn btn-primary min-h-10 px-4 text-sm">Copiar</button>
+                <a data-wa href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline min-h-10 px-4 text-sm">
+                  <Icon name="whatsapp" size={16} /> WhatsApp
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</PanelLayout>
+
+<script type="application/json" id="msg-vars" set:html={JSON.stringify(vars)} />
+
+<script>
+  import { toast } from '@/lib/panel-api';
+  import { whatsappLink } from '@/lib/whatsapp';
+
+  const base = JSON.parse(document.getElementById('msg-vars')!.textContent!) as Record<string, string>;
+  const form = document.querySelector<HTMLFormElement>('[data-vars]')!;
+  const val = (n: string) => (form.elements.namedItem(n) as HTMLInputElement).value.trim();
+
+  const fill = (tpl: string) => {
+    const v: Record<string, string> = { ...base, nome: val('nome'), cliente: val('cliente') };
+    return tpl
+      .replace(/\{(\w+)\}/g, (_, k: string) => v[k] || `[${k}]`)
+      .replace(/Fala, \[nome\]!|Olá, \[nome\]!|Oi, \[nome\]!/g, (m) => m.replace(', [nome]', ''))
+      .replace(/Fechado, \[nome\]!/, 'Fechado!')
+      .replace(/ \(\[instagram\]\)/g, '');
+  };
+
+  const render = () => {
+    document.querySelectorAll<HTMLElement>('[data-msg]').forEach((li) => {
+      const text = fill(li.dataset.msg!);
+      li.querySelector<HTMLElement>('[data-out]')!.textContent = text;
+      li.querySelector<HTMLAnchorElement>('[data-wa]')!.href = whatsappLink('', text);
+    });
+  };
+
+  document.addEventListener('click', async (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-copy]');
+    if (!btn) return;
+    const text = btn.closest('[data-msg]')!.querySelector('[data-out]')!.textContent ?? '';
+    try { await navigator.clipboard.writeText(text); toast('Mensagem copiada!'); } catch { prompt('Copie a mensagem:', text); }
+  });
+  form.addEventListener('input', render);
+  form.addEventListener('submit', (e) => e.preventDefault());
+  render();
+</script>

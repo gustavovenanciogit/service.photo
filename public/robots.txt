@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /painel/
+Disallow: /api/
 
 Sitemap: https://venart.gustavovesss.workers.dev/sitemap-index.xml

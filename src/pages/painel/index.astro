@@ -1,0 +1,172 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+---
+
+<PanelLayout title="Início">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="eyebrow" data-today></p>
+      <h1 class="mt-1 text-5xl font-extrabold">Seu <span class="text-brand">painel</span></h1>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="/painel/propostas/nova/" class="btn btn-primary"><Icon name="plus" size={18} /> Nova proposta</a>
+      <a href="/painel/clientes/?novo=1" class="btn btn-outline">Novo cliente</a>
+    </div>
+  </header>
+
+  <p data-loading class="mt-10 text-muted">Carregando…</p>
+  <p data-fail hidden role="alert" class="mt-10 rounded-xl border border-red-300/40 bg-red-500/10 p-4 text-red-200"></p>
+
+  <div data-ready hidden>
+    <!-- Números -->
+    <section class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo">
+      <div class="card p-5"><p class="text-xs tracking-widest text-muted uppercase">Propostas em aberto</p><p class="mt-2 font-display text-4xl font-extrabold" data-k="open"></p><p class="text-sm text-muted" data-k="open-sub"></p></div>
+      <div class="card p-5"><p class="text-xs tracking-widest text-muted uppercase">Fechado este mês</p><p class="mt-2 font-display text-4xl font-extrabold text-brand" data-k="month"></p><p class="text-sm text-muted" data-k="month-sub"></p></div>
+      <div class="card p-5"><p class="text-xs tracking-widest text-muted uppercase">Receita recorrente</p><p class="mt-2 font-display text-4xl font-extrabold" data-k="mrr"></p><p class="text-sm text-muted">assinaturas aceitas, por mês</p></div>
+      <div class="card p-5"><p class="text-xs tracking-widest text-muted uppercase">Taxa de aceite</p><p class="mt-2 font-display text-4xl font-extrabold" data-k="rate"></p><p class="text-sm text-muted" data-k="rate-sub"></p></div>
+    </section>
+
+    <div class="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <!-- Follow-ups -->
+      <section class="card p-5 sm:p-6" aria-labelledby="fu-title">
+        <div class="flex items-center justify-between gap-3">
+          <h2 id="fu-title" class="text-2xl font-bold">Follow-ups</h2>
+          <a href="/painel/clientes/" class="text-sm font-semibold text-brand hover:underline">Ver clientes</a>
+        </div>
+        <ul data-followups class="mt-4 space-y-2"></ul>
+      </section>
+
+      <!-- Funil -->
+      <section class="card p-5 sm:p-6" aria-labelledby="funnel-title">
+        <h2 id="funnel-title" class="text-2xl font-bold">Funil de clientes</h2>
+        <ul data-funnel class="mt-4 space-y-3"></ul>
+      </section>
+    </div>
+
+    <!-- Propostas recentes -->
+    <section class="mt-6 card p-5 sm:p-6" aria-labelledby="recent-title">
+      <div class="flex items-center justify-between gap-3">
+        <h2 id="recent-title" class="text-2xl font-bold">Propostas recentes</h2>
+        <a href="/painel/propostas/" class="text-sm font-semibold text-brand hover:underline">Ver todas</a>
+      </div>
+      <ul data-recent class="mt-4 divide-y divide-line"></ul>
+    </section>
+
+    <!-- Atalhos -->
+    <section class="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Atalhos">
+      <a href="/painel/qrcodes/" class="card card-hover flex items-center gap-3 p-5"><Icon name="image" class="text-brand" /> <span class="font-semibold">QR Codes para eventos</span></a>
+      <a href="/painel/mensagens/" class="card card-hover flex items-center gap-3 p-5"><Icon name="chat" class="text-brand" /> <span class="font-semibold">Kit de mensagens</span></a>
+      <a href="/simulador" target="_blank" rel="noopener" class="card card-hover flex items-center gap-3 p-5"><Icon name="external" class="text-brand" /> <span class="font-semibold">Abrir simulador público</span></a>
+    </section>
+  </div>
+</PanelLayout>
+
+<script>
+  import { api, h, todayISO, waNumber } from '@/lib/panel-api';
+  import { CLIENT_STAGES, displayStatus } from '@/lib/crm';
+  import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+  import { formatDateBR } from '@/lib/proposal';
+
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  const today = todayISO();
+  $('[data-today]').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const statusClass: Record<string, string> = {
+    enviada: 'bg-sky-400/15 text-sky-200',
+    aceita: 'bg-brand/20 text-brand',
+    recusada: 'bg-red-400/15 text-red-200',
+    vencida: 'bg-amber-400/15 text-amber-200',
+  };
+
+  (async () => {
+  try {
+    const [clients, proposals] = await Promise.all([api.clients(), api.proposals()]);
+    const month = today.slice(0, 7);
+    const st = (p: (typeof proposals)[number]) => displayStatus(p, today).id;
+    const money = (once: number, monthly: number) => [once && formatBRL(once), monthly && `${formatBRL(monthly)}/mês`].filter(Boolean).join(' + ') || formatBRL(0);
+
+    const open = proposals.filter((p) => st(p) === 'enviada');
+    const acceptedMonth = proposals.filter((p) => p.status === 'aceita' && p.updated_at.slice(0, 7) === month);
+    const accepted = proposals.filter((p) => p.status === 'aceita');
+    const decided = proposals.filter((p) => ['aceita', 'recusada', 'vencida'].includes(st(p)));
+    const sum = (list: typeof proposals, k: 'total_once' | 'total_monthly') => list.reduce((a, p) => a + p[k], 0);
+
+    $('[data-k="open"]').textContent = String(open.length);
+    $('[data-k="open-sub"]').textContent = money(sum(open, 'total_once'), sum(open, 'total_monthly'));
+    $('[data-k="month"]').textContent = formatBRL(sum(acceptedMonth, 'total_once'));
+    $('[data-k="month-sub"]').textContent = `${acceptedMonth.length} proposta(s) aceita(s)`;
+    $('[data-k="mrr"]').textContent = formatBRL(sum(accepted, 'total_monthly'));
+    $('[data-k="rate"]').textContent = decided.length ? `${Math.round((accepted.length / decided.length) * 100)}%` : '—';
+    $('[data-k="rate-sub"]').textContent = `${accepted.length} de ${decided.length} decididas`;
+
+    // Follow-ups: atrasados e hoje, depois próximos 7 dias.
+    const in7 = new Date(); in7.setDate(in7.getDate() + 7);
+    const limit = new Date(in7.getTime() - in7.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const fu = clients
+      .filter((c) => c.next_followup && c.next_followup <= limit && c.stage !== 'lost')
+      .sort((a, b) => a.next_followup.localeCompare(b.next_followup));
+    $('[data-followups]').replaceChildren(
+      ...(fu.length
+        ? fu.map((c) => {
+            const late = c.next_followup < today;
+            const isToday = c.next_followup === today;
+            const li = h('li', 'flex items-center justify-between gap-3 rounded-xl border border-line p-3');
+            const info = h('div', 'min-w-0');
+            const a = h('a', 'block truncate font-semibold hover:text-brand', c.name) as HTMLAnchorElement;
+            a.href = `/painel/clientes/?id=${encodeURIComponent(c.id)}`;
+            info.append(a, h('p', `text-xs ${late ? 'text-red-300' : isToday ? 'text-amber-300' : 'text-muted'}`, late ? `Atrasado · ${formatDateBR(c.next_followup)}` : isToday ? 'Hoje' : formatDateBR(c.next_followup)));
+            li.append(info);
+            if (c.phone) {
+              const w = h('a', 'btn btn-outline min-h-9 shrink-0 px-3 text-xs', 'WhatsApp') as HTMLAnchorElement;
+              w.href = whatsappLink(waNumber(c.phone), `Olá${c.contact ? `, ${c.contact}` : ''}! Tudo bem?`);
+              w.target = '_blank'; w.rel = 'noopener noreferrer';
+              li.append(w);
+            }
+            return li;
+          })
+        : [h('li', 'text-sm text-muted', 'Nenhum follow-up para os próximos 7 dias.')]),
+    );
+
+    // Funil
+    const max = Math.max(1, ...CLIENT_STAGES.map((s) => clients.filter((c) => c.stage === s.id).length));
+    $('[data-funnel]').replaceChildren(
+      ...CLIENT_STAGES.map((s) => {
+        const n = clients.filter((c) => c.stage === s.id).length;
+        const li = h('li');
+        const row = h('div', 'flex justify-between text-sm');
+        row.append(h('span', 'text-muted', s.label), h('span', 'font-semibold', String(n)));
+        const bar = h('div', 'mt-1 h-2 overflow-hidden rounded-full bg-bg');
+        const fill = h('div', `h-full rounded-full ${s.id === 'lost' ? 'bg-muted/50' : 'bg-brand'}`);
+        fill.style.width = `${(n / max) * 100}%`;
+        bar.append(fill);
+        li.append(row, bar);
+        return li;
+      }),
+    );
+
+    // Recentes
+    $('[data-recent]').replaceChildren(
+      ...(proposals.length
+        ? proposals.slice(0, 5).map((p) => {
+            const s = displayStatus(p, today);
+            const li = h('li', 'flex flex-wrap items-center justify-between gap-3 py-3');
+            const info = h('div', 'min-w-0');
+            info.append(h('p', 'truncate font-semibold', p.client_name), h('p', 'text-xs text-muted', `${p.id} · ${formatDateBR(p.created_at.slice(0, 10))}`));
+            const right = h('div', 'flex items-center gap-3');
+            right.append(h('span', 'text-sm font-semibold', money(p.total_once, p.total_monthly)), h('span', `rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[s.id]}`, s.label));
+            li.append(info, right);
+            return li;
+          })
+        : [h('li', 'py-3 text-sm text-muted', 'Nenhuma proposta ainda. Que tal criar a primeira?')]),
+    );
+
+    $('[data-loading]').hidden = true;
+    $('[data-ready]').hidden = false;
+  } catch (e) {
+    $('[data-loading]').hidden = true;
+    $('[data-fail]').hidden = false;
+    $('[data-fail]').textContent = (e as Error).message;
+  }
+  })();
+</script>

@@ -1,0 +1,171 @@
+---
+/**
+ * QR CODES — /painel/qrcodes/
+ * Gera QR Code (PNG para imprimir/compartilhar, SVG para gráfica) de qualquer link.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import { instagramUrl, site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const base = (Astro.site?.toString() ?? '').replace(/\/$/, '');
+const presets = [
+  { id: 'site', label: 'Site (página inicial)', url: `${base}/`, caption: 'Conheça meu trabalho' },
+  { id: 'precos', label: 'Tabela de preços', url: `${base}/precos`, caption: 'Tabela de preços' },
+  { id: 'simulador', label: 'Simulador de orçamento', url: `${base}/simulador`, caption: 'Simule seu orçamento' },
+  { id: 'portfolio', label: 'Portfólio', url: `${base}/#portfolio`, caption: 'Veja o portfólio' },
+  ...(site.fottoUrl ? [{ id: 'fotto', label: 'Fotos na Fotto', url: site.fottoUrl, caption: 'Encontre suas fotos' }] : []),
+  ...(instagramUrl ? [{ id: 'instagram', label: 'Instagram', url: instagramUrl, caption: `@${site.instagramUser}` }] : []),
+  { id: 'whatsapp', label: 'WhatsApp (orçamento)', url: whatsappLink(site.whatsappNumber, messages.quote()), caption: 'Peça seu orçamento' },
+  { id: 'custom', label: 'Link personalizado…', url: '', caption: '' },
+];
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+---
+
+<PanelLayout title="QR Codes">
+  <p class="eyebrow">Divulgação</p>
+  <h1 class="mt-1 text-5xl font-extrabold">QR <span class="text-brand">Codes</span></h1>
+  <p class="mt-2 max-w-2xl text-muted">Para cartazes em provas, cartões, banners na academia e stories. Baixe em PNG para imprimir ou compartilhar, ou em SVG para enviar à gráfica.</p>
+
+  <div class="mt-8 grid gap-6 lg:grid-cols-[1fr_minmax(0,420px)] lg:items-start">
+    <form data-qr-form class="card space-y-5 p-5 sm:p-7" novalidate>
+      <label class="block">
+        <span class="text-sm font-medium">Para onde o QR Code leva</span>
+        <select name="preset" class={field}>
+          {presets.map((p) => <option value={p.id}>{p.label}</option>)}
+        </select>
+      </label>
+      <label class="block" data-custom hidden>
+        <span class="text-sm font-medium">Link</span>
+        <input name="url" type="url" inputmode="url" class={field} placeholder="https://www.fotto.com.br/venart/evento-x" />
+        <span class="mt-1 block text-xs text-muted">Ex.: o link de um evento específico na Fotto.</span>
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium">Texto embaixo do QR Code <span class="font-normal text-muted">(opcional)</span></span>
+        <input name="caption" maxlength="40" class={field} />
+      </label>
+      <fieldset>
+        <legend class="text-sm font-medium">Cores</legend>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-line p-3 has-[:checked]:border-brand">
+            <input type="radio" name="theme" value="light" checked class="accent-[#8be07a]" />
+            <span class="text-sm">Preto no branco <span class="block text-xs text-muted">melhor para imprimir</span></span>
+          </label>
+          <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-line p-3 has-[:checked]:border-brand">
+            <input type="radio" name="theme" value="dark" class="accent-[#8be07a]" />
+            <span class="text-sm">Identidade Venart <span class="block text-xs text-muted">verde no escuro</span></span>
+          </label>
+        </div>
+      </fieldset>
+      <p class="break-all rounded-xl bg-bg p-3 text-xs text-muted" data-url-preview></p>
+    </form>
+
+    <div class="card p-5 text-center sm:p-7">
+      <canvas data-canvas width="1024" height="1180" class="mx-auto w-full max-w-[340px] rounded-xl" role="img" aria-label="Pré-visualização do QR Code"></canvas>
+      <p data-qr-error role="alert" class="mt-3 hidden text-sm text-red-300"></p>
+      <div class="mt-5 grid grid-cols-2 gap-2">
+        <button type="button" data-png class="btn btn-primary">Baixar PNG</button>
+        <button type="button" data-svg class="btn btn-outline">Baixar SVG</button>
+      </div>
+      <p class="mt-3 text-xs text-muted">Teste sempre com a câmera do celular antes de imprimir.</p>
+    </div>
+  </div>
+</PanelLayout>
+
+<script type="application/json" id="qr-presets" set:html={JSON.stringify(presets)} />
+
+<script>
+  import qrcode from 'qrcode-generator';
+
+  const presets = JSON.parse(document.getElementById('qr-presets')!.textContent!) as { id: string; label: string; url: string; caption: string }[];
+  const form = document.querySelector<HTMLFormElement>('[data-qr-form]')!;
+  const canvas = document.querySelector<HTMLCanvasElement>('[data-canvas]')!;
+  const ctx = canvas.getContext('2d')!;
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  const f = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+  const THEMES = {
+    light: { bg: '#FFFFFF', fg: '#070A08', text: '#070A08' },
+    dark: { bg: '#070A08', fg: '#8BE07A', text: '#F5FAF5' },
+  } as const;
+  let captionTouched = false;
+
+  const currentUrl = () => {
+    const preset = presets.find((p) => p.id === f('preset').value)!;
+    return preset.id === 'custom' ? f('url').value.trim() : preset.url;
+  };
+  const theme = () => THEMES[((form.querySelector('[name=theme]:checked') as HTMLInputElement)?.value ?? 'light') as keyof typeof THEMES];
+
+  const makeQr = (text: string) => {
+    const qr = qrcode(0, 'M'); // correção de erro "M": bom equilíbrio para impressão
+    qr.addData(text);
+    qr.make();
+    return qr;
+  };
+
+  const draw = () => {
+    const url = currentUrl();
+    const err = $('[data-qr-error]');
+    $('[data-url-preview]').textContent = url || 'Informe um link.';
+    const t = theme();
+    ctx.fillStyle = t.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (!/^https?:\/\/\S+$/.test(url)) {
+      err.textContent = url ? 'O link precisa começar com https://' : '';
+      err.classList.toggle('hidden', !url);
+      return null;
+    }
+    err.classList.add('hidden');
+    const qr = makeQr(url);
+    const n = qr.getModuleCount();
+    const margin = 80;
+    const cell = Math.floor((canvas.width - margin * 2) / n);
+    const offset = Math.floor((canvas.width - cell * n) / 2);
+    ctx.fillStyle = t.fg;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect(offset + c * cell, offset + r * cell, cell, cell);
+    const caption = f('caption').value.trim();
+    if (caption) {
+      ctx.fillStyle = t.text;
+      ctx.font = '700 64px "Barlow Condensed", "Arial Narrow", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(caption.toUpperCase(), canvas.width / 2, canvas.width + 70, canvas.width - 120);
+    }
+    return { qr, url };
+  };
+
+  const download = (href: string, name: string) => Object.assign(document.createElement('a'), { href, download: name }).click();
+  const fileName = () => `qrcode-${f('preset').value}`;
+
+  $('[data-png]').addEventListener('click', () => {
+    if (!draw()) return;
+    download(canvas.toDataURL('image/png'), `${fileName()}.png`);
+  });
+  $('[data-svg]').addEventListener('click', () => {
+    const r = draw();
+    if (!r) return;
+    const t = theme();
+    const n = r.qr.getModuleCount();
+    const m = 4;
+    let path = '';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (r.qr.isDark(y, x)) path += `M${x + m} ${y + m}h1v1h-1z`;
+    const size = n + m * 2;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="${t.bg}"/><path d="${path}" fill="${t.fg}"/></svg>`;
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    download(url, `${fileName()}.svg`);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  form.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.name === 'caption') captionTouched = true;
+    if (t.name === 'preset') {
+      const p = presets.find((x) => x.id === t.value)!;
+      ($('[data-custom]') as HTMLElement).hidden = p.id !== 'custom';
+      if (!captionTouched) f('caption').value = p.caption;
+    }
+    draw();
+  });
+  form.addEventListener('submit', (e) => e.preventDefault());
+
+  f('caption').value = presets[0]!.caption;
+  document.fonts?.ready.then(draw);
+  draw();
+</script>

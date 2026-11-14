@@ -1,0 +1,250 @@
+---
+/**
+ * CLIENTES E PROSPECÇÃO — /painel/clientes/
+ * ?novo=1  → abre o formulário de novo cliente
+ * ?id=...  → abre o cliente para editar
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { CLIENT_STAGES } from '@/lib/crm';
+import { clientTypes } from '@/data/proposal';
+
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-2.5 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+const types = JSON.stringify(clientTypes.map((t) => ({ id: t.id, label: t.label })));
+---
+
+<PanelLayout title="Clientes">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="eyebrow">Prospecção e relacionamento</p>
+      <h1 class="mt-1 text-5xl font-extrabold">Clientes</h1>
+    </div>
+    <button type="button" data-new class="btn btn-primary"><Icon name="plus" size={18} /> Novo cliente</button>
+  </header>
+
+  <div class="mt-8 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div role="toolbar" aria-label="Filtrar por etapa" class="flex flex-wrap gap-2" data-filters>
+      <button type="button" data-f="todos" aria-pressed="true" class="pill">Todos <span data-count="todos"></span></button>
+      {CLIENT_STAGES.map((s) => <button type="button" data-f={s.id} aria-pressed="false" class="pill">{s.label} <span data-count={s.id}></span></button>)}
+    </div>
+    <label class="block lg:w-72">
+      <span class="sr-only">Buscar</span>
+      <input data-search type="search" placeholder="Buscar nome, contato ou @" class="w-full rounded-full border border-line bg-bg-2 px-4 py-2.5 text-sm focus:border-brand focus:outline-none" />
+    </label>
+  </div>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+  <ul data-list class="mt-6 grid gap-3 xl:grid-cols-2"></ul>
+
+  <!-- Formulário (novo/editar) -->
+  <dialog data-dialog aria-labelledby="dlg-title" class="m-auto w-[min(640px,calc(100vw-2rem))] rounded-2xl border border-line bg-bg-2 p-0 text-ink backdrop:bg-bg/80">
+    <form data-form method="dialog" class="max-h-[90dvh] overflow-y-auto p-6 sm:p-8" novalidate>
+      <div class="flex items-center justify-between gap-3">
+        <h2 id="dlg-title" class="text-3xl font-bold" data-dlg-title>Novo cliente</h2>
+        <button type="button" data-close class="grid size-10 place-items-center rounded-full border border-line" aria-label="Fechar"><Icon name="close" size={18} /></button>
+      </div>
+      <div class="mt-6 grid gap-4 sm:grid-cols-2">
+        <label class="block sm:col-span-2"><span class="text-sm font-medium">Nome <span class="text-brand">*</span></span><input name="name" required maxlength="120" class={field} placeholder="Academia, assessoria ou pessoa" /></label>
+        <label class="block"><span class="text-sm font-medium">Tipo</span><select name="type" class={field}><option value="">—</option>{clientTypes.map((t) => <option value={t.id}>{t.label}</option>)}</select></label>
+        <label class="block"><span class="text-sm font-medium">Etapa</span><select name="stage" class={field}>{CLIENT_STAGES.map((s) => <option value={s.id}>{s.label}</option>)}</select></label>
+        <label class="block"><span class="text-sm font-medium">Responsável / contato</span><input name="contact" maxlength="120" class={field} placeholder="Ex.: Mestre João" /></label>
+        <label class="block"><span class="text-sm font-medium">WhatsApp</span><input name="phone" type="tel" inputmode="tel" maxlength="40" class={field} placeholder="(92) 99999-9999" /></label>
+        <label class="block"><span class="text-sm font-medium">Instagram</span><input name="instagram" maxlength="60" class={field} placeholder="@perfil" /></label>
+        <label class="block"><span class="text-sm font-medium">E-mail</span><input name="email" type="email" maxlength="120" class={field} /></label>
+        <label class="block"><span class="text-sm font-medium">Próximo follow-up</span><input name="next_followup" type="date" class={field} /></label>
+        <label class="block sm:col-span-2"><span class="text-sm font-medium">Anotações</span><textarea name="notes" rows="4" maxlength="4000" class={field} placeholder="Como conheceu, o que conversaram, próximos passos…"></textarea></label>
+      </div>
+      <p data-form-error role="alert" class="mt-4 hidden text-sm text-red-300"></p>
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        <button type="submit" value="save" class="btn btn-primary">Salvar</button>
+        <button type="button" data-cancel class="btn btn-outline">Cancelar</button>
+        <button type="button" data-delete class="ml-auto hidden text-sm text-muted hover:text-red-300">Excluir cliente</button>
+      </div>
+    </form>
+  </dialog>
+</PanelLayout>
+
+<script type="application/json" id="client-types" set:html={types} />
+
+<style>
+  @reference '../../../styles/global.css';
+  .pill {
+    @apply rounded-full border border-line px-4 py-2 text-sm text-muted transition-colors hover:text-ink;
+  }
+  .pill[aria-pressed='true'] {
+    @apply border-brand bg-brand text-bg;
+  }
+</style>
+
+<script>
+  import { api, h, toast, todayISO, waNumber, type ProposalSummary } from '@/lib/panel-api';
+  import { CLIENT_STAGES, type Client } from '@/lib/crm';
+  import { formatDateBR } from '@/lib/proposal';
+  import { whatsappLink } from '@/lib/whatsapp';
+
+  const types = JSON.parse(document.getElementById('client-types')!.textContent!) as { id: string; label: string }[];
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const dialog = $<HTMLDialogElement>('[data-dialog]');
+  const form = $<HTMLFormElement>('[data-form]');
+  const today = todayISO();
+  let clients: Client[] = [];
+  let proposals: ProposalSummary[] = [];
+  let filter = 'todos';
+  let query = '';
+  let editingId: string | null = null;
+
+  const stageClass: Record<string, string> = {
+    prospect: 'bg-white/10 text-ink',
+    contacted: 'bg-sky-400/15 text-sky-200',
+    negotiating: 'bg-amber-400/15 text-amber-200',
+    client: 'bg-brand/20 text-brand',
+    lost: 'bg-white/5 text-muted',
+  };
+
+  const render = () => {
+    const counts: Record<string, number> = { todos: clients.length };
+    CLIENT_STAGES.forEach((s) => (counts[s.id] = clients.filter((c) => c.stage === s.id).length));
+    document.querySelectorAll<HTMLElement>('[data-count]').forEach((e) => (e.textContent = `(${counts[e.dataset.count!] ?? 0})`));
+
+    const q = query.toLowerCase().replace(/^@/, '');
+    const list = clients
+      .filter((c) => (filter === 'todos' || c.stage === filter) && (!q || [c.name, c.contact, c.instagram].some((v) => v.toLowerCase().includes(q))))
+      .sort((a, b) => (a.next_followup || '9999').localeCompare(b.next_followup || '9999') || a.name.localeCompare(b.name, 'pt-BR'));
+
+    $('[data-list]').replaceChildren(
+      ...(list.length
+        ? list.map((c) => {
+            const li = h('li', 'card flex flex-col p-5');
+            const top = h('div', 'flex items-start justify-between gap-3');
+            const info = h('div', 'min-w-0');
+            info.append(
+              h('p', 'truncate text-lg font-semibold', c.name),
+              h('p', 'text-xs text-muted', [types.find((t) => t.id === c.type)?.label, c.contact].filter(Boolean).join(' · ') || 'Sem detalhes'),
+            );
+            const sel = h('select', `rounded-full border-0 px-3 py-1.5 text-xs font-semibold ${stageClass[c.stage]}`) as HTMLSelectElement;
+            sel.setAttribute('aria-label', `Etapa de ${c.name}`);
+            CLIENT_STAGES.forEach((s) => sel.append(Object.assign(document.createElement('option'), { value: s.id, textContent: s.label, selected: s.id === c.stage })));
+            sel.addEventListener('change', async () => {
+              try {
+                Object.assign(c, await api.updateClient(c.id, { ...c, stage: sel.value as Client['stage'] }));
+                toast('Etapa atualizada.');
+                render();
+              } catch (e) { toast((e as Error).message, 'error'); sel.value = c.stage; }
+            });
+            top.append(info, sel);
+            li.append(top);
+
+            const meta = h('div', 'mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs');
+            if (c.next_followup) {
+              const late = c.next_followup < today;
+              meta.append(h('span', late ? 'font-semibold text-red-300' : c.next_followup === today ? 'font-semibold text-amber-300' : 'text-muted', `Follow-up: ${c.next_followup === today ? 'hoje' : formatDateBR(c.next_followup)}${late ? ' (atrasado)' : ''}`));
+            }
+            const n = proposals.filter((p) => p.client_id === c.id).length;
+            if (n) meta.append(h('span', 'text-muted', `${n} proposta(s)`));
+            if (meta.childNodes.length) li.append(meta);
+            if (c.notes) li.append(h('p', 'mt-2 line-clamp-2 text-sm text-ink/80', c.notes));
+
+            const actions = h('div', 'mt-4 flex flex-wrap gap-2 border-t border-line pt-4');
+            const link = (label: string, href: string, blank: boolean) => {
+              const a = h('a', 'btn btn-outline min-h-9 px-3 text-xs', label) as HTMLAnchorElement;
+              a.href = href;
+              if (blank) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+              return a;
+            };
+            if (c.phone) actions.append(link('WhatsApp', whatsappLink(waNumber(c.phone), `Olá${c.contact ? `, ${c.contact}` : ''}! Tudo bem?`), true));
+            if (c.instagram) actions.append(link('Instagram', `https://www.instagram.com/${encodeURIComponent(c.instagram)}/`, true));
+            actions.append(link('Nova proposta', `/painel/propostas/nova/?cliente=${encodeURIComponent(c.id)}`, false));
+            const edit = h('button', 'btn btn-outline min-h-9 px-3 text-xs', 'Editar');
+            edit.setAttribute('type', 'button');
+            edit.addEventListener('click', () => open(c));
+            actions.append(edit);
+            li.append(actions);
+            return li;
+          })
+        : [h('li', 'card p-6 text-center text-muted xl:col-span-2', clients.length ? 'Nenhum cliente com esse filtro.' : 'Nenhum cliente ainda. Comece cadastrando as academias e assessorias que você quer conquistar.')]),
+    );
+  };
+
+  // ───────── Formulário ─────────
+  const fields = ['name', 'type', 'stage', 'contact', 'phone', 'instagram', 'email', 'next_followup', 'notes'] as const;
+  const input = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+
+  function open(c?: Client) {
+    editingId = c?.id ?? null;
+    form.reset();
+    $('[data-dlg-title]').textContent = c ? 'Editar cliente' : 'Novo cliente';
+    $('[data-delete]').classList.toggle('hidden', !c);
+    $('[data-form-error]').classList.add('hidden');
+    if (c) fields.forEach((k) => (input(k).value = String(c[k] ?? '')));
+    dialog.showModal();
+    input('name').focus();
+  }
+  const close = () => {
+    dialog.close();
+    history.replaceState(null, '', location.pathname);
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(fields.map((k) => [k, input(k).value])) as unknown as Partial<Client>;
+    if (!body.name?.trim()) {
+      $('[data-form-error]').textContent = 'Informe o nome do cliente.';
+      $('[data-form-error]').classList.remove('hidden');
+      input('name').focus();
+      return;
+    }
+    try {
+      if (editingId) {
+        const c = await api.updateClient(editingId, body);
+        clients = clients.map((x) => (x.id === editingId ? c : x));
+        toast('Cliente atualizado.');
+      } else {
+        clients.unshift(await api.createClient(body));
+        toast('Cliente cadastrado.');
+      }
+      close();
+      render();
+    } catch (err) {
+      $('[data-form-error]').textContent = (err as Error).message;
+      $('[data-form-error]').classList.remove('hidden');
+    }
+  });
+  $('[data-delete]').addEventListener('click', async () => {
+    const c = clients.find((x) => x.id === editingId);
+    if (!c || !confirm(`Excluir ${c.name}? As propostas dele continuam salvas.`)) return;
+    try {
+      await api.deleteClient(c.id);
+      clients = clients.filter((x) => x.id !== c.id);
+      toast('Cliente excluído.');
+      close();
+      render();
+    } catch (err) { toast((err as Error).message, 'error'); }
+  });
+  $('[data-close]').addEventListener('click', close);
+  $('[data-cancel]').addEventListener('click', close);
+  $('[data-new]').addEventListener('click', () => open());
+
+  document.querySelectorAll<HTMLButtonElement>('[data-filters] button').forEach((b) =>
+    b.addEventListener('click', () => {
+      filter = b.dataset.f!;
+      document.querySelectorAll('[data-filters] button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      render();
+    }),
+  );
+  $('[data-search]').addEventListener('input', (e) => { query = (e.target as HTMLInputElement).value; render(); });
+
+  (async () => {
+    try {
+      [clients, proposals] = await Promise.all([api.clients(), api.proposals()]);
+      render();
+      const params = new URL(location.href).searchParams;
+      if (params.get('novo')) open();
+      const id = params.get('id');
+      if (id) open(clients.find((c) => c.id === id));
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      $('[data-loading]').hidden = true;
+    }
+  })();
+</script>

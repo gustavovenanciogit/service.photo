@@ -1,8 +1,12 @@
-// Configuração de publicação na Cloudflare (Workers com arquivos estáticos).
-// O site é 100% estático: a Cloudflare só serve a pasta dist/ gerada pelo build.
+// Configuração de publicação na Cloudflare.
+// - Site público: arquivos estáticos da pasta dist/ (gerada pelo `npm run build`).
+// - Servidor (worker/index.ts): só atende /painel/*, /api/* e /proposta/nova (login e dados do painel).
+// - Banco de dados D1 "venart": criado automaticamente no primeiro deploy.
+// - Senha do painel: segredo ADMIN_PASSWORD (definido no painel da Cloudflare, nunca aqui).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "venart",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   // Endereço público https://venart.gustavovesss.workers.dev
   "workers_dev": true,
@@ -10,6 +14,15 @@
   "preview_urls": true,
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "404-page"
-  }
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/painel", "/painel/*", "/api/*", "/proposta/nova", "/proposta/nova/"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "venart"
+    }
+  ],
+  "observability": { "enabled": true }
 }
