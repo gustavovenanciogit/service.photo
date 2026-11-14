@@ -1,0 +1,336 @@
+---
+/**
+ * AGENDA DE TRABALHOS — /painel/agenda/
+ * ?proposta=VEN-...      → agenda a partir de uma proposta aceita (preenchido)
+ * ?id=job_...            → abre um trabalho para editar
+ * ?nova=1&data=AAAA-MM-DD → novo trabalho na data
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { JOB_STATUSES } from '@/lib/crm';
+
+const field = 'mt-1 w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+---
+
+<PanelLayout title="Agenda">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="eyebrow">Trabalhos</p>
+      <h1 class="mt-1 text-5xl font-extrabold">Agenda</h1>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" data-new class="btn btn-primary"><Icon name="plus" size={18} /> Novo trabalho</button>
+      <button type="button" data-block class="btn btn-outline">Bloquear data</button>
+    </div>
+  </header>
+
+  <section class="card mt-8 p-3 sm:p-5" aria-label="Calendário">
+    <div class="flex items-center justify-between gap-2">
+      <button type="button" data-prev class="grid size-10 place-items-center rounded-full border border-line hover:border-brand" aria-label="Mês anterior"><Icon name="chevron-left" size={18} /></button>
+      <div class="text-center">
+        <h2 class="text-2xl font-bold sm:text-3xl" data-month aria-live="polite"></h2>
+        <button type="button" data-today class="text-xs text-brand hover:underline">Ir para hoje</button>
+      </div>
+      <button type="button" data-next class="grid size-10 place-items-center rounded-full border border-line hover:border-brand" aria-label="Próximo mês"><Icon name="chevron-right" size={18} /></button>
+    </div>
+    <div class="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold tracking-wider text-muted uppercase sm:gap-2" aria-hidden="true">
+      {weekdays.map((d) => <div>{d}</div>)}
+    </div>
+    <div data-grid class="mt-1 grid grid-cols-7 gap-1 sm:gap-2"></div>
+    <p class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+      <span><span class="mr-1 inline-block size-2.5 rounded-full bg-brand align-middle"></span>Trabalho</span>
+      <span><span class="mr-1 inline-block size-2.5 rounded-full bg-white/40 align-middle"></span>Data bloqueada</span>
+      <span>Toque num dia para agendar.</span>
+    </p>
+  </section>
+
+  <section class="mt-8" aria-labelledby="next-title">
+    <h2 id="next-title" class="text-3xl font-bold">Próximos trabalhos</h2>
+    <ul data-upcoming class="mt-4 space-y-2"></ul>
+  </section>
+
+  <!-- Formulário do trabalho -->
+  <dialog data-dialog aria-labelledby="job-title" class="m-auto w-[min(680px,calc(100vw-2rem))] rounded-2xl border border-line bg-bg-2 p-0 text-ink backdrop:bg-bg/80">
+    <form data-form class="max-h-[90dvh] overflow-y-auto p-6 sm:p-8" novalidate>
+      <div class="flex items-center justify-between gap-3">
+        <h2 id="job-title" class="text-3xl font-bold" data-dlg-title>Novo trabalho</h2>
+        <button type="button" data-close class="grid size-10 place-items-center rounded-full border border-line" aria-label="Fechar"><Icon name="close" size={18} /></button>
+      </div>
+      <p data-from-proposal hidden class="mt-2 text-sm text-brand"></p>
+
+      <fieldset class="mt-5 grid grid-cols-2 gap-2" aria-label="Tipo">
+        <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-line p-3 text-sm has-[:checked]:border-brand"><input type="radio" name="kind" value="trabalho" checked class="accent-[#8be07a]" /> Trabalho</label>
+        <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-line p-3 text-sm has-[:checked]:border-brand"><input type="radio" name="kind" value="bloqueio" class="accent-[#8be07a]" /> Bloquear data</label>
+      </fieldset>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="block sm:col-span-2"><span class="text-sm font-medium">Serviço / título <span class="text-brand">*</span></span><input name="title" maxlength="120" class={field} placeholder="Ex.: Clássico — aniversário de 15 anos" /></label>
+        <div data-only="trabalho" class="contents">
+          <label class="block"><span class="text-sm font-medium">Cliente cadastrado</span><select name="client_id" class={field}><option value="">—</option></select></label>
+          <label class="block"><span class="text-sm font-medium">Nome do cliente</span><input name="client_name" maxlength="120" class={field} /></label>
+          <label class="block"><span class="text-sm font-medium">WhatsApp</span><input name="phone" type="tel" inputmode="tel" maxlength="40" class={field} /></label>
+          <label class="block"><span class="text-sm font-medium">Local</span><input name="location" maxlength="160" class={field} /></label>
+        </div>
+        <label class="block"><span class="text-sm font-medium">Data <span class="text-brand">*</span></span><input name="date" type="date" class={field} /></label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block"><span class="text-sm font-medium">Início</span><input name="start_time" type="time" class={field} /></label>
+          <label class="block"><span class="text-sm font-medium">Fim</span><input name="end_time" type="time" class={field} /></label>
+        </div>
+        <label class="flex items-center gap-3 sm:col-span-2"><input type="checkbox" name="blocks_date" checked class="size-5 accent-[#8be07a]" /><span class="text-sm">Mostrar a data como ocupada no site <span class="text-muted">(o cliente só vê "data reservada", sem detalhes)</span></span></label>
+
+        <div data-only="trabalho" class="contents">
+          <label class="block"><span class="text-sm font-medium">Status</span><select name="status" class={field}>{JOB_STATUSES.map((s) => <option value={s.id}>{s.label}</option>)}</select></label>
+          <div>
+            <label class="block"><span class="text-sm font-medium">Prazo de entrega</span><input name="due_date" type="date" class={field} /></label>
+            <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs" data-due-presets>
+              <button type="button" data-due="1" class="rounded-full border border-line px-2.5 py-1 hover:border-brand">+24h</button>
+              <button type="button" data-due="2" class="rounded-full border border-line px-2.5 py-1 hover:border-brand">+48h</button>
+              <button type="button" data-due="7" class="rounded-full border border-line px-2.5 py-1 hover:border-brand">+7 dias</button>
+              <button type="button" data-due="10u" class="rounded-full border border-line px-2.5 py-1 hover:border-brand">+10 dias úteis</button>
+            </div>
+          </div>
+          <label class="block sm:col-span-2"><span class="text-sm font-medium">Link da entrega <span class="font-normal text-muted">(galeria, Drive ou Fotto)</span></span><input name="delivery_link" type="url" inputmode="url" class={field} placeholder="https://" /></label>
+        </div>
+        <label class="block sm:col-span-2"><span class="text-sm font-medium">Anotações</span><textarea name="notes" rows="3" maxlength="4000" class={field}></textarea></label>
+      </div>
+      <p data-form-error role="alert" class="mt-4 hidden text-sm text-red-300"></p>
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        <button type="button" data-cancel class="btn btn-outline">Cancelar</button>
+        <button type="button" data-delete class="ml-auto hidden text-sm text-muted hover:text-red-300">Excluir</button>
+      </div>
+    </form>
+  </dialog>
+</PanelLayout>
+
+<script>
+  import { api, h, toast, todayISO } from '@/lib/panel-api';
+  import { JOB_STATUSES, type Client, type Job } from '@/lib/crm';
+  import { addBusinessDaysISO, addDaysISO, dueDateForItems, monthGrid } from '@/lib/schedule';
+  import { formatDateBR, type Proposal } from '@/lib/proposal';
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const dialog = $<HTMLDialogElement>('[data-dialog]');
+  const form = $<HTMLFormElement>('[data-form]');
+  const f = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+  const today = todayISO();
+  let jobs: Job[] = [];
+  let clients: Client[] = [];
+  let year = Number(today.slice(0, 4));
+  let month = Number(today.slice(5, 7));
+  let editingId: string | null = null;
+  let proposalId = '';
+  let proposalItems: Proposal['it'] | null = null; // para recalcular o prazo quando a data muda
+  let dueTouched = false;
+
+  const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const statusLabel = (id: string) => JOB_STATUSES.find((s) => s.id === id)?.label ?? id;
+
+  // ───────── Calendário ─────────
+  const render = () => {
+    $('[data-month]').textContent = `${MONTHS[month - 1]} ${year}`;
+    const active = jobs.filter((j) => j.status !== 'cancelado');
+    const cells = monthGrid(year, month).flat();
+    $('[data-grid]').replaceChildren(
+      ...cells.map((iso) => {
+        if (!iso) return h('div', 'min-h-14 sm:min-h-28');
+        const dayJobs = active.filter((j) => j.date === iso).sort((a, b) => a.start_time.localeCompare(b.start_time));
+        const cell = h('div', `group relative min-h-14 cursor-pointer rounded-lg border p-1 text-left transition-colors sm:min-h-28 sm:p-1.5 ${iso === today ? 'border-brand' : 'border-line hover:border-brand/50'} ${iso < today ? 'opacity-60' : ''}`);
+        cell.setAttribute('role', 'button');
+        cell.tabIndex = 0;
+        cell.setAttribute('aria-label', `${formatDateBR(iso)}: ${dayJobs.length ? `${dayJobs.length} compromisso(s)` : 'livre'}. Agendar.`);
+        cell.append(h('span', `text-xs font-semibold ${iso === today ? 'text-brand' : 'text-muted'}`, String(Number(iso.slice(8)))));
+        const list = h('div', 'mt-1 space-y-1');
+        dayJobs.forEach((j) => {
+          const chip = h('button', `block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-medium sm:text-xs ${j.kind === 'bloqueio' ? 'bg-white/10 text-muted' : 'bg-brand/20 text-brand'}`, `${j.start_time ? `${j.start_time} ` : ''}${j.kind === 'bloqueio' ? j.title : j.client_name || j.title}`);
+          chip.setAttribute('type', 'button');
+          chip.addEventListener('click', (e) => { e.stopPropagation(); open(j); });
+          list.append(chip);
+        });
+        cell.append(list);
+        const create = () => open(undefined, { date: iso });
+        cell.addEventListener('click', create);
+        cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); create(); } });
+        return cell;
+      }),
+    );
+
+    const upcoming = active.filter((j) => j.date >= today).slice(0, 15);
+    $('[data-upcoming]').replaceChildren(
+      ...(upcoming.length
+        ? upcoming.map((j) => {
+            const li = h('li', 'card flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 p-4 hover:border-brand/50');
+            const date = h('div', 'w-24 shrink-0');
+            date.append(h('p', 'font-display text-2xl font-bold', formatDateBR(j.date).slice(0, 5)), h('p', 'text-xs text-muted', j.start_time ? `${j.start_time}${j.end_time ? `–${j.end_time}` : ''}` : 'Dia todo'));
+            const info = h('div', 'min-w-0 flex-1');
+            info.append(h('p', 'truncate font-semibold', j.kind === 'bloqueio' ? `🔒 ${j.title}` : j.title), h('p', 'truncate text-sm text-muted', [j.client_name, j.location].filter(Boolean).join(' · ')));
+            li.append(date, info);
+            if (j.kind === 'trabalho') li.append(h('span', 'rounded-full bg-card px-2.5 py-1 text-xs', statusLabel(j.status)));
+            li.addEventListener('click', () => open(j));
+            return li;
+          })
+        : [h('li', 'card p-6 text-center text-muted', 'Nenhum trabalho agendado. Use "Novo trabalho" ou agende a partir de uma proposta aceita.')]),
+    );
+  };
+
+  const shift = (n: number) => {
+    month += n;
+    if (month < 1) { month = 12; year--; }
+    if (month > 12) { month = 1; year++; }
+    render();
+  };
+  $('[data-prev]').addEventListener('click', () => shift(-1));
+  $('[data-next]').addEventListener('click', () => shift(1));
+  $('[data-today]').addEventListener('click', () => { year = Number(today.slice(0, 4)); month = Number(today.slice(5, 7)); render(); });
+
+  // ───────── Formulário ─────────
+  const kind = () => (form.querySelector('[name=kind]:checked') as HTMLInputElement).value as Job['kind'];
+  const applyKind = () => form.querySelectorAll<HTMLElement>('[data-only="trabalho"]').forEach((el) => (el.hidden = kind() !== 'trabalho', el.style.display = kind() === 'trabalho' ? '' : 'none'));
+  form.querySelectorAll('[name=kind]').forEach((r) => r.addEventListener('change', applyKind));
+
+  function open(job?: Job, preset: Partial<Job> & { _proposalNote?: string } = {}) {
+    editingId = job?.id ?? null;
+    form.reset();
+    dueTouched = !!job?.due_date;
+    proposalId = job?.proposal_id ?? preset.proposal_id ?? '';
+    // Itens de proposta só valem para o agendamento que veio dela.
+    if (job || !preset.proposal_id) proposalItems = null;
+    const data: Partial<Job> = { kind: 'trabalho', status: 'agendado', blocks_date: true, ...job, ...preset };
+    (form.querySelector(`[name=kind][value="${data.kind}"]`) as HTMLInputElement).checked = true;
+    for (const k of ['title', 'client_id', 'client_name', 'phone', 'location', 'date', 'start_time', 'end_time', 'status', 'due_date', 'delivery_link', 'notes'] as const) {
+      if (f(k)) f(k).value = String(data[k] ?? '');
+    }
+    f('blocks_date').checked = data.blocks_date !== false;
+    $('[data-dlg-title]').textContent = job ? (job.kind === 'bloqueio' ? 'Data bloqueada' : 'Editar trabalho') : data.kind === 'bloqueio' ? 'Bloquear data' : 'Novo trabalho';
+    $('[data-delete]').classList.toggle('hidden', !job);
+    $('[data-form-error]').classList.add('hidden');
+    $('[data-from-proposal]').hidden = !preset._proposalNote;
+    $('[data-from-proposal]').textContent = preset._proposalNote ?? '';
+    applyKind();
+    if (!dialog.open) dialog.showModal();
+  }
+  const close = () => { dialog.close(); history.replaceState(null, '', location.pathname); };
+
+  f('client_id').addEventListener('change', () => {
+    const c = clients.find((x) => x.id === f('client_id').value);
+    if (c) { f('client_name').value = c.name; if (c.phone) f('phone').value = c.phone; }
+  });
+  f('due_date').addEventListener('input', () => (dueTouched = true));
+  f('date').addEventListener('change', () => {
+    if (proposalItems && !dueTouched && f('date').value) f('due_date').value = dueDateForItems(f('date').value, proposalItems);
+  });
+  form.querySelectorAll<HTMLButtonElement>('[data-due]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const base = f('date').value;
+      if (!base) return toast('Escolha a data do trabalho primeiro.', 'error');
+      const v = b.dataset.due!;
+      f('due_date').value = v.endsWith('u') ? addBusinessDaysISO(base, Number(v.slice(0, -1))) : addDaysISO(base, Number(v));
+      dueTouched = true;
+    }),
+  );
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body: Partial<Job> = {
+      kind: kind(),
+      title: f('title').value,
+      client_id: f('client_id').value,
+      client_name: f('client_name').value,
+      phone: f('phone').value,
+      proposal_id: proposalId,
+      date: f('date').value,
+      start_time: f('start_time').value,
+      end_time: f('end_time').value,
+      location: f('location').value,
+      blocks_date: f('blocks_date').checked,
+      status: f('status').value as Job['status'],
+      due_date: f('due_date').value,
+      delivery_link: f('delivery_link').value,
+      delivered_at: f('status').value === 'entregue' ? (jobs.find((j) => j.id === editingId)?.delivered_at || today) : '',
+      notes: f('notes').value,
+    };
+    const err = $('[data-form-error]');
+    if (!body.date || (!body.title?.trim() && body.kind === 'trabalho')) {
+      err.textContent = 'Informe a data e o serviço.';
+      err.classList.remove('hidden');
+      return;
+    }
+    const clash = jobs.filter((j) => j.date === body.date && j.id !== editingId && j.status !== 'cancelado' && j.blocks_date);
+    if (clash.length && !confirm(`Atenção: já existe "${clash[0]!.kind === 'bloqueio' ? 'data bloqueada' : clash[0]!.title}" nesse dia. Salvar mesmo assim?`)) return;
+    try {
+      if (editingId) {
+        const j = await api.updateJob(editingId, body);
+        jobs = jobs.map((x) => (x.id === editingId ? j : x));
+        toast('Trabalho atualizado.');
+        window.dispatchEvent(new Event('venart:badges'));
+      } else {
+        jobs.push(await api.createJob(body));
+        jobs.sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
+        toast(body.kind === 'bloqueio' ? 'Data bloqueada.' : 'Trabalho agendado.');
+      }
+      if (body.date) { year = Number(body.date.slice(0, 4)); month = Number(body.date.slice(5, 7)); }
+      close();
+      render();
+    } catch (e2) {
+      err.textContent = (e2 as Error).message;
+      err.classList.remove('hidden');
+    }
+  });
+  $('[data-delete]').addEventListener('click', async () => {
+    const j = jobs.find((x) => x.id === editingId);
+    if (!j || !confirm(`Excluir "${j.title}" de ${formatDateBR(j.date)}?`)) return;
+    try {
+      await api.deleteJob(j.id);
+      jobs = jobs.filter((x) => x.id !== j.id);
+      toast('Excluído.');
+      close();
+      render();
+    } catch (e) { toast((e as Error).message, 'error'); }
+  });
+  $('[data-close]').addEventListener('click', close);
+  $('[data-cancel]').addEventListener('click', close);
+  $('[data-new]').addEventListener('click', () => open());
+  $('[data-block]').addEventListener('click', () => open(undefined, { kind: 'bloqueio' }));
+
+  // ───────── Início ─────────
+  (async () => {
+    try {
+      [jobs, clients] = await Promise.all([api.jobs(), api.clients()]);
+      const sel = f('client_id') as unknown as HTMLSelectElement;
+      clients.slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).forEach((c) => sel.append(Object.assign(document.createElement('option'), { value: c.id, textContent: c.name })));
+      render();
+
+      const params = new URL(location.href).searchParams;
+      const pid = params.get('proposta');
+      const jid = params.get('id');
+      if (pid) {
+        const existing = jobs.find((j) => j.proposal_id === pid);
+        if (existing) { toast('Essa proposta já está na agenda.'); open(existing); return; }
+        const rec = await api.proposal(pid);
+        const p = JSON.parse(rec.data) as Proposal;
+        proposalItems = p.it;
+        const client = clients.find((c) => c.id === rec.client_id);
+        open(undefined, {
+          title: p.it.map((i) => (i.q > 1 ? `${i.q}× ${i.n}` : i.n)).join(' + '),
+          client_id: rec.client_id,
+          client_name: p.cl,
+          phone: client?.phone ?? '',
+          date: p.ev ?? '',
+          location: p.loc ?? '',
+          due_date: p.ev ? dueDateForItems(p.ev, p.it) : '',
+          proposal_id: p.id,
+          _proposalNote: `A partir da proposta ${p.id}. O prazo de entrega é calculado pelo pacote${p.ev ? '' : ' assim que você escolher a data'}.`,
+        });
+        dueTouched = false;
+      } else if (jid) {
+        const j = jobs.find((x) => x.id === jid);
+        if (j) { year = Number(j.date.slice(0, 4)); month = Number(j.date.slice(5, 7)); render(); open(j); }
+      } else if (params.get('nova')) {
+        open(undefined, { date: params.get('data') ?? '' });
+      }
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  })();
+</script>

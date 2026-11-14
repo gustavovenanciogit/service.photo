@@ -1,0 +1,127 @@
+---
+/**
+ * CONTROLE DE ENTREGAS — /painel/entregas/
+ * Trabalhos por etapa (agendado → fotografado → editando → entregue), com prazo.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+---
+
+<PanelLayout title="Entregas">
+  <p class="eyebrow">Trabalhos</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Entregas</h1>
+  <p class="mt-2 max-w-2xl text-muted">Acompanhe cada trabalho até a entrega. O prazo vem do pacote contratado e pode ser ajustado na agenda.</p>
+
+  <div data-summary class="mt-6 grid gap-3 sm:grid-cols-3"></div>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+  <div data-board class="mt-8 grid gap-4 lg:grid-cols-2 2xl:grid-cols-4"></div>
+</PanelLayout>
+
+<script>
+  import { api, h, toast, todayISO, waNumber } from '@/lib/panel-api';
+  import type { Job } from '@/lib/crm';
+  import { daysBetween, dueLabel } from '@/lib/schedule';
+  import { formatDateBR } from '@/lib/proposal';
+  import { whatsappLink } from '@/lib/whatsapp';
+
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  const today = todayISO();
+  let jobs: Job[] = [];
+
+  const COLUMNS = [
+    { id: 'agendado', title: 'Agendado', next: 'fotografado', nextLabel: 'Fotografado ✓' },
+    { id: 'fotografado', title: 'Fotografado', next: 'editando', nextLabel: 'Começar edição' },
+    { id: 'editando', title: 'Editando', next: 'entregue', nextLabel: 'Marcar entregue' },
+    { id: 'entregue', title: 'Entregues (30 dias)', next: '', nextLabel: '' },
+  ] as const;
+  const tone = { late: 'bg-red-400/20 text-red-200', today: 'bg-amber-400/20 text-amber-200', soon: 'bg-amber-400/10 text-amber-100', ok: 'bg-white/10 text-muted' };
+
+  const pending = () => jobs.filter((j) => j.kind === 'trabalho' && j.due_date && ['agendado', 'fotografado', 'editando'].includes(j.status));
+
+  const advance = async (j: Job, status: string) => {
+    let delivery_link = j.delivery_link;
+    if (status === 'entregue') {
+      const link = prompt('Link da galeria/entrega (opcional — Drive, galeria ou Fotto):', j.delivery_link) ?? null;
+      if (link === null) return;
+      delivery_link = link.trim();
+    }
+    try {
+      const updated = await api.updateJob(j.id, { ...j, status: status as Job['status'], delivery_link, delivered_at: status === 'entregue' ? today : '' });
+      jobs = jobs.map((x) => (x.id === j.id ? updated : x));
+      toast(status === 'entregue' ? 'Entregue! Avise o cliente pelo WhatsApp.' : 'Etapa atualizada.');
+      window.dispatchEvent(new Event('venart:badges'));
+      render();
+    } catch (e) { toast((e as Error).message, 'error'); }
+  };
+
+  const card = (j: Job, col: (typeof COLUMNS)[number]) => {
+    const li = h('li', 'rounded-xl border border-line bg-bg p-4');
+    li.append(h('p', 'font-semibold', j.title));
+    const when = j.date === today ? `Hoje${j.start_time ? ` às ${j.start_time}` : ''}` : `${j.date > today ? 'Agendado para' : 'Feito em'} ${formatDateBR(j.date)}`;
+    li.append(h('p', 'text-sm text-muted', [j.client_name, when].filter(Boolean).join(' · ')));
+    if (j.status === 'entregue') {
+      li.append(h('p', 'mt-2 text-xs text-brand', `Entregue em ${formatDateBR(j.delivered_at || j.updated_at.slice(0, 10))}`));
+    } else if (j.due_date) {
+      const d = dueLabel(j.due_date, today);
+      li.append(h('span', `mt-2 inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${tone[d.tone]}`, `${d.text} · ${formatDateBR(j.due_date)}`));
+    } else {
+      li.append(h('span', 'mt-2 inline-block rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted', 'Sem prazo definido'));
+    }
+    const actions = h('div', 'mt-3 flex flex-wrap gap-2');
+    if (col.next) {
+      const b = h('button', 'btn btn-primary min-h-9 px-3 text-xs', col.nextLabel);
+      b.setAttribute('type', 'button');
+      b.addEventListener('click', () => advance(j, col.next));
+      actions.append(b);
+    }
+    if (j.status === 'entregue' && j.phone) {
+      const first = j.client_name.split(' ')[0];
+      const msg = `Oi${first ? `, ${first}` : ''}! Suas fotos estão prontas 📸${j.delivery_link ? `\n\nAcesse aqui: ${j.delivery_link}` : ''}\n\nEspero que goste! Se puder, me conta o que achou 😊`;
+      const a = h('a', 'btn btn-outline min-h-9 px-3 text-xs', 'Avisar cliente') as HTMLAnchorElement;
+      a.href = whatsappLink(waNumber(j.phone), msg);
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      actions.append(a);
+    }
+    const edit = h('a', 'btn btn-outline min-h-9 px-3 text-xs', 'Editar') as HTMLAnchorElement;
+    edit.href = `/painel/agenda/?id=${encodeURIComponent(j.id)}`;
+    actions.append(edit);
+    li.append(actions);
+    return li;
+  };
+
+  const render = () => {
+    const p = pending();
+    const late = p.filter((j) => j.due_date < today).length;
+    const dueToday = p.filter((j) => j.due_date === today).length;
+    const week = p.filter((j) => { const n = daysBetween(today, j.due_date); return n >= 1 && n <= 7; }).length;
+    const stat = (label: string, n: number, cls: string) => {
+      const d = h('div', `card p-4 ${n ? cls : ''}`);
+      d.append(h('p', 'text-xs tracking-widest text-muted uppercase', label), h('p', 'mt-1 font-display text-4xl font-extrabold', String(n)));
+      return d;
+    };
+    $('[data-summary]').replaceChildren(stat('Atrasadas', late, 'border-red-400/60'), stat('Vencem hoje', dueToday, 'border-amber-300/60'), stat('Próximos 7 dias', week, ''));
+
+    $('[data-board]').replaceChildren(
+      ...COLUMNS.map((col) => {
+        let list = jobs.filter((j) => j.kind === 'trabalho' && j.status === col.id);
+        if (col.id === 'entregue') list = list.filter((j) => daysBetween(j.delivered_at || j.updated_at.slice(0, 10), today) <= 30).sort((a, b) => (b.delivered_at || '').localeCompare(a.delivered_at || ''));
+        else list.sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.date.localeCompare(b.date));
+        const sec = h('section', 'card p-4');
+        const head = h('div', 'mb-3 flex items-center justify-between');
+        head.append(h('h2', 'text-xl font-bold', col.title), h('span', 'rounded-full bg-card px-2.5 py-0.5 text-xs', String(list.length)));
+        const ul = h('ul', 'space-y-2');
+        if (list.length) list.forEach((j) => ul.append(card(j, col)));
+        else ul.append(h('li', 'rounded-xl border border-dashed border-line p-4 text-center text-xs text-muted', 'Nada aqui.'));
+        sec.append(head, ul);
+        return sec;
+      }),
+    );
+  };
+
+  (async () => {
+    try { jobs = await api.jobs(); render(); }
+    catch (e) { toast((e as Error).message, 'error'); }
+    finally { $('[data-loading]').hidden = true; }
+  })();
+</script>

@@ -24,6 +24,15 @@ import Icon from '@/components/Icon.astro';
       <span class="btn btn-primary min-h-10 shrink-0 px-4 text-sm">Ver pedidos</span>
     </a>
 
+    <!-- Hoje -->
+    <section data-today-box hidden class="card mt-6 p-5 sm:p-6" aria-labelledby="today-title">
+      <div class="flex items-center justify-between gap-3">
+        <h2 id="today-title" class="text-2xl font-bold">Hoje e entregas</h2>
+        <div class="flex gap-3 text-sm"><a href="/painel/agenda/" class="font-semibold text-brand hover:underline">Agenda</a><a href="/painel/entregas/" class="font-semibold text-brand hover:underline">Entregas</a></div>
+      </div>
+      <ul data-today-list class="mt-4 space-y-2"></ul>
+    </section>
+
     <!-- Números -->
     <section class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo">
       <div class="card p-5"><p class="text-xs tracking-widest text-muted uppercase">Propostas em aberto</p><p class="mt-2 font-display text-4xl font-extrabold" data-k="open"></p><p class="text-sm text-muted" data-k="open-sub"></p></div>
@@ -72,6 +81,7 @@ import Icon from '@/components/Icon.astro';
   import { CLIENT_STAGES, displayStatus } from '@/lib/crm';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
   import { formatDateBR } from '@/lib/proposal';
+  import { daysBetween, dueLabel } from '@/lib/schedule';
 
   const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
   const today = todayISO();
@@ -86,7 +96,30 @@ import Icon from '@/components/Icon.astro';
 
   (async () => {
   try {
-    const [clients, proposals, leadCount] = await Promise.all([api.clients(), api.proposals(), api.leadCount().catch(() => ({ novo: 0 }))]);
+    const [clients, proposals, leadCount, jobs] = await Promise.all([api.clients(), api.proposals(), api.leadCount().catch(() => ({ novo: 0 })), api.jobs().catch(() => [])]);
+    // Trabalhos de hoje + entregas atrasadas, de hoje e de amanhã.
+    const todayJobs = jobs.filter((j) => j.kind === 'trabalho' && j.date === today && j.status !== 'cancelado');
+    const dueSoon = jobs
+      .filter((j) => j.kind === 'trabalho' && j.due_date && ['agendado', 'fotografado', 'editando'].includes(j.status) && j.date <= today && daysBetween(today, j.due_date) <= 1)
+      .sort((a, b) => a.due_date.localeCompare(b.due_date));
+    if (todayJobs.length || dueSoon.length) {
+      $('[data-today-box]').hidden = false;
+      const row = (label: string, text: string, cls: string, href: string) => {
+        const li = h('li');
+        const a = h('a', 'flex items-center justify-between gap-3 rounded-xl border border-line p-3 hover:border-brand/50') as HTMLAnchorElement;
+        a.href = href;
+        a.append(h('span', 'min-w-0 truncate font-medium', text), h('span', `shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`, label));
+        li.append(a);
+        return li;
+      };
+      $('[data-today-list]').replaceChildren(
+        ...todayJobs.map((j) => row(j.start_time ? `Hoje ${j.start_time}` : 'Hoje', `📅 ${j.title}${j.client_name ? ` — ${j.client_name}` : ''}`, 'bg-brand/20 text-brand', `/painel/agenda/?id=${encodeURIComponent(j.id)}`)),
+        ...dueSoon.map((j) => {
+          const d = dueLabel(j.due_date, today);
+          return row(d.text, `📦 ${j.title}${j.client_name ? ` — ${j.client_name}` : ''}`, d.tone === 'late' ? 'bg-red-400/20 text-red-200' : 'bg-amber-400/20 text-amber-200', '/painel/entregas/');
+        }),
+      );
+    }
     if (leadCount.novo) {
       $('[data-leads-alert]').hidden = false;
       $('[data-leads-text]').textContent = leadCount.novo === 1 ? '1 pedido novo' : `${leadCount.novo} pedidos novos`;

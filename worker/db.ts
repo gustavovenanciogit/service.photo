@@ -3,7 +3,7 @@
  * As tabelas são criadas automaticamente no primeiro acesso.
  * Todas as consultas usam parâmetros (?), nunca texto concatenado.
  */
-import type { Client, ClientInput, Lead, LeadInput, ProposalInput, ProposalRecord } from '../src/lib/crm.ts';
+import type { Client, ClientInput, Job, JobInput, Lead, LeadInput, ProposalInput, ProposalRecord } from '../src/lib/crm.ts';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS clients (
@@ -56,6 +56,28 @@ const SCHEMA = [
     count INTEGER NOT NULL,
     first_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL DEFAULT 'trabalho',
+    title TEXT NOT NULL,
+    client_id TEXT NOT NULL DEFAULT '',
+    client_name TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    proposal_id TEXT NOT NULL DEFAULT '',
+    date TEXT NOT NULL,
+    start_time TEXT NOT NULL DEFAULT '',
+    end_time TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '',
+    blocks_date INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'agendado',
+    due_date TEXT NOT NULL DEFAULT '',
+    delivery_link TEXT NOT NULL DEFAULT '',
+    delivered_at TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS jobs_date ON jobs (date)`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
     count INTEGER NOT NULL,
@@ -194,3 +216,40 @@ export async function allowLead(db: D1Database, ipHash: string, max = 6, windowM
     .run();
   return true;
 }
+
+// ───────── Agenda de trabalhos ─────────
+
+type JobRow = Omit<Job, 'blocks_date'> & { blocks_date: number };
+const toJob = (r: JobRow | null): Job | null => (r ? { ...r, blocks_date: !!r.blocks_date } : null);
+
+export const listJobs = async (db: D1Database) =>
+  (await db.prepare('SELECT * FROM jobs ORDER BY date ASC, start_time ASC').all<JobRow>()).results.map((r) => toJob(r)!);
+
+const getJob = async (db: D1Database, id: string) => toJob(await db.prepare('SELECT * FROM jobs WHERE id = ?').bind(id).first<JobRow>());
+
+const JOB_COLS = ['kind', 'title', 'client_id', 'client_name', 'phone', 'proposal_id', 'date', 'start_time', 'end_time', 'location', 'blocks_date', 'status', 'due_date', 'delivery_link', 'delivered_at', 'notes'] as const;
+const jobValues = (j: JobInput) => JOB_COLS.map((k) => (k === 'blocks_date' ? (j.blocks_date ? 1 : 0) : j[k]));
+
+export async function insertJob(db: D1Database, id: string, j: JobInput) {
+  const t = now();
+  await db
+    .prepare(`INSERT INTO jobs (id, ${JOB_COLS.join(', ')}, created_at, updated_at) VALUES (?, ${JOB_COLS.map(() => '?').join(', ')}, ?, ?)`)
+    .bind(id, ...jobValues(j), t, t)
+    .run();
+  return getJob(db, id);
+}
+
+export async function updateJob(db: D1Database, id: string, j: JobInput) {
+  const r = await db
+    .prepare(`UPDATE jobs SET ${JOB_COLS.map((k) => `${k} = ?`).join(', ')}, updated_at = ? WHERE id = ?`)
+    .bind(...jobValues(j), now(), id)
+    .run();
+  return r.meta.changes ? getJob(db, id) : null;
+}
+
+export const deleteJob = async (db: D1Database, id: string) =>
+  (await db.prepare('DELETE FROM jobs WHERE id = ?').bind(id).run()).meta.changes > 0;
+
+/** Público: a data está ocupada? (só a resposta sim/não, sem detalhes) */
+export const isDateBusy = async (db: D1Database, date: string) =>
+  !!(await db.prepare("SELECT 1 AS x FROM jobs WHERE date = ? AND blocks_date = 1 AND status != 'cancelado' LIMIT 1").bind(date).first());

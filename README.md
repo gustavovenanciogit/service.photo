@@ -141,6 +141,19 @@ Tudo que chega pelo **formulário de pré-orçamento** e pelo **simulador** apar
 Proteção anti-spam: campo invisível para robôs, limite de 6 pedidos por hora por conexão e checagem de origem.
 Se alguém pedir a exclusão dos dados (LGPD), use **Excluir** no pedido.
 
+### Agenda e entregas
+- **Agenda** (`/painel/agenda`): calendário do mês e próximos trabalhos. Ao marcar uma proposta como
+  **Aceita**, o painel oferece agendar — já preenchido com cliente, serviço, data, local e **prazo de
+  entrega calculado pelo pacote** ("Em 7 dias", "Em 10 dias úteis", "Em 24h"…; intervalos usam o maior
+  prazo; eventos sociais usam os 10 dias úteis da tabela). Também dá para **bloquear datas**.
+- **Site:** no simulador e no formulário, ao escolher a data, o cliente vê "data livre" ou "já tenho um
+  compromisso nessa data" — só isso, nunca o motivo ou o cliente. Desmarque "Mostrar a data como
+  ocupada no site" em trabalhos que não ocupam o dia todo.
+- **Entregas** (`/painel/entregas`): colunas Agendado → Fotografado → Editando → Entregue, com prazo
+  colorido (atrasada / vence hoje / amanhã). Ao marcar entregue, informe o link da galeria e use
+  **Avisar cliente** (WhatsApp com a mensagem pronta). Contador vermelho no menu para entregas
+  atrasadas ou vencendo hoje. Feriados não entram no cálculo de dias úteis — confira nessas datas.
+
 ### Editar preços e fotos pelo painel (Site: preços / Site: fotos)
 Ao clicar em **Publicar no site**, o painel grava a alteração direto no GitHub (um commit na `main`)
 e a Cloudflare publica sozinha em 1 a 2 minutos. O indicador no topo mostra **Publicando…** / **No ar**.

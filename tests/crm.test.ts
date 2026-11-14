@@ -47,3 +47,20 @@ test('pedido do site: limpa e limita os dados públicos', () => {
   assert.equal(r.value.event_date, '');
   assert.equal(r.value.message.length, 1200);
 });
+
+import { parseJob } from '../src/lib/crm.ts';
+
+test('trabalho: data obrigatória, horários e links validados', () => {
+  assert.equal(parseJob({ title: 'Ensaio' }).ok, false);
+  const r = parseJob({ title: 'Ensaio', date: '2026-12-10', start_time: '25:00', end_time: '17:30', delivery_link: 'javascript:alert(1)', status: 'entregue', delivered_at: '2026-12-15', proposal_id: 'x' });
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  assert.equal(r.value.start_time, '');
+  assert.equal(r.value.end_time, '17:30');
+  assert.equal(r.value.delivery_link, '');
+  assert.equal(r.value.delivered_at, '2026-12-15');
+  assert.equal(r.value.proposal_id, '');
+  assert.equal(r.value.blocks_date, true);
+  const b = parseJob({ kind: 'bloqueio', date: '2026-12-24', status: 'entregue', due_date: '2026-12-30' });
+  assert.ok(b.ok && b.value.title === 'Indisponível' && b.value.status === 'agendado' && b.value.due_date === '');
+});

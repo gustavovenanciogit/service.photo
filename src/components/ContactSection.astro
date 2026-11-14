@@ -94,6 +94,7 @@ const field =
         <label class="block">
           <span class="text-sm font-medium">Data prevista</span>
           <input name="date" type="date" class={field} />
+          <span data-availability aria-live="polite"></span>
         </label>
 
         <label class="block">
@@ -120,6 +121,7 @@ const field =
 <script>
   import { messages, whatsappLink } from '@/lib/whatsapp';
   import { sendLead } from '@/lib/leads';
+  import { watchAvailability } from '@/lib/availability';
 
   const form = document.getElementById('quote-form') as HTMLFormElement | null;
   if (form) {
@@ -128,6 +130,7 @@ const field =
     // Bloqueia datas passadas (data local do cliente).
     const now = new Date();
     dateInput.min = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    watchAvailability(dateInput, form.querySelector<HTMLElement>('[data-availability]')!);
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();

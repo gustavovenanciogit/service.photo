@@ -8,7 +8,7 @@
  *
  * Senha: segredo ADMIN_PASSWORD (Cloudflare → Workers & Pages → venart → Settings → Variables and Secrets).
  */
-import { LEAD_STATUSES, parseClient, parseLead, parseProposal, PROPOSAL_STATUSES, newId } from '../src/lib/crm.ts';
+import { LEAD_STATUSES, parseClient, parseJob, parseLead, parseProposal, PROPOSAL_STATUSES, newId } from '../src/lib/crm.ts';
 import {
   clearCookie, clearFailures, createSession, isLoggedIn, passwordMatches,
   registerFailure, sessionCookie, tooManyAttempts, type AuthEnv,
@@ -73,6 +73,16 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     if (origin !== url.origin) return json({ error: 'Origem não permitida.' }, 403);
   }
 
+  // ── Público: a data está ocupada? (só sim/não, sem detalhes) ──
+  if (path === '/api/availability' && method === 'GET') {
+    const date = url.searchParams.get('date') ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: 'Data inválida.' }, 400);
+    await db.ensureSchema(env.DB);
+    return new Response(JSON.stringify({ busy: await db.isDateBusy(env.DB, date) }), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
+    });
+  }
+
   // ── Público: pedido enviado pelo site (formulário/simulador) ──
   if (path === '/api/leads' && method === 'POST') {
     await db.ensureSchema(env.DB);
@@ -134,6 +144,27 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   }
 
   // Pedidos do site (painel)
+  // Agenda de trabalhos
+  if (path === '/api/jobs') {
+    if (method === 'GET') return json(await db.listJobs(env.DB));
+    if (method === 'POST') {
+      const parsed = parseJob(await readJson(req));
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      return json(await db.insertJob(env.DB, newId('job'), parsed.value), 201);
+    }
+  }
+  const jobMatch = /^\/api\/jobs\/(job_[a-z0-9]{1,30})$/.exec(path);
+  if (jobMatch) {
+    const id = jobMatch[1]!;
+    if (method === 'PUT') {
+      const parsed = parseJob(await readJson(req));
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      const j = await db.updateJob(env.DB, id, parsed.value);
+      return j ? json(j) : json({ error: 'Trabalho não encontrado.' }, 404);
+    }
+    if (method === 'DELETE') return (await db.deleteJob(env.DB, id)) ? json({ ok: true }) : json({ error: 'Trabalho não encontrado.' }, 404);
+  }
+
   if (path === '/api/leads' && method === 'GET') return json(await db.listLeads(env.DB));
   if (path === '/api/leads/count' && method === 'GET') return json({ novo: await db.countNewLeads(env.DB) });
   const leadMatch = /^\/api\/leads\/(ped_[a-z0-9]{1,30})$/.exec(path);
