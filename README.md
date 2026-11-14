@@ -47,6 +47,8 @@ Outros comandos:
 | Textos das mensagens de WhatsApp | `src/lib/whatsapp.ts` |
 | Simulador: percentuais, sinal, Pix, parcelas e quais pacotes aparecem | `src/data/simulator.ts` |
 | Simulador: regras de cálculo (domingo, após 22h etc.) | `src/lib/quote.ts` |
+| Textos das propostas por tipo de cliente | `src/data/proposal.ts` |
+| Kit de mensagens do painel | `src/data/messages.ts` |
 | Fotos e legendas do portfólio, mosaico do topo | `src/data/portfolio.ts` |
 | Etapas do "Como contratar" | `src/components/HowToHire.astro` |
 | Cores e fontes | `src/styles/global.css` (bloco `@theme`) |
@@ -113,26 +115,56 @@ Os valores de hora extra (R$ 150) e entrega expressa (R$ 120) vêm do catálogo.
 
 Cada cartão da tabela tem o link "Simular com extras", que abre o simulador já com o pacote escolhido.
 
-## 3.2 Gerador de propostas (`/proposta/nova`) — uso interno
+## 3.2 Painel profissional (`/painel`) — área com senha
 
-Página só sua (não aparece no menu nem no Google). Guarde nos favoritos:
-`https://venart.gustavovesss.workers.dev/proposta/nova`
+Área só sua, protegida por senha no servidor da Cloudflare. Guarde nos favoritos:
+**https://venart.gustavovesss.workers.dev/painel**
 
-1. Escolha o **tipo de cliente** (academia, assessoria, evento…), o nome e o responsável.
-2. A **apresentação** é preenchida automaticamente e pode ser editada.
-3. **Adicione os serviços** da tabela (ou itens personalizados). Ajuste quantidade e valor —
-   se der desconto, o cliente vê "de R$ X por R$ Y".
-4. Defina data, local, **validade** e observações.
-5. **Enviar pelo WhatsApp** (com o número do cliente, se informado), **Copiar link** ou **Visualizar**.
+| Tela | Para que serve |
+| --- | --- |
+| **Início** | Propostas em aberto, fechado no mês, receita recorrente, taxa de aceite, follow-ups do dia e funil |
+| **Propostas** | Lista de propostas enviadas, status (enviada / aceita / recusada / vencida), abrir, copiar link, editar ou duplicar |
+| **Nova proposta** | Gerador de propostas (escolha um cliente cadastrado e os dados entram sozinhos) |
+| **Clientes** | Academias, assessorias e clientes com contato, Instagram, etapa da negociação e data do próximo follow-up |
+| **QR Codes** | QR Code do site, tabela, simulador, Fotto, Instagram, WhatsApp ou qualquer link — PNG e SVG |
+| **Mensagens** | Mensagens prontas de prospecção, atendimento, follow-up e pós-serviço (`src/data/messages.ts`) |
 
-O cliente abre uma página com a proposta, fotos do portfólio do tipo de serviço, as condições
-de pagamento e os botões **Aceitar proposta**, **Tenho uma dúvida** e **Salvar em PDF**.
+Os dados (clientes e propostas) ficam no banco **D1** da Cloudflare (gratuito), criado sozinho no
+primeiro deploy. Você acessa do Mac, do Windows ou do celular.
 
-- Não há servidor: a proposta vai **dentro do link** (depois do `#`). Os valores ficam
-  congelados no link — mudar a tabela depois não altera propostas já enviadas.
-- Como o link carrega os valores, **o valor oficial é o da conversa em que você enviou**.
-  Ao receber um "aceite", confira com o link original (fica nas *Propostas recentes* deste navegador).
-- Textos de apresentação por tipo de cliente: `src/data/proposal.ts`.
+### Definir (ou trocar) a senha — uma vez só
+1. https://dash.cloudflare.com → **Workers & Pages** → **venart** → **Settings** → **Variables and Secrets**.
+2. **Add** → tipo **Secret** → nome `ADMIN_PASSWORD` → valor: sua senha (longa, que você não use em outro lugar).
+3. **Deploy**/salvar. Pronto: entre em `/painel` com essa senha.
+
+- Trocar a senha encerra as sessões abertas em todos os aparelhos.
+- Depois de 8 senhas erradas em 15 minutos, o acesso fica bloqueado por 15 minutos.
+- A sessão dura 30 dias por aparelho (botão **Sair** no menu).
+
+### Segurança
+- Login e dados passam por um pequeno servidor (`worker/`): sem senha, nem as páginas do painel
+  nem os dados são entregues. O site público continua 100% estático.
+- Cookie de sessão assinado, `HttpOnly`, `Secure`, `SameSite=Strict`; bloqueio de requisições de
+  outros sites; consultas ao banco sempre parametrizadas.
+- O painel não aparece no Google (`noindex`, fora do sitemap, `robots.txt`).
+
+### Propostas para o cliente
+O link da proposta (`/proposta/#d=...`) continua público — é o que o cliente abre. Os valores vão
+dentro do link (congelados). O valor oficial é o que está salvo em **Propostas** no seu painel.
+
+### Testar o painel no computador
+`npm run dev` mostra o site, mas o painel precisa do servidor. Para testar tudo localmente:
+```bash
+echo 'ADMIN_PASSWORD="uma-senha-de-teste"' > .dev.vars
+```
+```bash
+npm run dev:full
+```
+Abra http://localhost:8787/painel (o arquivo `.dev.vars` não vai para o GitHub).
+
+### Se o deploy reclamar do banco D1
+Normalmente ele é criado sozinho. Se não for: Cloudflare → **Storage & Databases → D1 → Create**
+com o nome `venart`, copie o **Database ID** e adicione `"database_id": "..."` em `wrangler.jsonc`.
 
 ## 3.1 Como o WhatsApp funciona
 

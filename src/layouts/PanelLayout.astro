@@ -1,0 +1,110 @@
+---
+/**
+ * Layout do PAINEL PROFISSIONAL (área com login).
+ * Menu lateral no computador e barra superior no celular.
+ */
+import '@/styles/global.css';
+import Icon from '@/components/Icon.astro';
+import { site } from '@/config/site';
+
+interface Props {
+  title: string;
+  /** Tela de login: sem menu. */
+  bare?: boolean;
+}
+const { title, bare = false } = Astro.props;
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+const nav = [
+  { href: '/painel/', label: 'Início', icon: 'calendar', match: (p: string) => p === '/painel' },
+  { href: '/painel/propostas/', label: 'Propostas', icon: 'check', match: (p: string) => p === '/painel/propostas' },
+  { href: '/painel/propostas/nova/', label: 'Nova proposta', icon: 'plus', match: (p: string) => p.startsWith('/painel/propostas/nova') },
+  { href: '/painel/clientes/', label: 'Clientes', icon: 'search', match: (p: string) => p.startsWith('/painel/clientes') },
+  { href: '/painel/qrcodes/', label: 'QR Codes', icon: 'image', match: (p: string) => p.startsWith('/painel/qrcodes') },
+  { href: '/painel/mensagens/', label: 'Mensagens', icon: 'chat', match: (p: string) => p.startsWith('/painel/mensagens') },
+] as const;
+---
+
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#070A08" />
+    <title>{title} · Painel {site.shortName}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="min-h-dvh bg-bg">
+    {
+      bare ? (
+        <slot />
+      ) : (
+        <div class="lg:grid lg:min-h-dvh lg:grid-cols-[240px_1fr]">
+          <!-- Menu lateral (computador) / barra superior (celular) -->
+          <aside class="sticky top-0 z-40 border-b border-line bg-bg-2/95 backdrop-blur lg:h-dvh lg:border-r lg:border-b-0">
+            <div class="flex items-center justify-between gap-3 px-4 py-3 lg:block lg:px-5 lg:py-6">
+              <a href="/painel/" class="block leading-none">
+                <span class="font-display text-2xl font-extrabold tracking-wide">
+                  {site.shortName}<span class="text-brand">.</span>
+                </span>
+                <span class="mt-1 block text-[10px] tracking-[0.25em] text-brand uppercase">Painel profissional</span>
+              </a>
+              <button
+                type="button"
+                id="panel-menu-btn"
+                class="grid size-10 place-items-center rounded-full border border-line lg:hidden"
+                aria-controls="panel-nav"
+                aria-expanded="false"
+                aria-label="Abrir menu do painel"
+              >
+                <Icon name="menu" size={20} />
+              </button>
+            </div>
+            <nav id="panel-nav" aria-label="Menu do painel" class="hidden px-3 pb-4 lg:block lg:px-3">
+              <ul class="space-y-1">
+                {nav.map((n) => (
+                  <li>
+                    <a
+                      href={n.href}
+                      aria-current={n.match(path) ? 'page' : undefined}
+                      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-card/50 hover:text-ink aria-[current=page]:bg-card aria-[current=page]:text-brand"
+                    >
+                      <Icon name={n.icon} size={18} /> {n.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <div class="mt-6 space-y-1 border-t border-line pt-4">
+                <a href="/" target="_blank" rel="noopener" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted hover:text-ink">
+                  <Icon name="external" size={18} /> Ver site público
+                </a>
+                <button type="button" data-logout class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-muted hover:text-ink">
+                  <Icon name="close" size={18} /> Sair
+                </button>
+              </div>
+            </nav>
+          </aside>
+
+          <main id="conteudo" class="min-w-0 px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
+            <slot />
+          </main>
+        </div>
+      )
+    }
+
+    <script>
+      import { api } from '@/lib/panel-api';
+      const btn = document.getElementById('panel-menu-btn');
+      const nav = document.getElementById('panel-nav');
+      btn?.addEventListener('click', () => {
+        const open = nav!.classList.toggle('hidden') === false;
+        btn.setAttribute('aria-expanded', String(open));
+      });
+      document.querySelector('[data-logout]')?.addEventListener('click', async () => {
+        await api.logout().catch(() => {});
+        location.href = '/painel/login/';
+      });
+    </script>
+  </body>
+</html>

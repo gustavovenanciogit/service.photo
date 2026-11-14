@@ -2,7 +2,7 @@
  * PROPOSTAS — CONFIGURAÇÃO
  * ------------------------------------------------------------------
  * Tipos de cliente, textos de apresentação e o catálogo usado no
- * gerador de propostas (/proposta/nova).
+ * gerador de propostas (/painel/propostas/nova).
  *
  * Nos textos, use:
  *   {saudacao} → "Olá, Carlos!" (ou "Olá!" se não houver responsável)

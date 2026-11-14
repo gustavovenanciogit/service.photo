@@ -1,0 +1,157 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+---
+
+<PanelLayout title="Propostas">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="eyebrow">Controle</p>
+      <h1 class="mt-1 text-5xl font-extrabold">Propostas</h1>
+    </div>
+    <a href="/painel/propostas/nova/" class="btn btn-primary"><Icon name="plus" size={18} /> Nova proposta</a>
+  </header>
+
+  <div class="mt-8 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div role="toolbar" aria-label="Filtrar por status" class="flex flex-wrap gap-2" data-filters>
+      <button type="button" data-f="todas" aria-pressed="true" class="pill">Todas</button>
+      <button type="button" data-f="enviada" aria-pressed="false" class="pill">Em aberto</button>
+      <button type="button" data-f="aceita" aria-pressed="false" class="pill">Aceitas</button>
+      <button type="button" data-f="recusada" aria-pressed="false" class="pill">Recusadas</button>
+      <button type="button" data-f="vencida" aria-pressed="false" class="pill">Vencidas</button>
+    </div>
+    <label class="block lg:w-72">
+      <span class="sr-only">Buscar</span>
+      <input data-search type="search" placeholder="Buscar cliente ou código" class="w-full rounded-full border border-line bg-bg-2 px-4 py-2.5 text-sm focus:border-brand focus:outline-none" />
+    </label>
+  </div>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+  <ul data-list class="mt-6 space-y-3"></ul>
+</PanelLayout>
+
+<style>
+  @reference '../../../styles/global.css';
+  .pill {
+    @apply rounded-full border border-line px-4 py-2 text-sm text-muted transition-colors hover:text-ink;
+  }
+  .pill[aria-pressed='true'] {
+    @apply border-brand bg-brand text-bg;
+  }
+</style>
+
+<script>
+  import { api, h, toast, todayISO, type ProposalSummary } from '@/lib/panel-api';
+  import { PROPOSAL_STATUSES, displayStatus } from '@/lib/crm';
+  import { formatBRL } from '@/lib/whatsapp';
+  import { formatDateBR } from '@/lib/proposal';
+
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  const today = todayISO();
+  let items: ProposalSummary[] = [];
+  let filter = 'todas';
+  let query = '';
+
+  const badge: Record<string, string> = {
+    enviada: 'bg-sky-400/15 text-sky-200',
+    aceita: 'bg-brand/20 text-brand',
+    recusada: 'bg-red-400/15 text-red-200',
+    vencida: 'bg-amber-400/15 text-amber-200',
+  };
+  const money = (p: ProposalSummary) =>
+    [p.total_once && formatBRL(p.total_once), p.total_monthly && `${formatBRL(p.total_monthly)}/mês`].filter(Boolean).join(' + ') || formatBRL(0);
+
+  const render = () => {
+    const q = query.toLowerCase();
+    const list = items.filter(
+      (p) => (filter === 'todas' || displayStatus(p, today).id === filter) && (!q || p.client_name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)),
+    );
+    $('[data-list]').replaceChildren(
+      ...(list.length
+        ? list.map((p) => {
+            const s = displayStatus(p, today);
+            const li = h('li', 'card p-5');
+            const top = h('div', 'flex flex-col gap-3 md:flex-row md:items-center md:justify-between');
+            const info = h('div', 'min-w-0');
+            const title = h('div', 'flex flex-wrap items-center gap-2');
+            title.append(h('p', 'text-lg font-semibold', p.client_name), h('span', `rounded-full px-2.5 py-0.5 text-xs font-semibold ${badge[s.id]}`, s.label));
+            info.append(
+              title,
+              h('p', 'mt-1 text-xs text-muted', `${p.id} · criada em ${formatDateBR(p.created_at.slice(0, 10))}${p.valid_until ? ` · válida até ${formatDateBR(p.valid_until)}` : ''}`),
+            );
+            const value = h('p', 'font-display text-2xl font-extrabold text-brand', money(p));
+            top.append(info, value);
+
+            const actions = h('div', 'mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4');
+            const sel = h('select', 'rounded-full border border-line bg-bg px-3 py-2 text-sm focus:border-brand focus:outline-none') as HTMLSelectElement;
+            sel.setAttribute('aria-label', `Status da proposta ${p.id}`);
+            PROPOSAL_STATUSES.forEach((o) => sel.append(Object.assign(document.createElement('option'), { value: o.id, textContent: o.label, selected: o.id === p.status })));
+            sel.addEventListener('change', async () => {
+              try {
+                const updated = await api.patchProposal(p.id, { status: sel.value });
+                Object.assign(p, updated);
+                toast(`Status: ${PROPOSAL_STATUSES.find((x) => x.id === sel.value)!.label}`);
+                render();
+              } catch (e) {
+                toast((e as Error).message, 'error');
+                sel.value = p.status;
+              }
+            });
+            actions.append(sel);
+
+            const link = (label: string, href: string, blank = false) => {
+              const a = h('a', 'btn btn-outline min-h-9 px-4 text-xs', label) as HTMLAnchorElement;
+              a.href = href;
+              if (blank) { a.target = '_blank'; a.rel = 'noopener'; }
+              return a;
+            };
+            if (p.url) {
+              actions.append(link('Abrir', p.url.replace(/^https?:\/\/[^/]+/, location.origin), true));
+              const copy = h('button', 'btn btn-outline min-h-9 px-4 text-xs', 'Copiar link');
+              copy.setAttribute('type', 'button');
+              copy.addEventListener('click', async () => {
+                try { await navigator.clipboard.writeText(p.url); toast('Link copiado!'); } catch { prompt('Copie o link:', p.url); }
+              });
+              actions.append(copy);
+            }
+            actions.append(link('Editar / duplicar', `/painel/propostas/nova/?id=${encodeURIComponent(p.id)}`));
+            if (p.client_id) actions.append(link('Ver cliente', `/painel/clientes/?id=${encodeURIComponent(p.client_id)}`));
+            const del = h('button', 'ml-auto text-xs text-muted hover:text-red-300', 'Excluir');
+            del.setAttribute('type', 'button');
+            del.addEventListener('click', async () => {
+              if (!confirm(`Excluir a proposta ${p.id} de ${p.client_name}? O link enviado continua funcionando para o cliente.`)) return;
+              try {
+                await api.deleteProposal(p.id);
+                items = items.filter((x) => x.id !== p.id);
+                toast('Proposta excluída.');
+                render();
+              } catch (e) { toast((e as Error).message, 'error'); }
+            });
+            actions.append(del);
+            li.append(top, actions);
+            return li;
+          })
+        : [h('li', 'card p-6 text-center text-muted', items.length ? 'Nenhuma proposta com esse filtro.' : 'Nenhuma proposta ainda. Elas aparecem aqui quando você envia ou copia o link no gerador.')]),
+    );
+  };
+
+  document.querySelectorAll<HTMLButtonElement>('[data-filters] button').forEach((b) =>
+    b.addEventListener('click', () => {
+      filter = b.dataset.f!;
+      document.querySelectorAll('[data-filters] button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      render();
+    }),
+  );
+  $('[data-search]').addEventListener('input', (e) => { query = (e.target as HTMLInputElement).value; render(); });
+
+  (async () => {
+    try {
+      items = await api.proposals();
+      render();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      $('[data-loading]').hidden = true;
+    }
+  })();
+</script>

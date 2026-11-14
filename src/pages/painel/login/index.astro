@@ -1,0 +1,62 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import { site } from '@/config/site';
+---
+
+<PanelLayout title="Entrar" bare>
+  <main class="grid min-h-dvh place-items-center px-4 py-10">
+    <form data-login class="card w-full max-w-sm p-7 sm:p-8" novalidate>
+      <p class="font-display text-3xl font-extrabold tracking-wide">{site.shortName}<span class="text-brand">.</span></p>
+      <p class="eyebrow mt-1">Painel profissional</p>
+      <h1 class="mt-6 text-4xl font-extrabold">Entrar</h1>
+      <p class="mt-1 text-sm text-muted">Área restrita ao fotógrafo.</p>
+
+      <label class="mt-6 block">
+        <span class="text-sm font-medium">Senha</span>
+        <input
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          autofocus
+          class="mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink focus:border-brand focus:outline-none"
+        />
+      </label>
+      <p data-error role="alert" class="mt-3 hidden text-sm text-red-300"></p>
+      <button type="submit" class="btn btn-primary mt-6 w-full">Entrar</button>
+      <a href="/" class="mt-4 block text-center text-sm text-muted hover:text-ink">Voltar ao site</a>
+    </form>
+  </main>
+</PanelLayout>
+
+<script>
+  import { api, ApiError } from '@/lib/panel-api';
+
+  const form = document.querySelector<HTMLFormElement>('[data-login]')!;
+  const error = form.querySelector<HTMLElement>('[data-error]')!;
+  const button = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+  // Só permite voltar para páginas do próprio painel (evita redirecionamento para outros sites).
+  const next = new URL(location.href).searchParams.get('next') ?? '';
+  const target = /^\/painel(\/|$)/.test(next) && !next.startsWith('//') ? next : '/painel/';
+
+  // Já está logado? Vai direto.
+  api.session().then(() => location.replace(target)).catch(() => {});
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+    if (!password) return;
+    button.disabled = true;
+    button.textContent = 'Entrando…';
+    error.classList.add('hidden');
+    try {
+      await api.login(password);
+      location.replace(target);
+    } catch (err) {
+      error.textContent = err instanceof ApiError ? err.message : 'Não foi possível entrar.';
+      error.classList.remove('hidden');
+      button.disabled = false;
+      button.textContent = 'Entrar';
+    }
+  });
+</script>
