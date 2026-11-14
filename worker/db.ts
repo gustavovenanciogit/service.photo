@@ -78,10 +78,6 @@ const SCHEMA = [
     updated_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS jobs_date ON jobs (date)`,
-  `CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  )`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
     count INTEGER NOT NULL,
@@ -257,11 +253,3 @@ export const deleteJob = async (db: D1Database, id: string) =>
 /** Público: a data está ocupada? (só a resposta sim/não, sem detalhes) */
 export const isDateBusy = async (db: D1Database, date: string) =>
   !!(await db.prepare("SELECT 1 AS x FROM jobs WHERE date = ? AND blocks_date = 1 AND status != 'cancelado' LIMIT 1").bind(date).first());
-
-// ───────── Configurações ─────────
-
-export const getSettings = async (db: D1Database) =>
-  Object.fromEntries((await db.prepare('SELECT key, value FROM settings').all<{ key: string; value: string }>()).results.map((r) => [r.key, r.value]));
-
-export const setSetting = (db: D1Database, key: string, value: string) =>
-  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(key, value).run();

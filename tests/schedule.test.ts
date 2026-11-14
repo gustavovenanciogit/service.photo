@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addBusinessDaysISO, dueDate, dueDateForItems, dueLabel, monthGrid, parseDelivery, todayInManaus } from '../src/lib/schedule.ts';
+import { addBusinessDaysISO, dueDate, dueDateForItems, dueLabel, monthGrid, parseDelivery } from '../src/lib/schedule.ts';
 import pricing from '../src/data/pricing.json' with { type: 'json' };
 
 test('interpreta todos os prazos da tabela', () => {
@@ -37,10 +37,9 @@ test('rótulos de prazo', () => {
   assert.equal(dueLabel('2026-11-20', '2026-11-14').tone, 'ok');
 });
 
-test('calendário e fuso de Manaus', () => {
+test('calendário do mês', () => {
   const nov = monthGrid(2026, 11); // 1/11/2026 é domingo
   assert.equal(nov[0]![0], '2026-11-01');
   assert.ok(nov.every((w) => w.length === 7));
   assert.equal(nov.flat().filter(Boolean).length, 30);
-  assert.equal(todayInManaus(new Date('2026-11-15T03:30:00Z')), '2026-11-14'); // 23h30 em Manaus
 });

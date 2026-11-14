@@ -28,12 +28,7 @@
   // O token fica no segredo GITHUB_TOKEN (definido no painel da Cloudflare).
   "vars": {
     "GITHUB_REPO": "gustavovenanciogit/service.photo",
-    "GITHUB_BRANCH": "main",
-    // Usado nos links dos avisos do Telegram.
-    "PUBLIC_URL": "https://venart.gustavovesss.workers.dev"
+    "GITHUB_BRANCH": "main"
   },
-  // Resumo diário no Telegram: 11h UTC = 7h em Manaus.
-  // O robô fica no segredo TELEGRAM_BOT_TOKEN (definido no painel da Cloudflare).
-  "triggers": { "crons": ["0 11 * * *"] },
   "observability": { "enabled": true }
 }

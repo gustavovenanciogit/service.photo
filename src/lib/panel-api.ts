@@ -47,14 +47,6 @@ export const api = {
   updateJob: (id: string, j: Partial<Job>) => request<Job>('PUT', `/api/jobs/${encodeURIComponent(id)}`, j),
   deleteJob: (id: string) => request<{ ok: true }>('DELETE', `/api/jobs/${encodeURIComponent(id)}`),
 
-  notifications: () =>
-    request<{ botConfigured: boolean; botUsername: string; connected: boolean; notify_leads: boolean; daily_summary: boolean }>('GET', '/api/notifications'),
-  saveNotifications: (s: { notify_leads?: boolean; daily_summary?: boolean }) => request<{ ok: true }>('PUT', '/api/notifications', s),
-  pairTelegram: () => request<{ code: string; link: string }>('POST', '/api/notifications/pair', {}),
-  connectTelegram: () => request<{ ok: true; name: string }>('POST', '/api/notifications/connect', {}),
-  testTelegram: () => request<{ ok: true }>('POST', '/api/notifications/test', {}),
-  disconnectTelegram: () => request<{ ok: true }>('DELETE', '/api/notifications'),
-
   leads: () => request<Lead[]>('GET', '/api/leads'),
   leadCount: () => request<{ novo: number }>('GET', '/api/leads/count'),
   setLeadStatus: (id: string, status: string) => request<Lead>('PATCH', `/api/leads/${encodeURIComponent(id)}`, { status }),

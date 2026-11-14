@@ -9,11 +9,6 @@
  * Feriados não são considerados: confira prazos que caem perto de feriados.
  */
 
-export const TIMEZONE = 'America/Manaus';
-
-/** Data de hoje (AAAA-MM-DD) no fuso de Manaus. */
-export const todayInManaus = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE }).format(now);
-
 const parse = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y!, m! - 1, d!));

@@ -154,21 +154,6 @@ Se alguém pedir a exclusão dos dados (LGPD), use **Excluir** no pedido.
   **Avisar cliente** (WhatsApp com a mensagem pronta). Contador vermelho no menu para entregas
   atrasadas ou vencendo hoje. Feriados não entram no cálculo de dias úteis — confira nessas datas.
 
-### Avisos no celular (Telegram)
-Aviso na hora a cada pedido do site e **resumo diário às 7h** (Manaus) com trabalhos do dia, entregas
-atrasadas/vencendo, follow-ups, propostas vencendo e pedidos sem resposta (só chega se houver algo).
-
-**Configuração (uma vez):**
-1. No Telegram, abra **@BotFather** → `/newbot` → escolha um nome e um usuário terminado em `bot`.
-2. Copie o **token** que ele envia.
-3. Cloudflare → **Workers & Pages → venart → Settings → Variables and Secrets → Add** → **Secret**
-   `TELEGRAM_BOT_TOKEN` → cole → salve.
-4. No painel: **Ferramentas → Avisos no celular → Gerar link de conexão**, abra o link (ou o QR Code)
-   no celular e toque em **Iniciar**. Só o chat que enviar o código gerado no painel é conectado.
-5. Use **Enviar teste** para conferir. Dá para ligar/desligar cada tipo de aviso.
-
-O horário do resumo está em `wrangler.jsonc` (`"crons": ["0 11 * * *"]` = 11h UTC = 7h em Manaus).
-
 ### Editar preços e fotos pelo painel (Site: preços / Site: fotos)
 Ao clicar em **Publicar no site**, o painel grava a alteração direto no GitHub (um commit na `main`)
 e a Cloudflare publica sozinha em 1 a 2 minutos. O indicador no topo mostra **Publicando…** / **No ar**.
