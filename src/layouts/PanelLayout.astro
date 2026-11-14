@@ -15,17 +15,41 @@ interface Props {
 const { title, bare = false } = Astro.props;
 const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 
-const nav = [
-  { href: '/painel/', label: 'Início', icon: 'calendar', match: (p: string) => p === '/painel' },
-  { href: '/painel/pedidos/', label: 'Pedidos do site', icon: 'whatsapp', match: (p: string) => p.startsWith('/painel/pedidos') },
-  { href: '/painel/propostas/', label: 'Propostas', icon: 'check', match: (p: string) => p === '/painel/propostas' },
-  { href: '/painel/propostas/nova/', label: 'Nova proposta', icon: 'plus', match: (p: string) => p.startsWith('/painel/propostas/nova') },
-  { href: '/painel/clientes/', label: 'Clientes', icon: 'search', match: (p: string) => p.startsWith('/painel/clientes') },
-  { href: '/painel/site/precos/', label: 'Site: preços', icon: 'tag', match: (p: string) => p.startsWith('/painel/site/precos') },
-  { href: '/painel/site/fotos/', label: 'Site: fotos', icon: 'camera', match: (p: string) => p.startsWith('/painel/site/fotos') },
-  { href: '/painel/qrcodes/', label: 'QR Codes', icon: 'image', match: (p: string) => p.startsWith('/painel/qrcodes') },
-  { href: '/painel/mensagens/', label: 'Mensagens', icon: 'chat', match: (p: string) => p.startsWith('/painel/mensagens') },
-] as const;
+type Item = { href: string; label: string; icon: string; match: (p: string) => boolean; badge?: 'leads' | 'deliveries' };
+const groups: { title: string; items: Item[] }[] = [
+  { title: '', items: [{ href: '/painel/', label: 'Início', icon: 'calendar', match: (p) => p === '/painel' }] },
+  {
+    title: 'Vendas',
+    items: [
+      { href: '/painel/pedidos/', label: 'Pedidos do site', icon: 'whatsapp', match: (p) => p.startsWith('/painel/pedidos'), badge: 'leads' },
+      { href: '/painel/propostas/', label: 'Propostas', icon: 'check', match: (p) => p === '/painel/propostas' },
+      { href: '/painel/propostas/nova/', label: 'Nova proposta', icon: 'plus', match: (p) => p.startsWith('/painel/propostas/nova') },
+      { href: '/painel/clientes/', label: 'Clientes', icon: 'search', match: (p) => p.startsWith('/painel/clientes') },
+    ],
+  },
+  {
+    title: 'Trabalhos',
+    items: [
+      { href: '/painel/agenda/', label: 'Agenda', icon: 'calendar', match: (p) => p.startsWith('/painel/agenda') },
+      { href: '/painel/entregas/', label: 'Entregas', icon: 'truck', match: (p) => p.startsWith('/painel/entregas'), badge: 'deliveries' },
+    ],
+  },
+  {
+    title: 'Site',
+    items: [
+      { href: '/painel/site/precos/', label: 'Preços', icon: 'tag', match: (p) => p.startsWith('/painel/site/precos') },
+      { href: '/painel/site/fotos/', label: 'Fotos', icon: 'camera', match: (p) => p.startsWith('/painel/site/fotos') },
+    ],
+  },
+  {
+    title: 'Ferramentas',
+    items: [
+      { href: '/painel/qrcodes/', label: 'QR Codes', icon: 'image', match: (p) => p.startsWith('/painel/qrcodes') },
+      { href: '/painel/mensagens/', label: 'Mensagens', icon: 'chat', match: (p) => p.startsWith('/painel/mensagens') },
+      { href: '/painel/notificacoes/', label: 'Avisos no celular', icon: 'whatsapp', match: (p) => p.startsWith('/painel/notificacoes') },
+    ],
+  },
+];
 ---
 
 <!doctype html>
@@ -45,7 +69,7 @@ const nav = [
       ) : (
         <div class="lg:grid lg:min-h-dvh lg:grid-cols-[240px_1fr]">
           <!-- Menu lateral (computador) / barra superior (celular) -->
-          <aside class="sticky top-0 z-40 border-b border-line bg-bg-2/95 backdrop-blur lg:h-dvh lg:border-r lg:border-b-0">
+          <aside class="sticky top-0 z-40 border-b border-line bg-bg-2/95 backdrop-blur lg:h-dvh lg:overflow-y-auto lg:border-r lg:border-b-0">
             <div class="flex items-center justify-between gap-3 px-4 py-3 lg:block lg:px-5 lg:py-6">
               <a href="/painel/" class="block leading-none">
                 <span class="font-display text-2xl font-extrabold tracking-wide">
@@ -65,20 +89,27 @@ const nav = [
               </button>
             </div>
             <nav id="panel-nav" aria-label="Menu do painel" class="hidden px-3 pb-4 lg:block lg:px-3">
-              <ul class="space-y-1">
-                {nav.map((n) => (
-                  <li>
-                    <a
-                      href={n.href}
-                      aria-current={n.match(path) ? 'page' : undefined}
-                      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-card/50 hover:text-ink aria-[current=page]:bg-card aria-[current=page]:text-brand"
-                    >
-                      <Icon name={n.icon} size={18} /> {n.label}
-                      {n.href === '/painel/pedidos/' && <span data-lead-badge hidden class="ml-auto rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-bg" />}
-                    </a>
-                  </li>
+              <div class="space-y-4">
+                {groups.map((g) => (
+                  <div>
+                    {g.title && <p class="px-3 pb-1 text-[10px] font-semibold tracking-[0.2em] text-muted/70 uppercase">{g.title}</p>}
+                    <ul class="space-y-0.5">
+                      {g.items.map((n) => (
+                        <li>
+                          <a
+                            href={n.href}
+                            aria-current={n.match(path) ? 'page' : undefined}
+                            class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card/50 hover:text-ink aria-[current=page]:bg-card aria-[current=page]:text-brand"
+                          >
+                            <Icon name={n.icon as 'calendar'} size={18} /> {n.label}
+                            {n.badge && <span data-badge={n.badge} hidden class="ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold text-bg" />}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </div>
               <div class="mt-6 space-y-1 border-t border-line pt-4">
                 <a href="/" target="_blank" rel="noopener" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted hover:text-ink">
                   <Icon name="external" size={18} /> Ver site público
@@ -98,21 +129,32 @@ const nav = [
     }
 
     <script>
-      import { api } from '@/lib/panel-api';
+      import { api, todayISO } from '@/lib/panel-api';
       const btn = document.getElementById('panel-menu-btn');
       const nav = document.getElementById('panel-nav');
       btn?.addEventListener('click', () => {
         const open = nav!.classList.toggle('hidden') === false;
         btn.setAttribute('aria-expanded', String(open));
       });
-      // Contador de pedidos novos no menu.
-      const badge = document.querySelector<HTMLElement>('[data-lead-badge]');
-      if (badge) {
-        api.leadCount().then(({ novo }) => {
-          badge.textContent = String(novo);
-          badge.hidden = novo === 0;
+      // Contadores no menu: pedidos novos e entregas atrasadas/vencendo hoje.
+      const badge = (name: string, n: number, cls: string) => {
+        const el = document.querySelector<HTMLElement>(`[data-badge="${name}"]`);
+        if (!el) return;
+        el.textContent = String(n);
+        el.hidden = n === 0;
+        el.classList.add(cls);
+      };
+      const refreshBadges = () => {
+        api.leadCount().then(({ novo }) => badge('leads', novo, 'bg-brand')).catch(() => {});
+        api.jobs().then((jobs) => {
+          const today = todayISO();
+          const due = jobs.filter((j) => j.kind === 'trabalho' && j.due_date && j.due_date <= today && ['agendado', 'fotografado', 'editando'].includes(j.status)).length;
+          badge('deliveries', due, 'bg-red-400');
         }).catch(() => {});
-      }
+      };
+      refreshBadges();
+      // As telas avisam quando algo muda (entrega marcada, pedido atendido…).
+      window.addEventListener('venart:badges', refreshBadges);
       document.querySelector('[data-logout]')?.addEventListener('click', async () => {
         await api.logout().catch(() => {});
         location.href = '/painel/login/';

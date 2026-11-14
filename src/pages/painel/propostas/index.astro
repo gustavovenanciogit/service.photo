@@ -92,6 +92,9 @@ import Icon from '@/components/Icon.astro';
                 Object.assign(p, updated);
                 toast(`Status: ${PROPOSAL_STATUSES.find((x) => x.id === sel.value)!.label}`);
                 render();
+                if (sel.value === 'aceita' && confirm('Proposta aceita! 🎉 Quer colocar o trabalho na agenda agora?')) {
+                  location.href = `/painel/agenda/?proposta=${encodeURIComponent(p.id)}`;
+                }
               } catch (e) {
                 toast((e as Error).message, 'error');
                 sel.value = p.status;
@@ -114,6 +117,7 @@ import Icon from '@/components/Icon.astro';
               });
               actions.append(copy);
             }
+            if (p.status === 'aceita') actions.append(link('Agendar trabalho', `/painel/agenda/?proposta=${encodeURIComponent(p.id)}`));
             actions.append(link('Editar / duplicar', `/painel/propostas/nova/?id=${encodeURIComponent(p.id)}`));
             if (p.client_id) actions.append(link('Ver cliente', `/painel/clientes/?id=${encodeURIComponent(p.client_id)}`));
             const del = h('button', 'ml-auto text-xs text-muted hover:text-red-300', 'Excluir');

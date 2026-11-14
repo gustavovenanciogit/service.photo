@@ -8,7 +8,10 @@
  *
  * Senha: segredo ADMIN_PASSWORD (Cloudflare → Workers & Pages → venart → Settings → Variables and Secrets).
  */
-import { LEAD_STATUSES, parseClient, parseLead, parseProposal, PROPOSAL_STATUSES, newId } from '../src/lib/crm.ts';
+import { LEAD_STATUSES, parseClient, parseJob, parseLead, parseProposal, PROPOSAL_STATUSES, newId } from '../src/lib/crm.ts';
+import { dailyDigest, leadMessage } from '../src/lib/digest.ts';
+import { todayInManaus } from '../src/lib/schedule.ts';
+import * as telegram from './telegram.ts';
 import {
   clearCookie, clearFailures, createSession, isLoggedIn, passwordMatches,
   registerFailure, sessionCookie, tooManyAttempts, type AuthEnv,
@@ -17,8 +20,10 @@ import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
-interface Env extends AuthEnv, GitHubEnv {
+interface Env extends AuthEnv, GitHubEnv, telegram.TelegramEnv {
   ASSETS: Fetcher;
+  /** Endereço público do site (usado nos links dos avisos). */
+  PUBLIC_URL?: string;
 }
 
 const MAX_BODY = 200_000;
@@ -63,7 +68,7 @@ class HttpError extends Error {
 
 // ───────── API ─────────
 
-async function api(req: Request, env: Env, url: URL): Promise<Response> {
+async function api(req: Request, env: Env, url: URL, ctx: ExecutionContext): Promise<Response> {
   const method = req.method;
   const path = url.pathname.replace(/\/+$/, '');
 
@@ -71,6 +76,16 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (method !== 'GET' && method !== 'HEAD') {
     const origin = req.headers.get('Origin');
     if (origin !== url.origin) return json({ error: 'Origem não permitida.' }, 403);
+  }
+
+  // ── Público: a data está ocupada? (só sim/não, sem detalhes) ──
+  if (path === '/api/availability' && method === 'GET') {
+    const date = url.searchParams.get('date') ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: 'Data inválida.' }, 400);
+    await db.ensureSchema(env.DB);
+    return new Response(JSON.stringify({ busy: await db.isDateBusy(env.DB, date) }), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
+    });
   }
 
   // ── Público: pedido enviado pelo site (formulário/simulador) ──
@@ -85,6 +100,8 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     const parsed = parseLead(body);
     if (!parsed.ok) return json({ error: parsed.error }, 400);
     await db.insertLead(env.DB, newId('ped'), parsed.value);
+    // Aviso no Telegram sem atrasar a resposta ao cliente.
+    ctx.waitUntil(telegram.notify(env, 'notify_leads', leadMessage(parsed.value, env.PUBLIC_URL || url.origin)));
     return json({ ok: true }, 201);
   }
 
@@ -134,6 +151,30 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   }
 
   // Pedidos do site (painel)
+  // Agenda de trabalhos
+  if (path === '/api/jobs') {
+    if (method === 'GET') return json(await db.listJobs(env.DB));
+    if (method === 'POST') {
+      const parsed = parseJob(await readJson(req));
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      return json(await db.insertJob(env.DB, newId('job'), parsed.value), 201);
+    }
+  }
+  const jobMatch = /^\/api\/jobs\/(job_[a-z0-9]{1,30})$/.exec(path);
+  if (jobMatch) {
+    const id = jobMatch[1]!;
+    if (method === 'PUT') {
+      const parsed = parseJob(await readJson(req));
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      const j = await db.updateJob(env.DB, id, parsed.value);
+      return j ? json(j) : json({ error: 'Trabalho não encontrado.' }, 404);
+    }
+    if (method === 'DELETE') return (await db.deleteJob(env.DB, id)) ? json({ ok: true }) : json({ error: 'Trabalho não encontrado.' }, 404);
+  }
+
+  // Notificações (Telegram)
+  if (path.startsWith('/api/notifications')) return notificationsApi(req, env, path, method);
+
   if (path === '/api/leads' && method === 'GET') return json(await db.listLeads(env.DB));
   if (path === '/api/leads/count' && method === 'GET') return json({ novo: await db.countNewLeads(env.DB) });
   const leadMatch = /^\/api\/leads\/(ped_[a-z0-9]{1,30})$/.exec(path);
@@ -266,15 +307,76 @@ async function siteApi(req: Request, env: Env, path: string, method: string): Pr
   return json({ error: 'Não encontrado.' }, 404);
 }
 
+// ───────── Notificações (Telegram) ─────────
+
+async function notificationsApi(req: Request, env: Env, path: string, method: string): Promise<Response> {
+  const fail = (e: unknown) => json({ error: (e as Error).message }, 502);
+  const settings = await db.getSettings(env.DB);
+  if (path === '/api/notifications' && method === 'GET') {
+    let bot = '';
+    if (telegram.botConfigured(env)) bot = await telegram.botInfo(env).then((b) => b.username).catch(() => '');
+    return json({
+      botConfigured: telegram.botConfigured(env),
+      botUsername: bot,
+      connected: !!settings.telegram_chat_id,
+      notify_leads: settings.notify_leads !== '0',
+      daily_summary: settings.daily_summary !== '0',
+    });
+  }
+  if (path === '/api/notifications' && method === 'PUT') {
+    const body = (await readJson(req)) as { notify_leads?: unknown; daily_summary?: unknown };
+    if (typeof body.notify_leads === 'boolean') await db.setSetting(env.DB, 'notify_leads', body.notify_leads ? '1' : '0');
+    if (typeof body.daily_summary === 'boolean') await db.setSetting(env.DB, 'daily_summary', body.daily_summary ? '1' : '0');
+    return json({ ok: true });
+  }
+  if (!telegram.botConfigured(env)) return json({ error: 'Defina o segredo TELEGRAM_BOT_TOKEN na Cloudflare (veja o README).' }, 503);
+  if (path === '/api/notifications/pair' && method === 'POST') {
+    try {
+      const [code, bot] = await Promise.all([telegram.createPairCode(env), telegram.botInfo(env)]);
+      return json({ code, link: `https://t.me/${bot.username}?start=${code}` });
+    } catch (e) { return fail(e); }
+  }
+  if (path === '/api/notifications/connect' && method === 'POST') {
+    try {
+      const r = await telegram.connectWithCode(env);
+      return r ? json({ ok: true, name: r.name }) : json({ error: 'Ainda não recebi o código. Abra o link, toque em "Iniciar" e tente de novo.' }, 404);
+    } catch (e) { return fail(e); }
+  }
+  if (path === '/api/notifications/test' && method === 'POST') {
+    if (!settings.telegram_chat_id) return json({ error: 'Conecte o Telegram primeiro.' }, 400);
+    try {
+      await telegram.sendText(env, settings.telegram_chat_id, '🔔 Teste do painel Venart: os avisos estão funcionando!');
+      return json({ ok: true });
+    } catch (e) { return fail(e); }
+  }
+  if (path === '/api/notifications' && method === 'DELETE') {
+    await db.setSetting(env.DB, 'telegram_chat_id', '');
+    return json({ ok: true });
+  }
+  return json({ error: 'Não encontrado.' }, 404);
+}
+
+/** Resumo diário (gatilho agendado: 7h de Manaus). */
+async function sendDailyDigest(env: Env) {
+  await db.ensureSchema(env.DB);
+  const [jobs, clients, proposals, newLeads] = await Promise.all([db.listJobs(env.DB), db.listClients(env.DB), db.listProposals(env.DB), db.countNewLeads(env.DB)]);
+  const text = dailyDigest({ today: todayInManaus(), jobs, clients, proposals, newLeads }, env.PUBLIC_URL ?? '');
+  return telegram.notify(env, 'daily_summary', text);
+}
+
 // ───────── Roteamento ─────────
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(sendDailyDigest(env));
+  },
+
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
 
     try {
-      if (path.startsWith('/api/')) return await api(req, env, url);
+      if (path.startsWith('/api/')) return await api(req, env, url, ctx);
 
       // Endereço antigo do gerador.
       if (path === '/proposta/nova' || path === '/proposta/nova/') {

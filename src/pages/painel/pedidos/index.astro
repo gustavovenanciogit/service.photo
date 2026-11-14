@@ -96,7 +96,7 @@ import { LEAD_STATUSES } from '@/lib/crm';
             sel.setAttribute('aria-label', 'Status do pedido');
             LEAD_STATUSES.forEach((s) => sel.append(Object.assign(document.createElement('option'), { value: s.id, textContent: s.label, selected: s.id === l.status })));
             sel.addEventListener('change', async () => {
-              try { Object.assign(l, await api.setLeadStatus(l.id, sel.value)); toast('Status atualizado.'); render(); }
+              try { Object.assign(l, await api.setLeadStatus(l.id, sel.value)); toast('Status atualizado.'); render(); window.dispatchEvent(new Event('venart:badges')); }
               catch (e) { toast((e as Error).message, 'error'); sel.value = l.status; }
             });
             actions.append(sel);

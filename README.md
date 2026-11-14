@@ -141,6 +141,34 @@ Tudo que chega pelo **formulário de pré-orçamento** e pelo **simulador** apar
 Proteção anti-spam: campo invisível para robôs, limite de 6 pedidos por hora por conexão e checagem de origem.
 Se alguém pedir a exclusão dos dados (LGPD), use **Excluir** no pedido.
 
+### Agenda e entregas
+- **Agenda** (`/painel/agenda`): calendário do mês e próximos trabalhos. Ao marcar uma proposta como
+  **Aceita**, o painel oferece agendar — já preenchido com cliente, serviço, data, local e **prazo de
+  entrega calculado pelo pacote** ("Em 7 dias", "Em 10 dias úteis", "Em 24h"…; intervalos usam o maior
+  prazo; eventos sociais usam os 10 dias úteis da tabela). Também dá para **bloquear datas**.
+- **Site:** no simulador e no formulário, ao escolher a data, o cliente vê "data livre" ou "já tenho um
+  compromisso nessa data" — só isso, nunca o motivo ou o cliente. Desmarque "Mostrar a data como
+  ocupada no site" em trabalhos que não ocupam o dia todo.
+- **Entregas** (`/painel/entregas`): colunas Agendado → Fotografado → Editando → Entregue, com prazo
+  colorido (atrasada / vence hoje / amanhã). Ao marcar entregue, informe o link da galeria e use
+  **Avisar cliente** (WhatsApp com a mensagem pronta). Contador vermelho no menu para entregas
+  atrasadas ou vencendo hoje. Feriados não entram no cálculo de dias úteis — confira nessas datas.
+
+### Avisos no celular (Telegram)
+Aviso na hora a cada pedido do site e **resumo diário às 7h** (Manaus) com trabalhos do dia, entregas
+atrasadas/vencendo, follow-ups, propostas vencendo e pedidos sem resposta (só chega se houver algo).
+
+**Configuração (uma vez):**
+1. No Telegram, abra **@BotFather** → `/newbot` → escolha um nome e um usuário terminado em `bot`.
+2. Copie o **token** que ele envia.
+3. Cloudflare → **Workers & Pages → venart → Settings → Variables and Secrets → Add** → **Secret**
+   `TELEGRAM_BOT_TOKEN` → cole → salve.
+4. No painel: **Ferramentas → Avisos no celular → Gerar link de conexão**, abra o link (ou o QR Code)
+   no celular e toque em **Iniciar**. Só o chat que enviar o código gerado no painel é conectado.
+5. Use **Enviar teste** para conferir. Dá para ligar/desligar cada tipo de aviso.
+
+O horário do resumo está em `wrangler.jsonc` (`"crons": ["0 11 * * *"]` = 11h UTC = 7h em Manaus).
+
 ### Editar preços e fotos pelo painel (Site: preços / Site: fotos)
 Ao clicar em **Publicar no site**, o painel grava a alteração direto no GitHub (um commit na `main`)
 e a Cloudflare publica sozinha em 1 a 2 minutos. O indicador no topo mostra **Publicando…** / **No ar**.

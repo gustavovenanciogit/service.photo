@@ -184,3 +184,78 @@ export function parseLead(input: unknown): Result<LeadInput> {
   if (!lead.name && !lead.phone && !lead.service) return { ok: false, error: 'Pedido vazio.' };
   return { ok: true, value: lead };
 }
+
+// ───────────── Agenda de trabalhos e entregas ─────────────
+
+export const JOB_STATUSES = [
+  { id: 'agendado', label: 'Agendado' },
+  { id: 'fotografado', label: 'Fotografado' },
+  { id: 'editando', label: 'Editando' },
+  { id: 'entregue', label: 'Entregue' },
+  { id: 'cancelado', label: 'Cancelado' },
+] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number]['id'];
+
+export interface Job {
+  id: string;
+  /** 'trabalho' ou 'bloqueio' (data indisponível, sem cliente). */
+  kind: 'trabalho' | 'bloqueio';
+  title: string;
+  client_id: string;
+  client_name: string;
+  phone: string;
+  proposal_id: string;
+  date: string; // AAAA-MM-DD
+  start_time: string; // HH:MM
+  end_time: string; // HH:MM
+  location: string;
+  /** Mostrar a data como ocupada no site. */
+  blocks_date: boolean;
+  status: JobStatus;
+  due_date: string; // prazo de entrega
+  delivery_link: string; // link da galeria/Drive/Fotto
+  delivered_at: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type JobInput = Omit<Job, 'id' | 'created_at' | 'updated_at'>;
+
+const time = (v: unknown) => {
+  const s = str(v, 5);
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(s) ? s : '';
+};
+
+/** Valida um trabalho/bloqueio vindo do painel. */
+export function parseJob(input: unknown): Result<JobInput> {
+  const o = (input ?? {}) as Record<string, unknown>;
+  const kind = o.kind === 'bloqueio' ? 'bloqueio' : 'trabalho';
+  const d = date(o.date);
+  if (!d) return { ok: false, error: 'Informe a data.' };
+  const title = str(o.title, 120) || (kind === 'bloqueio' ? 'Indisponível' : '');
+  if (!title) return { ok: false, error: 'Informe o serviço ou um título.' };
+  const status = JOB_STATUSES.some((s) => s.id === o.status) ? (o.status as JobStatus) : 'agendado';
+  const link = str(o.delivery_link, 500);
+  return {
+    ok: true,
+    value: {
+      kind,
+      title,
+      client_id: str(o.client_id, 40),
+      client_name: str(o.client_name, 120),
+      phone: str(o.phone, 40).replace(/[^\d+()\s-]/g, ''),
+      proposal_id: /^VEN-\d{6}-[A-Z0-9]{4}$/.test(String(o.proposal_id ?? '')) ? String(o.proposal_id) : '',
+      date: d,
+      start_time: time(o.start_time),
+      end_time: time(o.end_time),
+      location: str(o.location, 160),
+      blocks_date: o.blocks_date !== false,
+      status: kind === 'bloqueio' ? 'agendado' : status,
+      due_date: kind === 'bloqueio' ? '' : date(o.due_date),
+      delivery_link: /^https?:\/\/\S+$/.test(link) ? link : '',
+      delivered_at: status === 'entregue' ? date(o.delivered_at) : '',
+      notes: str(o.notes, 4000),
+    },
+  };
+}

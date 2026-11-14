@@ -144,6 +144,7 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
         <label class="block">
           <span class="text-sm font-medium">Data prevista</span>
           <input name="date" type="date" class="mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 transition-colors focus:border-brand focus:outline-none" />
+          <span data-availability aria-live="polite"></span>
         </label>
         <label class="block">
           <span class="text-sm font-medium">Seu nome</span>
@@ -206,6 +207,7 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
   import { calculateQuote, quoteMessage, type QuotePackage, type QuoteRules } from '@/lib/quote';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
   import { sendLead } from '@/lib/leads';
+  import { watchAvailability } from '@/lib/availability';
 
   type Item = QuotePackage & { label: string };
   const data = JSON.parse(document.getElementById('sim-data')!.textContent!) as {
@@ -232,6 +234,7 @@ const box = 'mt-0.5 size-5 shrink-0 cursor-pointer accent-[#8be07a]';
   // Data mínima = hoje.
   const today = new Date();
   ($('[name="date"]') as HTMLInputElement).min = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  watchAvailability($('[name="date"]') as HTMLInputElement, $('[data-availability]'));
 
   // Pacote inicial vindo da URL: /simulador?pacote=evento-classico
   const fromUrl = new URL(location.href).searchParams.get('pacote');

@@ -1,0 +1,138 @@
+---
+/**
+ * AVISOS NO CELULAR (Telegram) — /painel/notificacoes/
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+---
+
+<PanelLayout title="Avisos no celular">
+  <p class="eyebrow">Ferramentas</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Avisos no <span class="text-brand">celular</span></h1>
+  <p class="mt-2 max-w-2xl text-muted">Receba no Telegram um aviso na hora em que chega um pedido pelo site, e um resumo do dia às 7h com trabalhos, entregas e follow-ups.</p>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+
+  <!-- 1. Robô não configurado -->
+  <section data-step="setup" hidden class="card mt-8 p-6 sm:p-8">
+    <h2 class="text-3xl font-bold">1. Crie o seu robô no Telegram</h2>
+    <ol class="mt-4 list-decimal space-y-2 pl-5 text-sm text-ink/90">
+      <li>No Telegram, abra a conversa com <a href="https://t.me/BotFather" target="_blank" rel="noopener" class="text-brand underline">@BotFather</a> (o criador oficial de robôs).</li>
+      <li>Envie <code class="rounded bg-bg px-1.5 py-0.5">/newbot</code>, escolha um nome (ex.: <em>Venart Avisos</em>) e um usuário terminado em <code class="rounded bg-bg px-1.5 py-0.5">bot</code> (ex.: <em>venart_avisos_bot</em>).</li>
+      <li>O BotFather responde com um <strong>token</strong> (parecido com <code class="rounded bg-bg px-1.5 py-0.5">123456:ABC-xyz…</code>). Copie.</li>
+      <li>Na Cloudflare: <strong>Workers &amp; Pages → venart → Settings → Variables and Secrets → Add</strong>, tipo <strong>Secret</strong>, nome <code class="rounded bg-bg px-1.5 py-0.5">TELEGRAM_BOT_TOKEN</code>, cole o token e salve.</li>
+      <li>Espere 1 minuto e recarregue esta página.</li>
+    </ol>
+  </section>
+
+  <!-- 2. Conectar -->
+  <section data-step="connect" hidden class="card mt-8 p-6 sm:p-8">
+    <h2 class="text-3xl font-bold">2. Conecte o seu Telegram</h2>
+    <p class="mt-2 text-sm text-muted">Robô configurado: <strong class="text-ink" data-bot></strong>. Gere o link, abra no celular e toque em <strong>Iniciar</strong>.</p>
+    <button type="button" data-pair class="btn btn-primary mt-5">Gerar link de conexão</button>
+    <div data-pair-box hidden class="mt-6 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
+      <div data-qr class="mx-auto w-44 rounded-xl bg-white p-2" role="img" aria-label="QR Code do link de conexão"></div>
+      <div>
+        <p class="text-sm">No celular, aponte a câmera para o QR Code — ou abra este link:</p>
+        <a data-link href="#" target="_blank" rel="noopener" class="mt-1 block break-all text-brand underline"></a>
+        <p class="mt-3 text-sm text-muted">Código: <strong class="font-mono text-ink" data-code></strong> (vale 15 minutos)</p>
+        <p class="mt-3 text-sm" data-wait aria-live="polite">Aguardando você tocar em “Iniciar” no Telegram…</p>
+        <button type="button" data-check class="btn btn-outline mt-3 min-h-10 px-4 text-sm">Já toquei em Iniciar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Conectado -->
+  <section data-step="ready" hidden class="mt-8 space-y-6">
+    <div class="card flex flex-wrap items-center justify-between gap-4 border-brand/50 p-6">
+      <div>
+        <p class="font-display text-2xl font-bold uppercase text-brand">✓ Telegram conectado</p>
+        <p class="text-sm text-muted">Os avisos chegam no chat com o robô <strong class="text-ink" data-bot></strong>.</p>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" data-test class="btn btn-primary min-h-10 px-4 text-sm">Enviar teste</button>
+        <button type="button" data-disconnect class="btn btn-outline min-h-10 px-4 text-sm">Desconectar</button>
+      </div>
+    </div>
+    <div class="card space-y-4 p-6">
+      <h2 class="text-2xl font-bold">O que avisar</h2>
+      <label class="flex items-start gap-3">
+        <input type="checkbox" data-opt="notify_leads" class="mt-0.5 size-5 accent-[#8be07a]" />
+        <span><span class="font-medium">Pedido novo pelo site</span><span class="block text-sm text-muted">Na hora, com nome, serviço, data, valor simulado e link para responder no WhatsApp.</span></span>
+      </label>
+      <label class="flex items-start gap-3">
+        <input type="checkbox" data-opt="daily_summary" class="mt-0.5 size-5 accent-[#8be07a]" />
+        <span><span class="font-medium">Resumo do dia às 7h</span><span class="block text-sm text-muted">Trabalhos do dia, entregas atrasadas ou vencendo, follow-ups, propostas vencendo e pedidos sem resposta. Só chega se houver algo.</span></span>
+      </label>
+    </div>
+  </section>
+</PanelLayout>
+
+<script>
+  import qrcode from 'qrcode-generator';
+  import { api, toast } from '@/lib/panel-api';
+
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  const show = (step: 'setup' | 'connect' | 'ready') =>
+    document.querySelectorAll<HTMLElement>('[data-step]').forEach((s) => (s.hidden = s.dataset.step !== step));
+  let poll: number | undefined;
+
+  async function load() {
+    try {
+      const s = await api.notifications();
+      document.querySelectorAll<HTMLElement>('[data-bot]').forEach((e) => (e.textContent = s.botUsername ? `@${s.botUsername}` : '(nome não disponível)'));
+      if (!s.botConfigured) show('setup');
+      else if (!s.connected) show('connect');
+      else {
+        show('ready');
+        document.querySelectorAll<HTMLInputElement>('[data-opt]').forEach((c) => (c.checked = s[c.dataset.opt as 'notify_leads' | 'daily_summary']));
+      }
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      $('[data-loading]').hidden = true;
+    }
+  }
+
+  const tryConnect = async (manual: boolean) => {
+    try {
+      await api.connectTelegram();
+      clearInterval(poll);
+      toast('Telegram conectado! Veja a mensagem no celular.');
+      load();
+    } catch (e) {
+      if (manual) toast((e as Error).message, 'error');
+    }
+  };
+
+  $('[data-pair]').addEventListener('click', async () => {
+    try {
+      const { code, link } = await api.pairTelegram();
+      const qr = qrcode(0, 'M');
+      qr.addData(link);
+      qr.make();
+      $('[data-qr]').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      ($('[data-link]') as HTMLAnchorElement).href = link;
+      $('[data-link]').textContent = link;
+      $('[data-code]').textContent = code;
+      $('[data-pair-box]').hidden = false;
+      clearInterval(poll);
+      let tries = 0;
+      poll = window.setInterval(() => (++tries > 60 ? clearInterval(poll) : tryConnect(false)), 5000);
+    } catch (e) { toast((e as Error).message, 'error'); }
+  });
+  $('[data-check]').addEventListener('click', () => tryConnect(true));
+  $('[data-test]').addEventListener('click', async () => {
+    try { await api.testTelegram(); toast('Teste enviado! Confira o Telegram.'); } catch (e) { toast((e as Error).message, 'error'); }
+  });
+  $('[data-disconnect]').addEventListener('click', async () => {
+    if (!confirm('Parar de receber os avisos no Telegram?')) return;
+    try { await api.disconnectTelegram(); toast('Desconectado.'); load(); } catch (e) { toast((e as Error).message, 'error'); }
+  });
+  document.querySelectorAll<HTMLInputElement>('[data-opt]').forEach((c) =>
+    c.addEventListener('change', async () => {
+      try { await api.saveNotifications({ [c.dataset.opt!]: c.checked }); toast('Preferência salva.'); }
+      catch (e) { toast((e as Error).message, 'error'); c.checked = !c.checked; }
+    }),
+  );
+  load();
+</script>
