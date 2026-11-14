@@ -6,7 +6,7 @@
  * O Astro otimiza (redimensiona e converte para WebP) no build.
  */
 import type { ImageMetadata } from 'astro';
-import { portfolioCaptions } from '@/data/portfolio';
+import { hiddenPhotos, portfolioCaptions } from '@/data/portfolio';
 
 const heroFiles = import.meta.glob<{ default: ImageMetadata }>(
   '/src/assets/hero/*.{jpg,jpeg,png,webp,avif,JPG,JPEG,PNG,WEBP}',
@@ -52,6 +52,7 @@ const rank = (path: string) => {
 };
 
 export const portfolioPhotos: PortfolioPhoto[] = Object.keys(portfolioFiles)
+  .filter((path) => !hiddenPhotos.has(keyOf(path)))
   .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
   .map((path) => ({
     src: portfolioFiles[path]!.default,
@@ -66,3 +67,8 @@ export const getPortfolioPhoto = (file: string): PortfolioPhoto | undefined => {
     ? { src: mod.default, category: file.split('/')[0]!, alt: portfolioCaptions[file] ?? altFromFile(file) }
     : undefined;
 };
+
+/** Todas as fotos do portfólio presentes no build (inclusive ocultas), por "pasta/arquivo". */
+export const allPortfolioFiles: Record<string, ImageMetadata> = Object.fromEntries(
+  Object.entries(portfolioFiles).map(([path, mod]) => [keyOf(path), mod.default]),
+);

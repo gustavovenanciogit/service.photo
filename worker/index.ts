@@ -8,18 +8,23 @@
  *
  * Senha: segredo ADMIN_PASSWORD (Cloudflare → Workers & Pages → venart → Settings → Variables and Secrets).
  */
-import { parseClient, parseProposal, PROPOSAL_STATUSES, newId } from '../src/lib/crm.ts';
+import { LEAD_STATUSES, parseClient, parseLead, parseProposal, PROPOSAL_STATUSES, newId } from '../src/lib/crm.ts';
 import {
   clearCookie, clearFailures, createSession, isLoggedIn, passwordMatches,
   registerFailure, sessionCookie, tooManyAttempts, type AuthEnv,
 } from './auth.ts';
 import * as db from './db.ts';
+import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
+import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
-interface Env extends AuthEnv {
+interface Env extends AuthEnv, GitHubEnv {
   ASSETS: Fetcher;
 }
 
 const MAX_BODY = 200_000;
+
+const sha256Hex = async (s: string) =>
+  [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 const securityHeaders = {
   'Cache-Control': 'no-store',
@@ -38,11 +43,11 @@ const withHeaders = (res: Response) => {
   return r;
 };
 
-async function readJson(req: Request): Promise<unknown> {
+async function readJson(req: Request, max = MAX_BODY): Promise<unknown> {
   const len = Number(req.headers.get('Content-Length') ?? 0);
-  if (len > MAX_BODY) throw new HttpError(413, 'Conteúdo grande demais.');
+  if (len > max) throw new HttpError(413, 'Conteúdo grande demais.');
   const text = await req.text();
-  if (text.length > MAX_BODY) throw new HttpError(413, 'Conteúdo grande demais.');
+  if (text.length > max) throw new HttpError(413, 'Conteúdo grande demais.');
   try {
     return JSON.parse(text || '{}');
   } catch {
@@ -66,6 +71,21 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (method !== 'GET' && method !== 'HEAD') {
     const origin = req.headers.get('Origin');
     if (origin !== url.origin) return json({ error: 'Origem não permitida.' }, 403);
+  }
+
+  // ── Público: pedido enviado pelo site (formulário/simulador) ──
+  if (path === '/api/leads' && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    const body = (await readJson(req)) as Record<string, unknown>;
+    // Campo-armadilha: invisível para pessoas, robôs costumam preencher.
+    if (typeof body.website === 'string' && body.website.trim()) return json({ ok: true });
+    const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+    const ipHash = await sha256Hex(`venart-leads:${ip}`);
+    if (!(await db.allowLead(env.DB, ipHash))) return json({ error: 'Muitos pedidos seguidos. Tente mais tarde.' }, 429);
+    const parsed = parseLead(body);
+    if (!parsed.ok) return json({ error: parsed.error }, 400);
+    await db.insertLead(env.DB, newId('ped'), parsed.value);
+    return json({ ok: true }, 201);
   }
 
   if (!env.ADMIN_PASSWORD) return json({ error: 'Painel ainda não configurado: defina o segredo ADMIN_PASSWORD na Cloudflare.' }, 503);
@@ -113,6 +133,21 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     if (method === 'DELETE') return (await db.deleteClient(env.DB, id)) ? json({ ok: true }) : json({ error: 'Cliente não encontrado.' }, 404);
   }
 
+  // Pedidos do site (painel)
+  if (path === '/api/leads' && method === 'GET') return json(await db.listLeads(env.DB));
+  if (path === '/api/leads/count' && method === 'GET') return json({ novo: await db.countNewLeads(env.DB) });
+  const leadMatch = /^\/api\/leads\/(ped_[a-z0-9]{1,30})$/.exec(path);
+  if (leadMatch) {
+    const id = leadMatch[1]!;
+    if (method === 'PATCH') {
+      const body = (await readJson(req)) as { status?: unknown };
+      if (!LEAD_STATUSES.some((s) => s.id === body.status)) return json({ error: 'Status inválido.' }, 400);
+      const l = await db.setLeadStatus(env.DB, id, body.status as string);
+      return l ? json(l) : json({ error: 'Pedido não encontrado.' }, 404);
+    }
+    if (method === 'DELETE') return (await db.deleteLead(env.DB, id)) ? json({ ok: true }) : json({ error: 'Pedido não encontrado.' }, 404);
+  }
+
   // Propostas
   if (path === '/api/proposals' && method === 'GET') return json(await db.listProposals(env.DB));
   const propMatch = /^\/api\/proposals\/(VEN-\d{6}-[A-Z0-9]{4})$/.exec(path);
@@ -142,6 +177,92 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     if (method === 'DELETE') return (await db.deleteProposal(env.DB, id)) ? json({ ok: true }) : json({ error: 'Proposta não encontrada.' }, 404);
   }
 
+  if (path.startsWith('/api/site/')) return siteApi(req, env, path, method);
+
+  return json({ error: 'Não encontrado.' }, 404);
+}
+
+// ───────── Edição do site (grava no GitHub) ─────────
+
+const PRICING_PATH = 'src/data/pricing.json';
+const PORTFOLIO_PATH = 'src/data/portfolio.json';
+const PHOTOS_DIR = 'src/assets/portfolio/';
+const MAX_UPLOADS = 10;
+
+async function siteApi(req: Request, env: Env, path: string, method: string): Promise<Response> {
+  if (path === '/api/site/status' && method === 'GET') {
+    if (!env.GITHUB_TOKEN) return json({ configured: false });
+    return json({ configured: true, ...(await deployStatus(env)) });
+  }
+
+  if (path === '/api/site/pricing') {
+    if (method === 'GET') {
+      const f = await readFile(env, PRICING_PATH);
+      return json({ data: JSON.parse(f.text), sha: f.sha });
+    }
+    if (method === 'PUT') {
+      const body = (await readJson(req)) as { sha?: unknown; edits?: unknown };
+      if (typeof body.sha !== 'string') return json({ error: 'Recarregue a página e tente de novo.' }, 400);
+      const current = await readFile(env, PRICING_PATH);
+      if (current.sha !== body.sha) return json({ error: 'Os preços foram alterados por outro lugar. Recarregue a página.' }, 409);
+      const result = applyPricingEdits(JSON.parse(current.text), body.edits);
+      if (!result.ok) return json({ error: result.error }, 400);
+      if (!result.value.changed.length) return json({ ok: true, changed: [] });
+      const names = result.value.changed;
+      const message = `Painel: atualiza preços (${names.slice(0, 4).join(', ')}${names.length > 4 ? ` e mais ${names.length - 4}` : ''})`;
+      const commit = await commitChanges(env, message, [{ path: PRICING_PATH, text: `${JSON.stringify({ packages: result.value.packages }, null, 2)}\n` }], {
+        path: PRICING_PATH,
+        sha: body.sha,
+      });
+      return json({ ok: true, changed: names, commit });
+    }
+  }
+
+  if (path === '/api/site/portfolio') {
+    if (method === 'GET') {
+      const [f, files] = await Promise.all([readFile(env, PORTFOLIO_PATH), listFiles(env, PHOTOS_DIR)]);
+      return json({ data: JSON.parse(f.text), sha: f.sha, files: files.map((x) => x.slice(PHOTOS_DIR.length)).filter((x) => PHOTO_PATH.test(x)) });
+    }
+    if (method === 'PUT') {
+      const body = (await readJson(req, 30_000_000)) as { sha?: unknown; data?: unknown; uploads?: unknown; deletes?: unknown };
+      if (typeof body.sha !== 'string') return json({ error: 'Recarregue a página e tente de novo.' }, 400);
+      const uploads = Array.isArray(body.uploads) ? (body.uploads as { file?: unknown; base64?: unknown }[]) : [];
+      const deletes = Array.isArray(body.deletes) ? (body.deletes as unknown[]).filter((d): d is string => typeof d === 'string') : [];
+      if (uploads.length > MAX_UPLOADS) return json({ error: `Envie no máximo ${MAX_UPLOADS} fotos por vez.` }, 400);
+
+      const existing = new Set((await listFiles(env, PHOTOS_DIR)).map((x) => x.slice(PHOTOS_DIR.length)));
+      const changes: FileChange[] = [];
+      for (const u of uploads) {
+        const file = typeof u.file === 'string' ? u.file : '';
+        const base64 = typeof u.base64 === 'string' ? u.base64 : '';
+        if (!PHOTO_PATH.test(file) || existing.has(file)) return json({ error: 'Nome de arquivo inválido. Tente de novo.' }, 400);
+        let bytes: Uint8Array;
+        try {
+          bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        } catch {
+          return json({ error: 'Arquivo de foto corrompido.' }, 400);
+        }
+        if (bytes.length > MAX_PHOTO_BYTES) return json({ error: 'Foto grande demais (máx. 8 MB).' }, 400);
+        const kind = imageKind(bytes);
+        const ext = file.split('.').pop()!.replace('jpeg', 'jpg');
+        if (!kind || kind !== ext) return json({ error: 'Envie fotos em JPG, PNG ou WebP.' }, 400);
+        changes.push({ path: PHOTOS_DIR + file, base64 });
+      }
+      for (const d of deletes) {
+        if (!PHOTO_PATH.test(d) || !existing.has(d)) return json({ error: 'Foto para excluir não encontrada. Recarregue a página.' }, 400);
+        changes.push({ path: PHOTOS_DIR + d, delete: true });
+      }
+      const available = new Set([...existing].filter((f) => !deletes.includes(f)));
+      uploads.forEach((u) => available.add(u.file as string));
+      const valid = validatePortfolio(body.data, available);
+      if (!valid.ok) return json({ error: valid.error }, 400);
+      changes.push({ path: PORTFOLIO_PATH, text: `${JSON.stringify(valid.value, null, 2)}\n` });
+
+      const parts = [uploads.length && `+${uploads.length} foto(s)`, deletes.length && `−${deletes.length} foto(s)`].filter(Boolean);
+      const commit = await commitChanges(env, `Painel: atualiza portfólio${parts.length ? ` (${parts.join(', ')})` : ''}`, changes, { path: PORTFOLIO_PATH, sha: body.sha });
+      return json({ ok: true, commit });
+    }
+  }
   return json({ error: 'Não encontrado.' }, 404);
 }
 
@@ -171,7 +292,7 @@ export default {
 
       return env.ASSETS.fetch(req);
     } catch (e) {
-      if (e instanceof HttpError) return json({ error: e.message }, e.status);
+      if (e instanceof HttpError || e instanceof GitHubError) return json({ error: e.message }, e.status);
       console.error(e);
       return json({ error: 'Erro interno. Tente novamente.' }, 500);
     }

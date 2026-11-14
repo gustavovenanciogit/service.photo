@@ -1,0 +1,155 @@
+---
+/**
+ * PEDIDOS DO SITE — /painel/pedidos/
+ * Tudo que chega pelo formulário de pré-orçamento e pelo simulador.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import { LEAD_STATUSES } from '@/lib/crm';
+---
+
+<PanelLayout title="Pedidos do site">
+  <p class="eyebrow">Caixa de entrada</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Pedidos do <span class="text-brand">site</span></h1>
+  <p class="mt-2 max-w-2xl text-muted">Cada pedido feito pelo formulário de contato ou pelo simulador aparece aqui, mesmo que a conversa se perca no WhatsApp.</p>
+
+  <div role="toolbar" aria-label="Filtrar pedidos" class="mt-8 flex flex-wrap gap-2" data-filters>
+    <button type="button" data-f="abertos" aria-pressed="true" class="pill">Em aberto <span data-count="abertos"></span></button>
+    {LEAD_STATUSES.map((s) => <button type="button" data-f={s.id} aria-pressed="false" class="pill">{s.label} <span data-count={s.id}></span></button>)}
+    <button type="button" data-f="todos" aria-pressed="false" class="pill">Todos <span data-count="todos"></span></button>
+  </div>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+  <ul data-list class="mt-6 space-y-3"></ul>
+</PanelLayout>
+
+<style>
+  @reference '../../../styles/global.css';
+  .pill {
+    @apply rounded-full border border-line px-4 py-2 text-sm text-muted transition-colors hover:text-ink;
+  }
+  .pill[aria-pressed='true'] {
+    @apply border-brand bg-brand text-bg;
+  }
+</style>
+
+<script>
+  import { api, h, toast, waNumber } from '@/lib/panel-api';
+  import { LEAD_SOURCES, LEAD_STATUSES, type Lead } from '@/lib/crm';
+  import { formatDateBR } from '@/lib/proposal';
+  import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  let leads: Lead[] = [];
+  let filter = 'abertos';
+
+  const badge: Record<string, string> = {
+    novo: 'bg-brand text-bg',
+    atendimento: 'bg-sky-400/15 text-sky-200',
+    convertido: 'bg-brand/20 text-brand',
+    arquivado: 'bg-white/5 text-muted',
+  };
+  const when = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  const isOpen = (l: Lead) => l.status === 'novo' || l.status === 'atendimento';
+
+  const render = () => {
+    const counts: Record<string, number> = { todos: leads.length, abertos: leads.filter(isOpen).length };
+    LEAD_STATUSES.forEach((s) => (counts[s.id] = leads.filter((l) => l.status === s.id).length));
+    document.querySelectorAll<HTMLElement>('[data-count]').forEach((e) => (e.textContent = `(${counts[e.dataset.count!] ?? 0})`));
+
+    const list = leads.filter((l) => filter === 'todos' || (filter === 'abertos' ? isOpen(l) : l.status === filter));
+    $('[data-list]').replaceChildren(
+      ...(list.length
+        ? list.map((l) => {
+            const li = h('li', `card p-5 ${l.status === 'novo' ? 'border-brand/50' : ''}`);
+            const top = h('div', 'flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between');
+            const info = h('div', 'min-w-0');
+            const title = h('div', 'flex flex-wrap items-center gap-2');
+            title.append(
+              h('p', 'text-lg font-semibold', l.name || 'Sem nome'),
+              h('span', `rounded-full px-2.5 py-0.5 text-xs font-semibold ${badge[l.status]}`, LEAD_STATUSES.find((s) => s.id === l.status)?.label ?? l.status),
+            );
+            info.append(title, h('p', 'mt-0.5 text-xs text-muted', `${LEAD_SOURCES.find((s) => s.id === l.source)?.label ?? l.source} · ${when(l.created_at)}`));
+            top.append(info);
+            if (l.total) top.append(h('p', 'font-display text-2xl font-extrabold text-brand', formatBRL(l.total)));
+            li.append(top);
+
+            const facts = h('dl', 'mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2');
+            const fact = (k: string, v: string) => {
+              if (!v) return;
+              const d = h('div', 'flex gap-2');
+              d.append(h('dt', 'text-muted', `${k}:`), h('dd', 'min-w-0 break-words', v));
+              facts.append(d);
+            };
+            fact('Serviço', l.service);
+            fact('Data', l.event_date ? formatDateBR(l.event_date) : '');
+            fact('Local', l.location);
+            fact('WhatsApp', l.phone);
+            li.append(facts);
+            if (l.message) li.append(h('p', 'mt-3 rounded-xl bg-bg p-3 text-sm whitespace-pre-line', l.message));
+            if (l.details) li.append(h('p', 'mt-3 rounded-xl bg-bg p-3 text-xs whitespace-pre-line text-muted', l.details));
+
+            const actions = h('div', 'mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4');
+            const sel = h('select', 'rounded-full border border-line bg-bg px-3 py-2 text-sm focus:border-brand focus:outline-none') as HTMLSelectElement;
+            sel.setAttribute('aria-label', 'Status do pedido');
+            LEAD_STATUSES.forEach((s) => sel.append(Object.assign(document.createElement('option'), { value: s.id, textContent: s.label, selected: s.id === l.status })));
+            sel.addEventListener('change', async () => {
+              try { Object.assign(l, await api.setLeadStatus(l.id, sel.value)); toast('Status atualizado.'); render(); }
+              catch (e) { toast((e as Error).message, 'error'); sel.value = l.status; }
+            });
+            actions.append(sel);
+            const link = (label: string, href: string, blank = false, primary = false) => {
+              const a = h('a', `btn ${primary ? 'btn-primary' : 'btn-outline'} min-h-9 px-4 text-xs`, label) as HTMLAnchorElement;
+              a.href = href;
+              if (blank) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+              return a;
+            };
+            if (l.phone) actions.append(link('Responder no WhatsApp', whatsappLink(waNumber(l.phone), `Olá${l.name ? `, ${l.name.split(' ')[0]}` : ''}! Recebi seu pedido pelo site${l.service ? ` (${l.service})` : ''}. Vamos conversar?`), true, true));
+            actions.append(link('Criar proposta', `/painel/propostas/nova/?pedido=${encodeURIComponent(l.id)}`));
+            const toClient = h('button', 'btn btn-outline min-h-9 px-4 text-xs', 'Cadastrar cliente');
+            toClient.setAttribute('type', 'button');
+            toClient.addEventListener('click', async () => {
+              try {
+                const c = await api.createClient({
+                  name: l.name || 'Cliente do site',
+                  phone: l.phone,
+                  stage: 'contacted',
+                  notes: [`Pedido do site (${when(l.created_at)})`, l.service, l.event_date && `Data: ${formatDateBR(l.event_date)}`, l.location && `Local: ${l.location}`, l.message].filter(Boolean).join('\n'),
+                });
+                Object.assign(l, await api.setLeadStatus(l.id, 'convertido'));
+                toast('Cliente cadastrado.');
+                location.href = `/painel/clientes/?id=${encodeURIComponent(c.id)}`;
+              } catch (e) { toast((e as Error).message, 'error'); }
+            });
+            actions.append(toClient);
+            const del = h('button', 'ml-auto text-xs text-muted hover:text-red-300', 'Excluir');
+            del.setAttribute('type', 'button');
+            del.addEventListener('click', async () => {
+              if (!confirm(`Excluir o pedido de ${l.name || 'sem nome'}? (Use isso também quando a pessoa pedir a exclusão dos dados.)`)) return;
+              try { await api.deleteLead(l.id); leads = leads.filter((x) => x.id !== l.id); toast('Pedido excluído.'); render(); }
+              catch (e) { toast((e as Error).message, 'error'); }
+            });
+            actions.append(del);
+            li.append(actions);
+            return li;
+          })
+        : [h('li', 'card p-6 text-center text-muted', leads.length ? 'Nenhum pedido com esse filtro.' : 'Nenhum pedido ainda. Eles aparecem aqui quando alguém usa o formulário ou o simulador do site.')]),
+    );
+  };
+
+  document.querySelectorAll<HTMLButtonElement>('[data-filters] button').forEach((b) =>
+    b.addEventListener('click', () => {
+      filter = b.dataset.f!;
+      document.querySelectorAll('[data-filters] button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      render();
+    }),
+  );
+
+  (async () => {
+    try { leads = await api.leads(); render(); }
+    catch (e) { toast((e as Error).message, 'error'); }
+    finally { $('[data-loading]').hidden = true; }
+  })();
+</script>

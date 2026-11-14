@@ -1,0 +1,59 @@
+---
+/**
+ * Aviso de privacidade (LGPD).
+ * Descreve o que o site realmente faz. Se mudar o funcionamento (ex.: adicionar
+ * estatísticas de visitas), atualize este texto.
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { site } from '@/config/site';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const updated = '14/11/2026';
+const wa = whatsappLink(site.whatsappNumber, 'Olá! Gostaria de falar sobre os meus dados pessoais registrados no seu site.');
+---
+
+<BaseLayout title="Privacidade" description={`Como o site ${site.name} trata os seus dados pessoais.`} waMessage={messages.general()}>
+  <section class="py-14 lg:py-20">
+    <article class="container-site max-w-3xl space-y-8 text-ink/90 [&_h2]:mt-2 [&_h2]:text-3xl [&_h2]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_p]:leading-relaxed">
+      <header>
+        <p class="eyebrow">LGPD</p>
+        <h1 class="mt-2 text-5xl font-extrabold sm:text-6xl">Privacidade</h1>
+        <p class="mt-3 text-sm text-muted">Atualizado em {updated}.</p>
+      </header>
+
+      <section class="space-y-3">
+        <h2>Quem cuida dos seus dados</h2>
+        <p>{site.name}, fotógrafo em {site.city}/{site.stateCode}. Contato: WhatsApp {site.whatsappDisplay}.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>O que é registrado</h2>
+        <p>Quando você envia o <strong>formulário de pré-orçamento</strong> ou uma <strong>simulação de orçamento</strong>, ficam registrados os dados que você preencheu:</p>
+        <ul class="space-y-1">
+          <li>nome e WhatsApp (se informados);</li>
+          <li>serviço de interesse, data prevista e local;</li>
+          <li>mensagem e valores da simulação.</li>
+        </ul>
+        <p>Para evitar abuso (envio automático em massa), o endereço de internet de quem envia é guardado apenas de forma embaralhada (hash), sem identificar a pessoa.</p>
+        <p>O site <strong>não usa</strong> cookies de rastreamento, publicidade ou estatísticas de visitas.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Para que são usados</h2>
+        <p>Somente para responder ao seu pedido, preparar orçamentos e combinar o serviço que você solicitou.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Onde ficam e quem acessa</h2>
+        <p>Os dados ficam armazenados na infraestrutura da Cloudflare e só podem ser vistos pelo fotógrafo, em uma área protegida por senha. Eles não são vendidos nem compartilhados com terceiros.</p>
+        <p>A conversa pelo WhatsApp é enviada por você, pelo seu aplicativo, e segue as regras de privacidade do próprio WhatsApp.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Seus direitos</h2>
+        <p>Você pode pedir a qualquer momento para ver, corrigir ou excluir os seus dados. É só chamar no WhatsApp.</p>
+        <a href={wa} target="_blank" rel="noopener noreferrer" class="btn btn-primary">Falar sobre meus dados</a>
+      </section>
+    </article>
+  </section>
+</BaseLayout>

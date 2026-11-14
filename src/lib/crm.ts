@@ -129,3 +129,58 @@ export function displayStatus(p: Pick<ProposalRecord, 'status' | 'valid_until'>,
 
 export const newId = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+// ───────────── Pedidos vindos do site ─────────────
+
+export const LEAD_STATUSES = [
+  { id: 'novo', label: 'Novo' },
+  { id: 'atendimento', label: 'Em atendimento' },
+  { id: 'convertido', label: 'Virou cliente' },
+  { id: 'arquivado', label: 'Arquivado' },
+] as const;
+export type LeadStatus = (typeof LEAD_STATUSES)[number]['id'];
+
+export const LEAD_SOURCES = [
+  { id: 'formulario', label: 'Formulário de contato' },
+  { id: 'simulador', label: 'Simulador' },
+] as const;
+
+export interface Lead {
+  id: string;
+  created_at: string;
+  status: LeadStatus;
+  source: string;
+  name: string;
+  phone: string;
+  service: string;
+  package_id: string;
+  event_date: string;
+  location: string;
+  message: string;
+  total: number;
+  details: string;
+  updated_at: string;
+}
+
+export type LeadInput = Pick<Lead, 'source' | 'name' | 'phone' | 'service' | 'package_id' | 'event_date' | 'location' | 'message' | 'total' | 'details'>;
+
+/** Valida um pedido enviado pelo site (dados públicos: tudo é limpo e limitado). */
+export function parseLead(input: unknown): Result<LeadInput> {
+  const o = (input ?? {}) as Record<string, unknown>;
+  const source = LEAD_SOURCES.some((s) => s.id === o.source) ? (o.source as string) : '';
+  if (!source) return { ok: false, error: 'Origem inválida.' };
+  const lead: LeadInput = {
+    source,
+    name: str(o.name, 80),
+    phone: str(o.phone, 30).replace(/[^\d+()\s-]/g, ''),
+    service: str(o.service, 160),
+    package_id: str(o.package_id, 60).replace(/[^a-z0-9-]/g, ''),
+    event_date: date(o.event_date),
+    location: str(o.location, 120),
+    message: str(o.message, 1200),
+    total: money(o.total),
+    details: str(o.details, 2000),
+  };
+  if (!lead.name && !lead.phone && !lead.service) return { ok: false, error: 'Pedido vazio.' };
+  return { ok: true, value: lead };
+}

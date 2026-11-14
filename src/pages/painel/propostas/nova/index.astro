@@ -5,6 +5,7 @@
  * Ao enviar, copiar ou salvar, a proposta fica guardada no painel (nuvem).
  * ?id=VEN-...      → abre uma proposta salva para editar (ou duplicar)
  * ?cliente=cli_... → já começa com um cliente cadastrado
+ * ?pedido=ped_...  → já começa com os dados de um pedido do site
  */
 import PanelLayout from '@/layouts/PanelLayout.astro';
 import Icon from '@/components/Icon.astro';
@@ -207,6 +208,7 @@ const step = (n: number, t: string) => `<span class="grid size-8 place-items-cen
   let seq = 0;
   let clients: Client[] = [];
   let savedNotes: string[] = []; // observações de tabela de uma proposta carregada
+  let fromLead: { id: string; status: string } | null = null; // pedido do site que originou a proposta
 
   const intro = () => fillTemplate(data.types.find((t) => t.id === f('t').value)?.intro ?? '', { cliente: f('cl').value, responsavel: f('r').value });
 
@@ -393,6 +395,10 @@ const step = (n: number, t: string) => `<span class="grid size-8 place-items-cen
       });
       editing = true;
       store.del(DRAFT);
+      if (fromLead?.status === 'novo') {
+        await api.setLeadStatus(fromLead.id, 'atendimento').catch(() => {});
+        fromLead.status = 'atendimento';
+      }
       history.replaceState(null, '', `?id=${encodeURIComponent(p.id)}`);
       update();
       $('[data-status]').textContent = `Salva no painel às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`;
@@ -471,7 +477,26 @@ const step = (n: number, t: string) => `<span class="grid size-8 place-items-cen
 
     const pid = params.get('id');
     const cid = params.get('cliente');
-    if (pid) {
+    const lid = params.get('pedido');
+    if (lid) {
+      try {
+        const lead = (await api.leads()).find((l) => l.id === lid);
+        if (!lead) throw new Error('Pedido não encontrado.');
+        fromLead = { id: lead.id, status: lead.status };
+        f('cl').value = lead.name;
+        f('phone').value = lead.phone;
+        f('ev').value = lead.event_date;
+        f('loc').value = lead.location;
+        f('val').value = addDays(isoDate(new Date()), data.validity);
+        const c = catalog.find((i) => i.id === lead.package_id);
+        if (c) {
+          const typeBySlug: Record<string, string> = { 'academias-de-luta': 'academia', 'atletas-de-luta': 'atleta', 'fotografia-esportiva': 'atleta', 'eventos-sociais': 'evento', 'ensaios-externos': 'ensaio' };
+          if (typeBySlug[c.categorySlug]) f('t').value = typeBySlug[c.categorySlug]!;
+          rows.push({ key: `${c.id}:${++seq}`, slug: c.categorySlug, n: c.name, c: c.category, p: c.price, o: c.price, q: 1, m: c.monthly || undefined, u: c.unit, d: c.details });
+        }
+        $('[data-status]').textContent = `Dados do pedido de ${lead.name || 'sem nome'} carregados.`;
+      } catch (e) { toast((e as Error).message, 'error'); }
+    } else if (pid) {
       try { await loadSaved(pid); } catch (e) { toast((e as Error).message, 'error'); }
     } else {
       const draft = store.get<{ id: string; rows: Row[]; msgEdited: boolean; values: Record<string, string>; pay: boolean; nt: boolean } | null>(DRAFT, null);

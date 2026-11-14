@@ -1,0 +1,56 @@
+---
+/**
+ * Situação da publicação do site (último commit + deploy da Cloudflare).
+ * Atualiza sozinho enquanto estiver publicando. Outros scripts podem chamar
+ * `window.dispatchEvent(new Event('venart:published'))` para recarregar.
+ */
+---
+
+<div data-publish class="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-bg-2 px-4 py-3 text-sm" aria-live="polite">
+  <span data-dot class="size-2.5 shrink-0 rounded-full bg-muted"></span>
+  <span data-text class="text-muted">Verificando publicação…</span>
+  <a data-link hidden target="_blank" rel="noopener" class="ml-auto text-xs text-brand hover:underline">Ver no GitHub</a>
+</div>
+
+<script>
+  import { ApiError } from '@/lib/panel-api';
+
+  const box = document.querySelector<HTMLElement>('[data-publish]')!;
+  const dot = box.querySelector<HTMLElement>('[data-dot]')!;
+  const text = box.querySelector<HTMLElement>('[data-text]')!;
+  const link = box.querySelector<HTMLAnchorElement>('[data-link]')!;
+  let timer: number | undefined;
+
+  type Status = { configured: boolean; message?: string; date?: string; url?: string; state?: 'success' | 'pending' | 'failure' | 'unknown' };
+  const states = {
+    success: ['bg-brand', 'No ar'],
+    pending: ['bg-amber-300 animate-pulse', 'Publicando… (1 a 2 minutos)'],
+    failure: ['bg-red-400', 'A publicação falhou — o site continua na versão anterior. Veja o log na Cloudflare.'],
+    unknown: ['bg-muted', 'Última alteração'],
+  } as const;
+
+  async function load(attempt = 0) {
+    clearTimeout(timer);
+    try {
+      const res = await fetch('/api/site/status', { credentials: 'same-origin' });
+      if (!res.ok) throw new ApiError(res.status, '');
+      const s = (await res.json()) as Status;
+      if (!s.configured) {
+        dot.className = 'size-2.5 shrink-0 rounded-full bg-amber-300';
+        text.textContent = 'Edição do site ainda não configurada (falta o token do GitHub). Veja o README.';
+        return;
+      }
+      const [cls, label] = states[s.state ?? 'unknown'];
+      dot.className = `size-2.5 shrink-0 rounded-full ${cls}`;
+      const when = s.date ? new Date(s.date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      text.textContent = `${label} · ${s.message ?? ''}${when ? ` · ${when}` : ''}`;
+      if (s.url) { link.href = s.url; link.hidden = false; }
+      // Enquanto publica (ou logo após salvar, antes da Cloudflare começar), confere de novo.
+      if (s.state === 'pending' || attempt > 0) timer = window.setTimeout(() => load(s.state === 'pending' ? 1 : attempt - 1), 15000);
+    } catch {
+      text.textContent = 'Não foi possível verificar a publicação agora.';
+    }
+  }
+  window.addEventListener('venart:published', () => load(4));
+  load();
+</script>

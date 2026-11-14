@@ -17,9 +17,12 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 
 const nav = [
   { href: '/painel/', label: 'Início', icon: 'calendar', match: (p: string) => p === '/painel' },
+  { href: '/painel/pedidos/', label: 'Pedidos do site', icon: 'whatsapp', match: (p: string) => p.startsWith('/painel/pedidos') },
   { href: '/painel/propostas/', label: 'Propostas', icon: 'check', match: (p: string) => p === '/painel/propostas' },
   { href: '/painel/propostas/nova/', label: 'Nova proposta', icon: 'plus', match: (p: string) => p.startsWith('/painel/propostas/nova') },
   { href: '/painel/clientes/', label: 'Clientes', icon: 'search', match: (p: string) => p.startsWith('/painel/clientes') },
+  { href: '/painel/site/precos/', label: 'Site: preços', icon: 'tag', match: (p: string) => p.startsWith('/painel/site/precos') },
+  { href: '/painel/site/fotos/', label: 'Site: fotos', icon: 'camera', match: (p: string) => p.startsWith('/painel/site/fotos') },
   { href: '/painel/qrcodes/', label: 'QR Codes', icon: 'image', match: (p: string) => p.startsWith('/painel/qrcodes') },
   { href: '/painel/mensagens/', label: 'Mensagens', icon: 'chat', match: (p: string) => p.startsWith('/painel/mensagens') },
 ] as const;
@@ -71,6 +74,7 @@ const nav = [
                       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-card/50 hover:text-ink aria-[current=page]:bg-card aria-[current=page]:text-brand"
                     >
                       <Icon name={n.icon} size={18} /> {n.label}
+                      {n.href === '/painel/pedidos/' && <span data-lead-badge hidden class="ml-auto rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-bg" />}
                     </a>
                   </li>
                 ))}
@@ -101,6 +105,14 @@ const nav = [
         const open = nav!.classList.toggle('hidden') === false;
         btn.setAttribute('aria-expanded', String(open));
       });
+      // Contador de pedidos novos no menu.
+      const badge = document.querySelector<HTMLElement>('[data-lead-badge]');
+      if (badge) {
+        api.leadCount().then(({ novo }) => {
+          badge.textContent = String(novo);
+          badge.hidden = novo === 0;
+        }).catch(() => {});
+      }
       document.querySelector('[data-logout]')?.addEventListener('click', async () => {
         await api.logout().catch(() => {});
         location.href = '/painel/login/';
