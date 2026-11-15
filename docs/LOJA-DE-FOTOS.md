@@ -3,6 +3,10 @@
 Venda de fotos direto pelo site: galeria por evento com marca d'água, pagamento por **Pix ou cartão**
 e **download liberado automaticamente** após a confirmação do pagamento.
 
+**Princípio:** tudo é feito pelo **painel Venart** (`/painel`): criar o evento, configurar dados e preços,
+subir as fotos e **gerar o link do evento** para divulgar (WhatsApp, Instagram, QR Code). Nada é configurado
+fora do painel. Mais adiante, cada evento pode também aparecer no **site público** (área que o cliente vê).
+
 **Como usar este checklist**
 - `[ ]` a fazer · `[x]` feito.
 - **👤 Você** = tarefa do Gustavo · **🤖 Claude** = tarefa de desenvolvimento.
@@ -18,7 +22,7 @@ e **download liberado automaticamente** após a confirmação do pagamento.
 | Fase | Entrega | Depende de | Situação |
 |---|---|---|---|
 | 0 | Decisões e preparação | — | 🟡 em andamento |
-| 1 | Galerias de evento (envio e visualização com marca d'água) | Fase 0 (itens 0.4 e 0.5) | ⚪ |
+| 1 | Eventos no painel: criar, configurar, subir fotos e gerar o link | Fase 0 (itens 0.5 e 0.12) | ⚪ |
 | 2 | Loja: carrinho, pagamento e download automático | Fases 0 e 1 | ⚪ |
 | 3 | Pós-venda e gestão (pedidos, relatórios, limite do MEI) | Fase 2 | ⚪ |
 | 4 | Lançamento (teste real e divulgação) | Fases 2 e 3 | ⚪ |
@@ -38,7 +42,7 @@ e **download liberado automaticamente** após a confirmação do pagamento.
   - [ ] Regra do pacote sem reconhecimento facial: o cliente seleciona as fotos dele e paga **o menor valor** entre "quantidade × R$ 12,90" e R$ 119,90? (sugestão)
   - [ ] Pré-venda R$ 100: entra agora ou depois? (sugestão: depois, na Fase 3)
 - [ ] **0.3 👤 Formas de pagamento:** Pix e cartão à vista? Aceitar parcelamento no pacote? Receber o cartão na hora ou em 14/30 dias (taxa menor)?
-- [ ] **0.4 👤 Prazo das galerias:** quanto tempo as fotos ficam à venda (sugestão: 6 meses) e por quanto tempo o comprador pode baixar de novo (sugestão: 30 dias).
+- [ ] **0.4 👤 Prazos padrão:** quanto tempo as fotos ficam à venda (sugestão: 6 meses) e por quanto tempo o comprador pode baixar de novo (sugestão: 30 dias). *Serão só o padrão: cada evento poderá ter o seu prazo no painel.*
 - [ ] **0.5 👤 Padrão de exportação do Lightroom** (vou te passar as predefinições prontas):
   - [ ] Versão de venda: lado maior ~3000 px, JPEG qualidade ~85 (sugestão: equilíbrio entre qualidade e espaço).
   - [ ] Versão de prévia: lado maior ~1200 px, com marca d'água Venart.
@@ -58,7 +62,7 @@ e **download liberado automaticamente** após a confirmação do pagamento.
 
 ---
 
-## Fase 1 — Galerias de evento
+## Fase 1 — Eventos no painel (criar, configurar, subir fotos e gerar o link)
 
 ### Armazenamento e banco
 - [ ] **1.1 🤖 Bucket R2 privado** `venart-fotos` (originais e prévias), ligado ao servidor.
@@ -66,7 +70,13 @@ e **download liberado automaticamente** após a confirmação do pagamento.
 - [ ] **1.3 🤖 Regras de acesso:** prévias com marca d'água abertas ao público; originais **nunca** acessíveis sem compra (só por link temporário assinado).
 
 ### Envio pelo painel
-- [ ] **1.4 🤖 Tela "Galerias"** no painel: criar galeria (nome, data, local, categoria, capa, preço).
+- [ ] **1.4 🤖 Tela "Eventos" no painel** (tudo configurado por você, no painel):
+  - [ ] dados do evento: nome, data, local, categoria, descrição curta, capa;
+  - [ ] preços **do evento** (foto avulsa e pacote; já vêm preenchidos com o padrão da tabela);
+  - [ ] prazo de venda e de download **do evento** (já vêm com o padrão de 0.4);
+  - [ ] status: rascunho → publicado → encerrado;
+  - [ ] visibilidade: **só pelo link** (padrão) ou **também listado no site** (Fase 4);
+  - [ ] editar, duplicar (ex.: treino semanal) e encerrar.
 - [ ] **1.5 🤖 Envio em lote** das duas versões (venda + prévia), pareadas pelo nome do arquivo:
   - [ ] direto do navegador para o R2 (sem passar pelo limite do servidor);
   - [ ] vários arquivos em paralelo, com barra de progresso;
@@ -77,11 +87,11 @@ e **download liberado automaticamente** após a confirmação do pagamento.
 
 ### Galeria pública
 - [ ] **1.8 🤖 Página do evento** `/fotos/<evento>`: grade de prévias com carregamento progressivo (rápida mesmo com 10 mil fotos), ampliar foto, navegação por ordem/horário.
-- [ ] **1.9 🤖 Lista de eventos** `/fotos` e link "Fotos de eventos" no site; QR Code da galeria no painel (reaproveita a tela de QR Codes).
+- [ ] **1.9 🤖 Gerar link do evento** no painel: endereço curto (ex.: `/e/treino-kohe-20-11`), botões **Copiar link**, **Compartilhar no WhatsApp**, **Baixar QR Code** (reaproveita a tela de QR Codes) e mensagem pronta de divulgação.
 - [ ] **1.10 🤖 Proteção básica das prévias:** marca d'água (do Lightroom), tamanho reduzido, sem download direto do original.
 - [ ] **1.11 🤖 Encerramento automático** da galeria ao fim do prazo (0.4) e **limpeza** dos arquivos no R2.
 
-**✅ Pronto quando:** você cria uma galeria, envia 2 mil fotos sem travar e a página pública abre rápido no celular.
+**✅ Pronto quando:** pelo painel, você cria o evento, envia 2 mil fotos sem travar, gera o link e a página do evento abre rápido no celular.
 
 ---
 
@@ -130,6 +140,8 @@ e **download liberado automaticamente** após a confirmação do pagamento.
 - [ ] **4.3 👤 Evento piloto:** uma galeria de treino de assessoria ou academia parceira.
 - [ ] **4.4 👤 Divulgação:** QR Code no local, stories, mensagem no grupo da assessoria/academia (modelos no Kit de mensagens).
 - [ ] **4.5 🤖 Ajustes** com base no piloto (velocidade, textos, dúvidas dos compradores).
+- [ ] **4.6 🤖 Eventos no site público** (área que o cliente vê): página `/fotos` com os eventos marcados como "listado no site" e link no menu, ao lado de portfólio e serviços.
+- [ ] **4.7 👤 Escolher quais eventos aparecem** no site (no painel, por evento).
 
 **✅ Pronto quando:** primeiras vendas reais concluídas sem intervenção manual.
 
@@ -190,4 +202,5 @@ Confirme sempre as taxas vigentes no painel de cada empresa.
 |---|---|---|
 | 15/11/2026 | Modelo híbrido: grandes corridas na Fotto; treinos, academias e ensaios na loja própria | Gustavo |
 | 15/11/2026 | Reconhecimento facial só com consentimento registrado e após validação e revisão jurídica | Gustavo |
+| 15/11/2026 | Tudo (evento, dados, preços, fotos, link) é configurado pelo painel Venart; o link é divulgado por você; listagem no site público vem depois | Gustavo |
 | | | |
