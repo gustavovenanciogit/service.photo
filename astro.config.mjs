@@ -11,7 +11,7 @@ const SITE_URL = process.env.SITE_URL ?? 'https://venart.gustavovesss.workers.de
 export default defineConfig({
   site: SITE_URL,
   // Propostas e painel são privados: ficam fora do sitemap.
-  integrations: [sitemap({ filter: (page) => !page.includes('/proposta/') && !page.includes('/painel') })],
+  integrations: [sitemap({ filter: (page) => !page.includes('/proposta/') && !page.includes('/painel') && !page.includes('/e/') })],
   vite: {
     plugins: [tailwindcss()],
   },

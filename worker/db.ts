@@ -78,6 +78,39 @@ const SCHEMA = [
     updated_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS jobs_date ON jobs (date)`,
+  // Loja de fotos: eventos e fotos (arquivos ficam no R2).
+  `CREATE TABLE IF NOT EXISTS events (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    date TEXT NOT NULL,
+    location TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    cover_photo_id TEXT NOT NULL DEFAULT '',
+    price_single REAL NOT NULL,
+    price_pack REAL NOT NULL DEFAULT 0,
+    sale_days INTEGER NOT NULL,
+    download_days INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'rascunho',
+    listed INTEGER NOT NULL DEFAULT 0,
+    photo_count INTEGER NOT NULL DEFAULT 0,
+    published_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS event_photos (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0,
+    ready INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    UNIQUE (event_id, file_name)
+  )`,
+  `CREATE INDEX IF NOT EXISTS event_photos_seq ON event_photos (event_id, seq)`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
     count INTEGER NOT NULL,

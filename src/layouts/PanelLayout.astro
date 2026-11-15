@@ -36,6 +36,10 @@ const groups: { title: string; items: Item[] }[] = [
     ],
   },
   {
+    title: 'Loja',
+    items: [{ href: '/painel/eventos/', label: 'Eventos (venda de fotos)', icon: 'camera', match: (p) => p.startsWith('/painel/eventos') }],
+  },
+  {
     title: 'Site',
     items: [
       { href: '/painel/site/precos/', label: 'Preços', icon: 'tag', match: (p) => p.startsWith('/painel/site/precos') },

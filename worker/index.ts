@@ -16,9 +16,10 @@ import {
 } from './auth.ts';
 import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
+import { eventsApi, publicEventApi, serveEventPage, servePhoto, type EventsEnv } from './events.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
-interface Env extends AuthEnv, GitHubEnv {
+interface Env extends AuthEnv, GitHubEnv, EventsEnv {
   ASSETS: Fetcher;
 }
 
@@ -97,6 +98,13 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     if (!parsed.ok) return json({ error: parsed.error }, 400);
     await db.insertLead(env.DB, newId('ped'), parsed.value);
     return json({ ok: true }, 201);
+  }
+
+  // ── Público: galeria de um evento ──
+  const pubEvent = /^\/api\/public\/events\/([a-z0-9-]{1,60})$/.exec(path);
+  if (pubEvent && method === 'GET') {
+    await db.ensureSchema(env.DB);
+    return publicEventApi(env, pubEvent[1]!, url, await isLoggedIn(req, env), json);
   }
 
   if (!env.ADMIN_PASSWORD) return json({ error: 'Painel ainda não configurado: defina o segredo ADMIN_PASSWORD na Cloudflare.' }, 503);
@@ -246,6 +254,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   }
 
   if (path.startsWith('/api/site/')) return siteApi(req, env, path, method);
+  if (path === '/api/events' || path.startsWith('/api/events/')) return eventsApi(req, env, path, json, (r) => readJson(r));
 
   return json({ error: 'Não encontrado.' }, 404);
 }
@@ -343,6 +352,17 @@ export default {
 
     try {
       if (path.startsWith('/api/')) return await api(req, env, url);
+
+      // Loja de fotos: imagens com marca d'água e página do evento.
+      if (path.startsWith('/f/') && (req.method === 'GET' || req.method === 'HEAD')) {
+        await db.ensureSchema(env.DB);
+        return await servePhoto(env, path, await isLoggedIn(req, env));
+      }
+      const eventPage = /^\/e\/([^/]+)\/?$/.exec(path);
+      if (eventPage) {
+        await db.ensureSchema(env.DB);
+        return await serveEventPage(req, env, url, eventPage[1]!.toLowerCase(), await isLoggedIn(req, env));
+      }
 
       // Endereço antigo do gerador.
       if (path === '/proposta/nova' || path === '/proposta/nova/') {
