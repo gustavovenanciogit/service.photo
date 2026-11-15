@@ -50,7 +50,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ### Jurídico e fiscal
 - [ ] **0.6 👤 Contador:** confirmar que a venda de fotos digitais está coberta pela atividade do seu MEI e como emitir nota.
 - [ ] **0.7 👤 Limite do MEI:** acompanhar o faturamento total (serviços + loja) frente ao limite de **R$ 81.000/ano** (~R$ 6.750/mês). A Fase 3 terá um alerta no painel.
-- [x] **0.8 🤖 Rascunho dos Termos de compra** → página `/termos-de-compra` (link no rodapé e no checkout) (o que é comprado, prazo de download, uso permitido das fotos, direito de arrependimento, contato) para você revisar.
+- [x] **0.8 🤖 Termos de compra** escritos com as suas decisões (versão 2026-11-v2) → página `/termos-de-compra`. Falta preencher razão social, CNPJ e endereço (`src/config/store.ts` → `seller`). (o que é comprado, prazo de download, uso permitido das fotos, direito de arrependimento, contato) para você revisar.
 - [ ] **0.9 👤 Revisar e aprovar** os Termos de compra (idealmente com advogado ou contador).
 
 ### Contas e acessos
@@ -211,5 +211,6 @@ Confirme sempre as taxas vigentes no painel de cada empresa.
 | 15/11/2026 | Tudo (evento, dados, preços, fotos, link) é configurado pelo painel Venart; o link é divulgado por você; listagem no site público vem depois | Gustavo |
 | 15/11/2026 | Uma exportação só do Lightroom (~3000 px); o painel gera prévia e miniatura com marca d'água | Claude (sugestão) |
 | 15/11/2026 | Até o pagamento automático (Fase 2), a galeria envia o pedido pelo WhatsApp com os números das fotos | Claude (sugestão) |
+| 15/11/2026 | Termos: uso pessoal + redes (comercial só com licença); crédito @venart_mid pedido, não obrigatório; arrependimento em 7 dias com reembolso total; reenvio gratuito após o prazo enquanto os arquivos existirem; portfólio com remoção a pedido; ajustes extras não incluídos; arquivos apagados após venda + download | Gustavo |
 | 15/11/2026 | Gateway: Mercado Pago (Checkout Pro), cartão só à vista até decidir 0.3 | Gustavo ("vamos para a próxima fase") |
 | | | |
