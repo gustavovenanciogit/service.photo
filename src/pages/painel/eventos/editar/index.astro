@@ -1,0 +1,439 @@
+---
+/**
+ * EVENTO — /painel/eventos/editar/?id=evt_...
+ * Dados e preços do evento, envio das fotos (com marca d'água automática),
+ * link para divulgar (copiar, WhatsApp, QR Code) e publicação.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import { EVENT_DEFAULTS } from '@/lib/events';
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+---
+
+<PanelLayout title="Evento">
+  <a href="/painel/eventos/" class="text-sm text-muted hover:text-ink">← Todos os eventos</a>
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+
+  <div data-page hidden>
+    <div class="mt-3 flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="eyebrow" data-date></p>
+        <h1 data-title class="mt-1 text-4xl font-extrabold sm:text-5xl"></h1>
+        <p class="mt-2 text-sm text-muted"><span data-status class="rounded-full px-2.5 py-1 text-xs font-semibold"></span> <span data-count class="ml-2"></span></p>
+      </div>
+      <div class="flex flex-wrap gap-2" data-status-actions></div>
+    </div>
+
+    <!-- Compartilhar -->
+    <section class="card mt-8 p-5 sm:p-6" aria-labelledby="share-title">
+      <div class="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div class="min-w-0">
+          <h2 id="share-title" class="text-2xl font-bold">Link do evento</h2>
+          <p data-share-note class="mt-1 text-sm text-muted"></p>
+          <div class="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input data-link readonly class={`${field} mt-0 font-mono text-sm`} aria-label="Link do evento" />
+            <button type="button" data-copy class="btn btn-primary min-h-12 shrink-0">Copiar link</button>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <a data-open target="_blank" rel="noopener" class="btn btn-outline min-h-10 px-4 text-sm">Ver galeria</a>
+            <a data-wa target="_blank" rel="noopener noreferrer" class="btn btn-outline min-h-10 px-4 text-sm">Enviar pelo WhatsApp</a>
+            <button type="button" data-copy-msg class="btn btn-outline min-h-10 px-4 text-sm">Copiar mensagem pronta</button>
+            <a data-qr-dl class="btn btn-outline min-h-10 px-4 text-sm">Baixar QR Code</a>
+          </div>
+        </div>
+        <img data-qr alt="QR Code do link do evento" class="mx-auto size-40 rounded-xl bg-white p-2" />
+      </div>
+    </section>
+
+    <!-- Fotos -->
+    <section class="card mt-6 p-5 sm:p-6" aria-labelledby="photos-title">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 id="photos-title" class="text-2xl font-bold">Fotos</h2>
+          <p class="mt-1 max-w-2xl text-sm text-muted">
+            Envie a exportação do Lightroom em <strong>JPG (lado maior ~3000 px)</strong>. O painel cria sozinho a prévia com marca d'água e a miniatura;
+            a foto original só vai para o comprador. Pode fechar e voltar depois: ao escolher a mesma pasta, as já enviadas são puladas.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <label class="btn btn-primary min-h-11 cursor-pointer px-4 text-sm">
+            Escolher fotos <input data-files type="file" accept="image/jpeg" multiple class="sr-only" />
+          </label>
+          <label class="btn btn-outline min-h-11 cursor-pointer px-4 text-sm">
+            Escolher pasta <input data-folder type="file" accept="image/jpeg" multiple {...{ webkitdirectory: true }} class="sr-only" />
+          </label>
+        </div>
+      </div>
+
+      <div data-drop class="mt-4 rounded-2xl border-2 border-dashed border-line p-6 text-center text-sm text-muted transition-colors">
+        Ou arraste as fotos para cá.
+      </div>
+
+      <div data-progress hidden class="mt-4 rounded-2xl border border-line bg-bg p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p data-progress-text class="font-semibold"></p>
+          <div class="flex gap-2">
+            <button type="button" data-pause class="btn btn-outline min-h-9 px-3 text-xs">Pausar</button>
+            <button type="button" data-retry hidden class="btn btn-outline min-h-9 px-3 text-xs">Tentar falhas de novo</button>
+          </div>
+        </div>
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/10"><div data-bar class="h-full w-0 bg-brand transition-[width]"></div></div>
+        <p data-progress-detail class="mt-2 text-xs text-muted"></p>
+        <ul data-errors class="mt-2 max-h-32 space-y-0.5 overflow-auto text-xs text-red-300"></ul>
+      </div>
+
+      <ul data-grid class="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"></ul>
+      <button type="button" data-more hidden class="btn btn-outline mt-4 min-h-10 w-full text-sm">Mostrar mais fotos</button>
+    </section>
+
+    <!-- Dados -->
+    <form data-form class="card mt-6 space-y-5 p-5 sm:p-6" novalidate>
+      <h2 class="text-2xl font-bold">Dados e preços</h2>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block sm:col-span-2"><span class="text-sm font-medium">Nome do evento</span><input name="name" required maxlength="120" class={field} /></label>
+        <label class="block"><span class="text-sm font-medium">Data</span><input name="date" type="date" required class={field} /></label>
+        <label class="block"><span class="text-sm font-medium">Local</span><input name="location" maxlength="160" class={field} /></label>
+        <label class="block">
+          <span class="text-sm font-medium">Modalidade</span>
+          <input name="category" maxlength="40" list="cat-list" class={field} placeholder="Ex.: Corrida" />
+          <datalist id="cat-list"><option>Corrida</option><option>Jiu-jitsu</option><option>Muay Thai</option><option>MMA</option><option>Boxe</option><option>Futebol</option><option>Ciclismo</option><option>Evento social</option></datalist>
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium">Endereço do link</span>
+          <div class="mt-1.5 flex items-center rounded-xl border border-line bg-bg focus-within:border-brand">
+            <span class="pl-4 text-sm text-muted">/e/</span>
+            <input name="slug" maxlength="60" pattern="[a-z0-9-]+" class="w-full bg-transparent px-1 py-3 text-ink focus:outline-none" />
+          </div>
+          <span class="mt-1 block text-xs text-muted">Evite mudar depois de divulgar: o link antigo para de funcionar.</span>
+        </label>
+        <label class="block sm:col-span-2"><span class="text-sm font-medium">Descrição <span class="text-muted">(opcional)</span></span><textarea name="description" rows="2" maxlength="600" class={field}></textarea></label>
+      </div>
+
+      <fieldset class="grid gap-4 border-t border-line pt-5 sm:grid-cols-4">
+        <legend class="sr-only">Preços e prazos</legend>
+        <label class="block"><span class="text-sm font-medium">Foto avulsa (R$)</span><input name="price_single" inputmode="decimal" class={field} placeholder={String(EVENT_DEFAULTS.price_single).replace('.', ',')} /></label>
+        <label class="block"><span class="text-sm font-medium">Pacote — todas as suas (R$)</span><input name="price_pack" inputmode="decimal" class={field} placeholder="0 = sem pacote" /></label>
+        <label class="block"><span class="text-sm font-medium">Venda aberta por (dias)</span><input name="sale_days" inputmode="numeric" class={field} /></label>
+        <label class="block"><span class="text-sm font-medium">Download após compra (dias)</span><input name="download_days" inputmode="numeric" class={field} /></label>
+        <p class="text-xs text-muted sm:col-span-4">
+          O cliente paga o menor valor entre "quantidade × avulsa" e o pacote. O prazo de venda conta a partir da primeira publicação.
+        </p>
+      </fieldset>
+
+      <label class="flex items-start gap-3 border-t border-line pt-5 text-sm">
+        <input name="listed" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
+        <span>Mostrar este evento na área de eventos do site <span class="text-muted">(quando ela estiver pronta). Sem marcar, só quem tem o link encontra.</span></span>
+      </label>
+
+      <div class="flex flex-wrap justify-between gap-3 border-t border-line pt-5">
+        <button type="button" data-delete class="btn min-h-11 px-4 text-sm text-red-300 hover:bg-red-500/10">Excluir evento</button>
+        <button class="btn btn-primary min-h-11 px-6">Salvar dados</button>
+      </div>
+    </form>
+  </div>
+</PanelLayout>
+
+<script>
+  import qrcode from 'qrcode-generator';
+  import { api, h, toast } from '@/lib/panel-api';
+  import { photoLabel, publicState, saleEndsAt, type EventPhoto, type EventRecord } from '@/lib/events';
+  import { formatDateBR } from '@/lib/proposal';
+  import { formatBRL } from '@/lib/whatsapp';
+  import { makeVariants } from '@/lib/watermark';
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const id = new URLSearchParams(location.search).get('id') ?? '';
+  let ev: EventRecord;
+  let photos: EventPhoto[] = [];
+  let shown = 0;
+  const PAGE = 120;
+
+  // ───────── Cabeçalho, status e link ─────────
+
+  const linkOf = () => `${location.origin}/e/${ev.slug}`;
+  const shareMessage = () =>
+    [`📸 As fotos do *${ev.name}* já estão no ar!`, '', `Encontre as suas e garanta em alta resolução:`, linkOf(),
+      ev.price_pack > 0 ? `\nFoto avulsa ${formatBRL(ev.price_single)} · todas as suas por ${formatBRL(ev.price_pack)}` : `\nCada foto ${formatBRL(ev.price_single)}`].join('\n');
+
+  const renderHead = () => {
+    const st = publicState(ev);
+    $('[data-title]').textContent = ev.name;
+    $('[data-date]').textContent = [formatDateBR(ev.date), ev.location].filter(Boolean).join(' · ');
+    const s = $('[data-status]');
+    s.textContent = st === 'aberto' ? 'Publicado' : st === 'encerrado' ? 'Encerrado' : 'Rascunho (só você vê)';
+    s.className = `rounded-full px-2.5 py-1 text-xs font-semibold ${st === 'aberto' ? 'bg-brand/20 text-brand' : st === 'encerrado' ? 'bg-white/10 text-muted' : 'bg-amber-400/15 text-amber-200'}`;
+    const ready = photos.filter((p) => p.ready).length;
+    $('[data-count]').textContent = `${ready} foto${ready === 1 ? '' : 's'} na galeria${ev.published_at && st === 'aberto' ? ` · venda até ${formatDateBR(saleEndsAt(ev).slice(0, 10))}` : ''}`;
+    document.title = `${ev.name} · Painel`;
+
+    const actions = $('[data-status-actions]');
+    const btn = (label: string, cls: string, status: EventRecord['status'], confirmMsg = '') => {
+      const b = h('button', `btn ${cls} min-h-11 px-4 text-sm`, label);
+      b.setAttribute('type', 'button');
+      b.addEventListener('click', async () => {
+        if (confirmMsg && !confirm(confirmMsg)) return;
+        if (status === 'publicado' && !photos.some((p) => p.ready)) return toast('Envie ao menos uma foto antes de publicar.', 'error');
+        await save({ ...ev, status }, status === 'publicado' ? 'Evento publicado! Agora é só divulgar o link.' : 'Status atualizado.');
+      });
+      return b;
+    };
+    actions.replaceChildren(
+      ...(ev.status === 'publicado'
+        ? [btn('Voltar para rascunho', 'btn-outline', 'rascunho', 'O link deixa de funcionar para o público até você publicar de novo. Continuar?'), btn('Encerrar venda', 'btn-outline', 'encerrado', 'Encerrar a venda deste evento? A galeria mostra "venda encerrada".')]
+        : ev.status === 'encerrado'
+          ? [btn('Reabrir venda', 'btn-primary', 'publicado')]
+          : [btn('Publicar evento', 'btn-primary', 'publicado')]),
+    );
+
+    const link = linkOf();
+    $<HTMLInputElement>('[data-link]').value = link;
+    $<HTMLAnchorElement>('[data-open]').href = link;
+    $<HTMLAnchorElement>('[data-wa]').href = `https://wa.me/?text=${encodeURIComponent(shareMessage())}`;
+    $('[data-share-note]').textContent =
+      st === 'aberto' ? 'Divulgue nos stories, grupos e com a organização do evento.' : st === 'encerrado' ? 'Venda encerrada: quem abrir o link verá o aviso.' : 'Ainda em rascunho: só você (logado) consegue abrir. Publique quando as fotos estiverem prontas.';
+    const qr = qrcode(0, 'M');
+    qr.addData(link);
+    qr.make();
+    const dataUrl = qr.createDataURL(10, 2);
+    $<HTMLImageElement>('[data-qr]').src = qr.createDataURL(4, 2);
+    const dl = $<HTMLAnchorElement>('[data-qr-dl]');
+    dl.href = dataUrl;
+    dl.download = `qrcode-${ev.slug}.gif`;
+  };
+
+  const copy = async (text: string, ok: string) => {
+    try { await navigator.clipboard.writeText(text); toast(ok); }
+    catch { prompt('Copie:', text); }
+  };
+  $('[data-copy]').addEventListener('click', () => copy(linkOf(), 'Link copiado!'));
+  $('[data-copy-msg]').addEventListener('click', () => copy(shareMessage(), 'Mensagem copiada!'));
+
+  // ───────── Dados ─────────
+
+  const form = $<HTMLFormElement>('[data-form]');
+  const fill = () => {
+    const set = (n: string, v: string) => ((form.elements.namedItem(n) as HTMLInputElement).value = v);
+    set('name', ev.name); set('date', ev.date); set('location', ev.location); set('category', ev.category);
+    set('slug', ev.slug); set('description', ev.description);
+    set('price_single', String(ev.price_single).replace('.', ','));
+    set('price_pack', String(ev.price_pack).replace('.', ','));
+    set('sale_days', String(ev.sale_days)); set('download_days', String(ev.download_days));
+    (form.elements.namedItem('listed') as HTMLInputElement).checked = ev.listed;
+  };
+
+  async function save(data: Partial<EventRecord>, msg = 'Dados salvos.') {
+    try {
+      ev = await api.updateEvent(id, data);
+      fill(); renderHead(); toast(msg);
+    } catch (e) { toast((e as Error).message, 'error'); }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    if (d.slug !== ev.slug && ev.published_at && !confirm('Mudar o endereço faz o link já divulgado parar de funcionar. Continuar?')) return;
+    await save({ ...ev, ...d, listed: d.listed === 'on' } as unknown as Partial<EventRecord>);
+  });
+
+  $('[data-delete]').addEventListener('click', async () => {
+    const typed = prompt(`Isto apaga o evento e TODAS as ${photos.length} fotos, sem volta.\nPara confirmar, digite o nome do evento:\n${ev.name}`);
+    if (typed === null) return;
+    if (typed.trim() !== ev.name) return toast('Nome diferente. Nada foi apagado.', 'error');
+    try { await api.deleteEvent(id); location.href = '/painel/eventos/'; }
+    catch (e) { toast((e as Error).message, 'error'); }
+  });
+
+  // ───────── Grade de fotos ─────────
+
+  const tile = (p: EventPhoto) => {
+    const li = h('li', 'group relative aspect-square overflow-hidden rounded-lg bg-bg-2');
+    const img = h('img', 'size-full object-cover') as HTMLImageElement;
+    img.src = `/f/${ev.id}/${p.id}/thumb.jpg`;
+    img.alt = `Foto ${photoLabel(p.seq)}`;
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    const label = h('span', 'absolute top-1 left-1 rounded bg-black/60 px-1.5 text-[10px] font-semibold', photoLabel(p.seq));
+    if (ev.cover_photo_id === p.id) label.textContent += ' · capa';
+    const bar = h('div', 'absolute inset-x-0 bottom-0 flex justify-between gap-1 bg-black/60 p-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100');
+    const coverBtn = h('button', 'rounded px-1.5 py-0.5 text-[11px] hover:bg-white/15', 'Capa');
+    coverBtn.setAttribute('type', 'button');
+    coverBtn.addEventListener('click', () => save({ ...ev, cover_photo_id: p.id }, 'Capa definida.').then(renderGrid));
+    const del = h('button', 'rounded px-1.5 py-0.5 text-[11px] text-red-300 hover:bg-white/15', 'Excluir');
+    del.setAttribute('type', 'button');
+    del.setAttribute('aria-label', `Excluir foto ${photoLabel(p.seq)}`);
+    del.addEventListener('click', async () => {
+      if (!confirm(`Excluir a foto ${photoLabel(p.seq)} (${p.file_name})?`)) return;
+      try {
+        await api.deletePhoto(ev.id, p.id);
+        photos = photos.filter((x) => x.id !== p.id);
+        if (ev.cover_photo_id === p.id) ev.cover_photo_id = '';
+        li.remove(); renderHead();
+      } catch (e) { toast((e as Error).message, 'error'); }
+    });
+    bar.append(coverBtn, del);
+    li.append(img, label, bar);
+    return li;
+  };
+
+  const readyPhotos = () => photos.filter((p) => p.ready).sort((a, b) => a.seq - b.seq);
+  function renderGrid() {
+    const list = readyPhotos();
+    shown = Math.min(Math.max(shown, PAGE), list.length);
+    const grid = $('[data-grid]');
+    if (!list.length) grid.replaceChildren(h('li', 'col-span-full rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted', 'Nenhuma foto enviada ainda.'));
+    else grid.replaceChildren(...list.slice(0, shown).map(tile));
+    const more = $('[data-more]');
+    more.hidden = shown >= list.length;
+    more.textContent = `Mostrar mais fotos (${list.length - shown} restantes)`;
+  }
+  $('[data-more]').addEventListener('click', () => { shown += PAGE; renderGrid(); });
+
+  // ───────── Envio ─────────
+
+  type Item = { file: File; photo: EventPhoto; tries: number; error?: string };
+  let queue: Item[] = [];
+  let failed: Item[] = [];
+  let running = 0;
+  let paused = false;
+  let done = 0;
+  let total = 0;
+  let bytesSent = 0;
+  let startedAt = 0;
+  let wakeLock: { release(): Promise<void> } | null = null;
+  const PARALLEL = 3;
+  const MAX_SALE = 25_000_000;
+
+  const fmtTime = (s: number) => (s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`);
+  const progress = () => {
+    const box = $('[data-progress]');
+    box.hidden = total === 0;
+    const pct = total ? (done / total) * 100 : 0;
+    $('[data-bar]').style.width = `${pct}%`;
+    const active = running > 0 || queue.length > 0;
+    $('[data-progress-text]').textContent = active
+      ? `${paused ? 'Pausado' : 'Enviando'}: ${done} de ${total}${failed.length ? ` · ${failed.length} com erro` : ''}`
+      : `Concluído: ${done} de ${total} enviadas${failed.length ? ` · ${failed.length} com erro` : ''}`;
+    const elapsed = (Date.now() - startedAt) / 1000;
+    const rate = done / Math.max(elapsed, 1);
+    const left = queue.length + running;
+    $('[data-progress-detail]').textContent = active && done > 0 && !paused
+      ? `${(bytesSent / 1_000_000 / Math.max(elapsed, 1)).toFixed(1)} MB/s · faltam cerca de ${fmtTime(left / Math.max(rate, 0.001))} · mantenha esta aba aberta`
+      : active ? 'Preparando…' : '';
+    $('[data-pause]').hidden = !active;
+    $('[data-pause]').textContent = paused ? 'Continuar' : 'Pausar';
+    $('[data-retry]').hidden = active || !failed.length;
+    $('[data-errors]').replaceChildren(...failed.slice(0, 50).map((f) => h('li', '', `${f.file.name}: ${f.error}`)));
+  };
+
+  async function uploadOne(item: Item) {
+    const { file, photo } = item;
+    const v = await makeVariants(file, photoLabel(photo.seq));
+    await api.uploadPart(ev.id, photo.id, 'thumb', v.thumb);
+    await api.uploadPart(ev.id, photo.id, 'preview', v.preview);
+    await api.uploadPart(ev.id, photo.id, 'sale', file);
+    const saved = await api.completePhoto(ev.id, photo.id, v.width, v.height);
+    bytesSent += file.size + v.thumb.size + v.preview.size;
+    photos = photos.map((p) => (p.id === saved.id ? saved : p));
+  }
+
+  function pump() {
+    while (!paused && running < PARALLEL && queue.length) {
+      const item = queue.shift()!;
+      running++;
+      uploadOne(item)
+        .then(() => { done++; if (readyPhotos().length <= shown + 1 || shown < PAGE) renderGrid(); })
+        .catch((e: Error & { status?: number }) => {
+          item.tries++;
+          // Sessão expirada ou erro do arquivo: não adianta repetir sozinho.
+          const permanent = e.status === 401 || e.status === 413 || e.status === 415 || e.message.includes('decodificar');
+          if (!permanent && item.tries < 3) queue.push(item);
+          else { item.error = e.message; failed.push(item); }
+        })
+        .finally(() => {
+          running--;
+          renderHead(); progress();
+          if (!queue.length && !running) finish();
+          else pump();
+        });
+    }
+    progress();
+  }
+
+  function finish() {
+    wakeLock?.release().catch(() => {});
+    wakeLock = null;
+    renderGrid();
+    toast(failed.length ? `Envio terminou com ${failed.length} erro(s).` : 'Todas as fotos foram enviadas!', failed.length ? 'error' : 'ok');
+  }
+
+  async function addFiles(list: FileList | File[]) {
+    if (running || queue.length) return toast('Aguarde o envio atual terminar.', 'error');
+    const all = [...list];
+    const files = all.filter((f) => /\.jpe?g$/i.test(f.name) && f.type !== 'image/png');
+    const skippedType = all.length - files.length;
+    const big = files.filter((f) => f.size > MAX_SALE);
+    const ok = files.filter((f) => f.size <= MAX_SALE);
+    if (!ok.length) return toast(skippedType ? 'Escolha fotos em JPG.' : 'Nenhuma foto válida.', 'error');
+    // Nomes repetidos em subpastas: usa o caminho relativo para diferenciar.
+    const nameOf = (f: File) => (f.webkitRelativePath ? f.webkitRelativePath.split('/').slice(1).join('/') : f.name) || f.name;
+    $('[data-progress]').hidden = false;
+    $('[data-progress-text]').textContent = `Preparando ${ok.length} fotos…`;
+    const registered = new Map<string, EventPhoto>();
+    try {
+      const names = ok.map(nameOf);
+      // Ordena antes de registrar: a numeração #0001… segue a ordem dos nomes (ordem do Lightroom).
+      names.sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+      for (let i = 0; i < names.length; i += 25) {
+        $('[data-progress-text]').textContent = `Preparando ${ok.length} fotos… ${Math.round((i / names.length) * 100)}%`;
+        (await api.registerPhotos(ev.id, names.slice(i, i + 25))).forEach((p) => registered.set(p.file_name, p));
+      }
+    } catch (e) { return toast((e as Error).message, 'error'); }
+    const known = new Map(photos.map((p) => [p.id, p]));
+    registered.forEach((p) => known.set(p.id, p));
+    photos = [...known.values()];
+    const items = ok
+      .map((file) => ({ file, photo: registered.get(nameOf(file).trim().slice(0, 160))!, tries: 0 }))
+      .filter((it) => it.photo && !it.photo.ready)
+      .sort((a, b) => a.photo.seq - b.photo.seq);
+    const already = ok.length - items.length;
+    failed = big.map((f) => ({ file: f, photo: null as unknown as EventPhoto, tries: 3, error: 'maior que 25 MB' }));
+    if (already || skippedType) toast([already && `${already} já enviada(s), puladas`, skippedType && `${skippedType} arquivo(s) que não são JPG ignorados`].filter(Boolean).join(' · '));
+    if (!items.length) { progress(); return; }
+    queue = items; done = 0; total = items.length; bytesSent = 0; startedAt = Date.now(); paused = false;
+    try { wakeLock = await (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen') ?? null; } catch { /* sem suporte */ }
+    pump();
+  }
+
+  $('[data-pause]').addEventListener('click', () => { paused = !paused; if (!paused) pump(); progress(); });
+  $('[data-retry]').addEventListener('click', () => {
+    const again = failed.filter((f) => f.photo);
+    failed = failed.filter((f) => !f.photo);
+    again.forEach((f) => { f.tries = 0; f.error = undefined; });
+    queue = again; total = done + again.length; startedAt = Date.now();
+    pump();
+  });
+  for (const sel of ['[data-files]', '[data-folder]']) {
+    const input = $<HTMLInputElement>(sel);
+    input.addEventListener('change', () => { if (input.files?.length) addFiles(input.files); input.value = ''; });
+  }
+  const drop = $('[data-drop]');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('border-brand'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('border-brand'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('border-brand'); if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files); });
+  window.addEventListener('beforeunload', (e) => { if (running || queue.length) e.preventDefault(); });
+
+  // ───────── Início ─────────
+
+  (async () => {
+    try {
+      if (!/^evt_[a-z0-9]+$/.test(id)) throw new Error('Evento não encontrado.');
+      [ev, photos] = await Promise.all([api.event(id), api.eventPhotos(id)]);
+      fill(); renderHead(); renderGrid();
+      $('[data-page]').hidden = false;
+    } catch (e) {
+      toast((e as Error).message, 'error');
+      $('[data-loading]').textContent = (e as Error).message;
+      return;
+    }
+    $('[data-loading]').hidden = true;
+  })();
+</script>

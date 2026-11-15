@@ -22,7 +22,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 | Fase | Entrega | Depende de | Situação |
 |---|---|---|---|
 | 0 | Decisões e preparação | — | 🟡 em andamento |
-| 1 | Eventos no painel: criar, configurar, subir fotos e gerar o link | Fase 0 (itens 0.5 e 0.12) | ⚪ |
+| 1 | Eventos no painel: criar, configurar, subir fotos e gerar o link | Fase 0 (itens 0.5 e 0.12) | 🟡 pronto para teste real |
 | 2 | Loja: carrinho, pagamento e download automático | Fases 0 e 1 | ⚪ |
 | 3 | Pós-venda e gestão (pedidos, relatórios, limite do MEI) | Fase 2 | ⚪ |
 | 4 | Lançamento (teste real e divulgação) | Fases 2 e 3 | ⚪ |
@@ -43,9 +43,9 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
   - [ ] Pré-venda R$ 100: entra agora ou depois? (sugestão: depois, na Fase 3)
 - [ ] **0.3 👤 Formas de pagamento:** Pix e cartão à vista? Aceitar parcelamento no pacote? Receber o cartão na hora ou em 14/30 dias (taxa menor)?
 - [ ] **0.4 👤 Prazos padrão:** quanto tempo as fotos ficam à venda (sugestão: 6 meses) e por quanto tempo o comprador pode baixar de novo (sugestão: 30 dias). *Serão só o padrão: cada evento poderá ter o seu prazo no painel.*
-- [ ] **0.5 👤 Padrão de exportação do Lightroom** (vou te passar as predefinições prontas):
-  - [ ] Versão de venda: lado maior ~3000 px, JPEG qualidade ~85 (sugestão: equilíbrio entre qualidade e espaço).
-  - [ ] Versão de prévia: lado maior ~1200 px, com marca d'água Venart.
+- [ ] **0.5 👤 Padrão de exportação do Lightroom** — agora é **uma exportação só**:
+  - [ ] Versão de venda: JPEG, lado maior ~3000 px, qualidade ~85, **sem** marca d'água.
+  - [x] ~~Versão de prévia~~ → o painel cria a prévia (1200 px) e a miniatura (520 px) com marca d'água sozinho, na hora do envio.
 
 ### Jurídico e fiscal
 - [ ] **0.6 👤 Contador:** confirmar que a venda de fotos digitais está coberta pela atividade do seu MEI e como emitir nota.
@@ -56,7 +56,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ### Contas e acessos
 - [ ] **0.10 👤 Criar/acessar a conta do gateway** escolhido como **pessoa jurídica (CNPJ do MEI)** e validar os dados bancários.
 - [ ] **0.11 👤 Gerar as credenciais de API** do gateway (primeiro as de **teste**; as de produção na Fase 4) — eu te guio na hora.
-- [ ] **0.12 👤 Cloudflare:** ativar o **R2** na conta (pode pedir cartão mesmo dentro do gratuito) e, se preferir, o plano **Workers Paid (US$ 5/mês)**.
+- [x] **0.12 👤 Cloudflare:** ativar o **R2** *(R2 ativado em 15/11; falta só o alerta de orçamento de US$ 5)* na conta (pode pedir cartão mesmo dentro do gratuito) e, se preferir, o plano **Workers Paid (US$ 5/mês)**.
 
 **✅ Pronto quando:** gateway escolhido, preços e prazos definidos, R2 ativo e termos em revisão.
 
@@ -65,31 +65,34 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ## Fase 1 — Eventos no painel (criar, configurar, subir fotos e gerar o link)
 
 ### Armazenamento e banco
-- [ ] **1.1 🤖 Bucket R2 privado** `venart-fotos` (originais e prévias), ligado ao servidor.
-- [ ] **1.2 🤖 Tabelas no banco:** `galleries` (evento, data, local, preço, prazo, status rascunho/publicada/encerrada, capa) e `photos` (arquivo de venda, prévia, ordem, tamanho).
-- [ ] **1.3 🤖 Regras de acesso:** prévias com marca d'água abertas ao público; originais **nunca** acessíveis sem compra (só por link temporário assinado).
+- [x] **1.1 🤖 Bucket R2 privado** `venart-fotos` (venda, prévia e miniatura), ligado ao servidor. Criado no primeiro deploy.
+- [x] **1.2 🤖 Tabelas no banco:** `events` (dados, preços, prazos, status, capa, visibilidade) e `event_photos` (nome do arquivo, número #0001, tamanho, pronta).
+- [x] **1.3 🤖 Regras de acesso:** prévias e miniaturas só de eventos publicados (rascunho: só você logado); a versão de venda **não tem nenhum endereço público** (a entrega após compra vem na Fase 2, com link temporário).
 
 ### Envio pelo painel
 - [ ] **1.4 🤖 Tela "Eventos" no painel** (tudo configurado por você, no painel):
-  - [ ] dados do evento: nome, data, local, categoria, descrição curta, capa;
-  - [ ] preços **do evento** (foto avulsa e pacote; já vêm preenchidos com o padrão da tabela);
-  - [ ] prazo de venda e de download **do evento** (já vêm com o padrão de 0.4);
-  - [ ] status: rascunho → publicado → encerrado;
-  - [ ] visibilidade: **só pelo link** (padrão) ou **também listado no site** (Fase 4);
-  - [ ] editar, duplicar (ex.: treino semanal) e encerrar.
-- [ ] **1.5 🤖 Envio em lote** das duas versões (venda + prévia), pareadas pelo nome do arquivo:
-  - [ ] direto do navegador para o R2 (sem passar pelo limite do servidor);
-  - [ ] vários arquivos em paralelo, com barra de progresso;
-  - [ ] **retoma de onde parou** se a internet cair;
-  - [ ] ignora duplicadas e avisa arquivos sem par.
-- [ ] **1.6 🤖 Teste de volume:** 10.000 fotos numa galeria (tempo de envio e de carregamento medidos).
-- [ ] **1.7 👤 Criar no Lightroom** as duas predefinições de exportação (com o meu passo a passo).
+  - [x] dados do evento: nome, data, local, modalidade, descrição curta, capa (escolhida entre as fotos);
+  - [x] preços **do evento** (foto avulsa e pacote; já vêm com R$ 12,90 e R$ 119,90, ajustáveis);
+  - [x] prazo de venda e de download **do evento** (padrão 180 e 30 dias, ajustáveis);
+  - [x] status: rascunho → publicado → encerrado (e reabrir);
+  - [x] visibilidade: **só pelo link** (padrão) ou **também listado no site** (a opção já fica salva; a área no site vem na Fase 4);
+  - [x] editar, encerrar e excluir (com confirmação pelo nome; apaga também os arquivos);
+  - [ ] duplicar evento (ex.: treino semanal) — fica para depois.
+- [x] **1.5 🤖 Envio em lote** (uma versão só; prévia e miniatura geradas no navegador):
+  - [x] pelo servidor, que confere se cada arquivo é mesmo JPG (até 25 MB por foto);
+  - [x] 3 fotos em paralelo, barra de progresso, velocidade e tempo restante; pausar/continuar; tela não apaga durante o envio;
+  - [x] **retoma de onde parou**: escolha a mesma pasta de novo e as já enviadas são puladas;
+  - [x] numeração #0001… pela ordem do nome do arquivo; tenta de novo sozinho (3×) e lista as falhas com botão "tentar de novo".
+- [ ] **1.6 🤖 Teste de volume:** feito localmente com 3.000 fotos registradas (numeração sem buraco nem repetição, galeria pública paginada de 120 em 120) e envio real de 24 fotos. **Falta** medir o envio real de um evento grande na sua internet (item 1.12).
+- [ ] **1.7 👤 Criar no Lightroom** a predefinição de exportação de venda (item 0.5).
 
 ### Galeria pública
-- [ ] **1.8 🤖 Página do evento** `/fotos/<evento>`: grade de prévias com carregamento progressivo (rápida mesmo com 10 mil fotos), ampliar foto, navegação por ordem/horário.
-- [ ] **1.9 🤖 Gerar link do evento** no painel: endereço curto (ex.: `/e/treino-kohe-20-11`), botões **Copiar link**, **Compartilhar no WhatsApp**, **Baixar QR Code** (reaproveita a tela de QR Codes) e mensagem pronta de divulgação.
-- [ ] **1.10 🤖 Proteção básica das prévias:** marca d'água (do Lightroom), tamanho reduzido, sem download direto do original.
-- [ ] **1.11 🤖 Encerramento automático** da galeria ao fim do prazo (0.4) e **limpeza** dos arquivos no R2.
+- [x] **1.8 🤖 Página do evento** `/e/<evento>`: grade com carregamento progressivo, ampliar foto (deslizar no celular), "ir para foto nº", seleção das fotos com total (aplica o pacote) e **pedido pelo WhatsApp** com os números das fotos — ponte até o pagamento automático da Fase 2. Fora do Google; link com título e capa do evento ao compartilhar.
+- [x] **1.9 🤖 Gerar link do evento** no painel: **Copiar link**, **Enviar pelo WhatsApp**, **Copiar mensagem pronta**, **Baixar QR Code** e **Ver galeria**.
+- [x] **1.10 🤖 Proteção básica das prévias:** marca d'água "VENART" repetida em diagonal + número da foto, tamanho reduzido (1200 px), original sem endereço público.
+- [x] **1.11a 🤖 Encerramento automático** da venda ao fim do prazo (a galeria passa a mostrar "venda encerrada").
+- [ ] **1.11b 🤖 Limpeza automática** dos arquivos no R2 depois do prazo de download — fica para a Fase 2 (precisa saber dos pedidos); por enquanto use "Excluir evento".
+- [ ] **1.12 👤 Teste real:** crie um evento de teste no painel publicado, envie ~200 fotos de um treino, abra o link no celular e me conte o tempo de envio e o que achou.
 
 **✅ Pronto quando:** pelo painel, você cria o evento, envia 2 mil fotos sem travar, gera o link e a página do evento abre rápido no celular.
 
@@ -203,4 +206,6 @@ Confirme sempre as taxas vigentes no painel de cada empresa.
 | 15/11/2026 | Modelo híbrido: grandes corridas na Fotto; treinos, academias e ensaios na loja própria | Gustavo |
 | 15/11/2026 | Reconhecimento facial só com consentimento registrado e após validação e revisão jurídica | Gustavo |
 | 15/11/2026 | Tudo (evento, dados, preços, fotos, link) é configurado pelo painel Venart; o link é divulgado por você; listagem no site público vem depois | Gustavo |
+| 15/11/2026 | Uma exportação só do Lightroom (~3000 px); o painel gera prévia e miniatura com marca d'água | Claude (sugestão) |
+| 15/11/2026 | Até o pagamento automático (Fase 2), a galeria envia o pedido pelo WhatsApp com os números das fotos | Claude (sugestão) |
 | | | |

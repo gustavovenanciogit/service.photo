@@ -1,0 +1,304 @@
+/**
+ * LOJA DE FOTOS — servidor dos eventos (Fase 1)
+ * ------------------------------------------------------------------
+ * Painel (exige login):
+ *   GET/POST   /api/events                      → lista / cria
+ *   GET/PUT/DELETE /api/events/:id              → detalhes / edita / exclui (apaga também os arquivos)
+ *   GET        /api/events/:id/photos           → fotos (para retomar envio e montar a grade)
+ *   POST       /api/events/:id/photos           → registra até 25 nomes de arquivo (numeração #0001… pela ordem do nome)
+ *   PUT        /api/events/:id/photos/:pid/:part → envia um arquivo (thumb | preview | sale) para o R2
+ *   POST       /api/events/:id/photos/:pid/complete → marca a foto como pronta
+ *   DELETE     /api/events/:id/photos/:pid      → remove a foto
+ * Público:
+ *   GET /api/public/events/:slug?after=<seq>    → dados do evento + fotos (paginado)
+ *   GET /f/:eventId/:photoId/(thumb|preview).jpg → imagens com marca d'água (nunca a versão de venda)
+ *   GET /e/:slug                                 → página da galeria (com título e capa para compartilhar)
+ */
+import {
+  parseEvent, photoKey, PHOTO_PARTS, publicState, saleEndsAt,
+  type EventInput, type EventPhoto, type EventRecord, type PhotoPart,
+} from '../src/lib/events.ts';
+import { newId } from '../src/lib/crm.ts';
+import { imageKind } from '../src/lib/site-content.ts';
+
+export interface EventsEnv {
+  DB: D1Database;
+  PHOTOS?: R2Bucket;
+  ASSETS: Fetcher;
+}
+
+type Json = (data: unknown, status?: number, headers?: Record<string, string>) => Response;
+
+/** Limite de tamanho por arquivo. */
+export const PART_LIMITS: Record<PhotoPart, number> = { thumb: 400_000, preview: 2_000_000, sale: 25_000_000 };
+const PAGE = 120;
+export const MAX_REGISTER = 25;
+
+type EventRow = Omit<EventRecord, 'listed'> & { listed: number };
+type PhotoRow = Omit<EventPhoto, 'ready'> & { ready: number };
+const toEvent = (r: EventRow | null): EventRecord | null => (r ? { ...r, listed: !!r.listed } : null);
+const toPhoto = (r: PhotoRow): EventPhoto => ({ ...r, ready: !!r.ready });
+const now = () => new Date().toISOString();
+
+const getEvent = async (db: D1Database, id: string) => toEvent(await db.prepare('SELECT * FROM events WHERE id = ?').bind(id).first<EventRow>());
+const getBySlug = async (db: D1Database, slug: string) =>
+  toEvent(await db.prepare('SELECT * FROM events WHERE slug = ?').bind(slug).first<EventRow>());
+
+const slugTaken = async (db: D1Database, slug: string, exceptId = '') =>
+  !!(await db.prepare('SELECT 1 FROM events WHERE slug = ? AND id != ?').bind(slug, exceptId).first());
+
+const recount = (db: D1Database, eventId: string) =>
+  db
+    .prepare('UPDATE events SET photo_count = (SELECT COUNT(*) FROM event_photos WHERE event_id = ?1 AND ready = 1), updated_at = ?2 WHERE id = ?1')
+    .bind(eventId, now())
+    .run();
+
+/** Apaga todos os arquivos com um prefixo (em lotes de até 1000). */
+async function purgePrefix(bucket: R2Bucket, prefix: string) {
+  let cursor: string | undefined;
+  do {
+    const page = await bucket.list({ prefix, cursor, limit: 1000 });
+    if (page.objects.length) await bucket.delete(page.objects.map((o) => o.key));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+}
+
+const needBucket = (env: EventsEnv, json: Json) =>
+  env.PHOTOS ? null : json({ error: 'Armazenamento de fotos (R2) não configurado nesta publicação.' }, 503);
+
+// ───────── Painel ─────────
+
+export async function eventsApi(req: Request, env: EventsEnv, path: string, json: Json, readJson: (r: Request) => Promise<unknown>) {
+  const method = req.method;
+  const db = env.DB;
+
+  if (path === '/api/events') {
+    if (method === 'GET') {
+      const rows = (await db.prepare('SELECT * FROM events ORDER BY date DESC, created_at DESC').all<EventRow>()).results;
+      return json(rows.map(toEvent));
+    }
+    if (method === 'POST') {
+      const parsed = parseEvent(await readJson(req));
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      const e = parsed.value;
+      // Endereço já usado? Acrescenta -2, -3…
+      let slug = e.slug;
+      for (let i = 2; await slugTaken(db, slug); i++) slug = `${e.slug.slice(0, 56)}-${i}`;
+      const id = newId('evt');
+      await insertOrUpdate(db, id, { ...e, slug }, null);
+      return json(await getEvent(db, id), 201);
+    }
+  }
+
+  const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})(?:\/photos(?:\/(ph_[a-z0-9]{6,30})(?:\/(thumb|preview|sale|complete))?)?)?$/.exec(path);
+  if (!m) return json({ error: 'Não encontrado.' }, 404);
+  const [, eventId, photoId, part] = m as unknown as [string, string, string | undefined, string | undefined];
+  const event = await getEvent(db, eventId);
+  if (!event) return json({ error: 'Evento não encontrado.' }, 404);
+  const isPhotos = path.includes('/photos');
+
+  // ── Evento ──
+  if (!isPhotos) {
+    if (method === 'GET') return json(event);
+    if (method === 'PUT') {
+      const parsed = parseEvent(await readJson(req));
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      if (await slugTaken(db, parsed.value.slug, eventId)) return json({ error: 'Este endereço já é usado por outro evento.' }, 409);
+      if (parsed.value.cover_photo_id && !(await db.prepare('SELECT 1 FROM event_photos WHERE id = ? AND event_id = ?').bind(parsed.value.cover_photo_id, eventId).first())) {
+        parsed.value.cover_photo_id = '';
+      }
+      await insertOrUpdate(db, eventId, parsed.value, event);
+      return json(await getEvent(db, eventId));
+    }
+    if (method === 'DELETE') {
+      if (env.PHOTOS) await purgePrefix(env.PHOTOS, `events/${eventId}/`);
+      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
+      return json({ ok: true });
+    }
+    return json({ error: 'Não encontrado.' }, 404);
+  }
+
+  // ── Fotos ──
+  if (!photoId) {
+    if (method === 'GET') {
+      const rows = (await db.prepare('SELECT * FROM event_photos WHERE event_id = ? ORDER BY seq').bind(eventId).all<PhotoRow>()).results;
+      return json(rows.map(toPhoto));
+    }
+    if (method === 'POST') {
+      // Registra até 25 nomes por vez (limite de consultas do D1 no plano gratuito); nomes já registrados devolvem o mesmo id (permite retomar o envio).
+      const body = (await readJson(req)) as { names?: unknown };
+      const names = Array.isArray(body.names) ? [...new Set(body.names.filter((n): n is string => typeof n === 'string').map((n) => n.trim().slice(0, 160)).filter(Boolean))] : [];
+      if (!names.length || names.length > MAX_REGISTER) return json({ error: `Envie de 1 a ${MAX_REGISTER} nomes de arquivo por vez.` }, 400);
+      names.sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+      const t = now();
+      const stmts = names.map((n) =>
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO event_photos (id, event_id, file_name, seq, created_at)
+             SELECT ?1, ?2, ?3, COALESCE(MAX(seq), 0) + 1, ?4 FROM event_photos WHERE event_id = ?2`,
+          )
+          .bind(newId('ph'), eventId, n, t),
+      );
+      await db.batch(stmts); // um lote = uma transação: numeração sem buracos nem repetição
+      // D1 aceita até 100 parâmetros por consulta: busca em blocos.
+      const rows: PhotoRow[] = [];
+      for (let i = 0; i < names.length; i += 90) {
+        const chunk = names.slice(i, i + 90); // (com 25 nomes, uma consulta só)
+        const q = `SELECT * FROM event_photos WHERE event_id = ? AND file_name IN (${chunk.map(() => '?').join(',')})`;
+        rows.push(...(await db.prepare(q).bind(eventId, ...chunk).all<PhotoRow>()).results);
+      }
+      rows.sort((a, b) => a.seq - b.seq);
+      return json(rows.map(toPhoto));
+    }
+    return json({ error: 'Não encontrado.' }, 404);
+  }
+
+  const photo = await db.prepare('SELECT * FROM event_photos WHERE id = ? AND event_id = ?').bind(photoId, eventId).first<PhotoRow>();
+  if (!photo) return json({ error: 'Foto não encontrada.' }, 404);
+
+  if (!part && method === 'DELETE') {
+    if (env.PHOTOS) await env.PHOTOS.delete(PHOTO_PARTS.map((p) => photoKey(eventId, p, photoId)));
+    await db.prepare('DELETE FROM event_photos WHERE id = ?').bind(photoId).run();
+    if (event.cover_photo_id === photoId) await db.prepare("UPDATE events SET cover_photo_id = '' WHERE id = ?").bind(eventId).run();
+    await recount(db, eventId);
+    return json({ ok: true });
+  }
+
+  if (part === 'complete' && method === 'POST') {
+    const missing = needBucket(env, json);
+    if (missing) return missing;
+    const body = (await readJson(req)) as { width?: unknown; height?: unknown };
+    const dim = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v > 0 && v < 30_000 ? v : 0);
+    const heads = await Promise.all(PHOTO_PARTS.map((p) => env.PHOTOS!.head(photoKey(eventId, p, photoId))));
+    if (heads.some((h) => !h)) return json({ error: 'Arquivos da foto incompletos. Envie de novo.' }, 409);
+    await db.prepare('UPDATE event_photos SET ready = 1, width = ?, height = ? WHERE id = ?').bind(dim(body.width), dim(body.height), photoId).run();
+    await recount(db, eventId);
+    return json(toPhoto({ ...photo, ready: 1, width: dim(body.width), height: dim(body.height) }));
+  }
+
+  if (part && part !== 'complete' && method === 'PUT') {
+    const missing = needBucket(env, json);
+    if (missing) return missing;
+    const p = part as PhotoPart;
+    const declared = Number(req.headers.get('Content-Length') ?? 0);
+    if (declared > PART_LIMITS[p]) return json({ error: `Arquivo grande demais (máx. ${Math.round(PART_LIMITS[p] / 1_000_000)} MB).` }, 413);
+    const bytes = new Uint8Array(await req.arrayBuffer());
+    if (!bytes.length || bytes.length > PART_LIMITS[p]) return json({ error: 'Arquivo vazio ou grande demais.' }, 413);
+    if (imageKind(bytes) !== 'jpg') return json({ error: 'Envie fotos em JPG.' }, 415);
+    await env.PHOTOS!.put(photoKey(eventId, p, photoId), bytes, {
+      httpMetadata: { contentType: 'image/jpeg' },
+      customMetadata: p === 'sale' ? { original: photo.file_name } : {},
+    });
+    return json({ ok: true });
+  }
+
+  return json({ error: 'Não encontrado.' }, 404);
+}
+
+async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before: EventRecord | null) {
+  const t = now();
+  // Data de publicação: definida na primeira vez que o evento é publicado (conta o prazo de venda).
+  const published_at = before?.published_at || (e.status === 'publicado' ? t : '');
+  const values = [
+    e.slug, e.name, e.date, e.location, e.category, e.description, e.cover_photo_id,
+    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, published_at, t,
+  ];
+  if (before) {
+    await db
+      .prepare(
+        `UPDATE events SET slug=?, name=?, date=?, location=?, category=?, description=?, cover_photo_id=?, price_single=?, price_pack=?,
+         sale_days=?, download_days=?, status=?, listed=?, published_at=?, updated_at=? WHERE id=?`,
+      )
+      .bind(...values, id)
+      .run();
+  } else {
+    await db
+      .prepare(
+        `INSERT INTO events (slug, name, date, location, category, description, cover_photo_id, price_single, price_pack,
+         sale_days, download_days, status, listed, published_at, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .bind(...values, id, t)
+      .run();
+  }
+}
+
+// ───────── Público ─────────
+
+/** Dados que o público pode ver (sem datas internas). */
+const publicEvent = (e: EventRecord, state: string) => ({
+  id: e.id,
+  slug: e.slug,
+  name: e.name,
+  date: e.date,
+  location: e.location,
+  description: e.description,
+  cover: e.cover_photo_id,
+  price_single: e.price_single,
+  price_pack: e.price_pack,
+  photo_count: e.photo_count,
+  sale_ends_at: saleEndsAt(e),
+  state,
+});
+
+export async function publicEventApi(env: EventsEnv, slug: string, url: URL, admin: boolean, json: Json) {
+  const e = await getBySlug(env.DB, slug);
+  const state = e ? publicState(e) : 'oculto';
+  if (!e || (state === 'oculto' && !admin)) return json({ error: 'Evento não encontrado.' }, 404);
+  const cache: Record<string, string> = state === 'aberto' && !admin ? { 'Cache-Control': 'public, max-age=60' } : {};
+  if (state === 'encerrado' && !admin) return json({ event: publicEvent(e, state), photos: [], next: null }, 200, cache);
+  const after = Math.max(0, Number.parseInt(url.searchParams.get('after') ?? '0', 10) || 0);
+  const rows = (
+    await env.DB
+      .prepare('SELECT id, seq, width, height FROM event_photos WHERE event_id = ? AND ready = 1 AND seq > ? ORDER BY seq LIMIT ?')
+      .bind(e.id, after, PAGE + 1)
+      .all<{ id: string; seq: number; width: number; height: number }>()
+  ).results;
+  const more = rows.length > PAGE;
+  const photos = rows.slice(0, PAGE).map((r) => ({ id: r.id, n: r.seq, w: r.width, h: r.height }));
+  return json({ event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state), photos, next: more ? photos.at(-1)!.n : null }, 200, cache);
+}
+
+/** /f/:eventId/:photoId/(thumb|preview).jpg — só de eventos publicados (ou para o fotógrafo logado). */
+export async function servePhoto(env: EventsEnv, path: string, admin: boolean) {
+  const m = /^\/f\/(evt_[a-z0-9]{6,30})\/(ph_[a-z0-9]{6,30})\/(thumb|preview)\.jpg$/.exec(path);
+  if (!m || !env.PHOTOS) return new Response('Não encontrado', { status: 404 });
+  const [, eventId, photoId, part] = m as unknown as [string, string, string, PhotoPart];
+  const e = await getEvent(env.DB, eventId);
+  if (!e || (publicState(e) !== 'aberto' && !admin)) return new Response('Não encontrado', { status: 404 });
+  const obj = await env.PHOTOS.get(photoKey(eventId, part, photoId));
+  if (!obj) return new Response('Não encontrado', { status: 404 });
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': 'image/jpeg',
+      ETag: obj.httpEtag,
+      // As prévias nunca mudam (cada foto tem id próprio): o navegador guarda por 1 dia.
+      'Cache-Control': admin && publicState(e) !== 'aberto' ? 'private, no-store' : 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+/** /e/:slug — devolve a página estática da galeria com título e capa do evento (para o link ficar bonito no WhatsApp). */
+export async function serveEventPage(req: Request, env: EventsEnv, url: URL, slug: string, admin: boolean) {
+  const page = await env.ASSETS.fetch(new Request(new URL('/e/', url.origin), req));
+  const e = /^[a-z0-9-]{1,60}$/.test(slug) ? await getBySlug(env.DB, slug) : null;
+  const visible = e && (publicState(e) !== 'oculto' || admin);
+  const res = visible ? page : new Response(page.body, { ...page, status: 404 });
+  if (!visible || !e) return res;
+  const title = `${e.name} — Fotos | Venart`;
+  const desc = `${e.photo_count} fotos de ${e.name}${e.location ? ` (${e.location})` : ''}. Encontre as suas e compre em alta resolução.`;
+  const image = e.cover_photo_id ? `${url.origin}/f/${e.id}/${e.cover_photo_id}/preview.jpg` : '';
+  const out = new HTMLRewriter()
+    .on('title', { element: (el) => void el.setInnerContent(title) })
+    .on('meta[property="og:title"], meta[name="twitter:title"]', { element: (el) => void el.setAttribute('content', title) })
+    .on('meta[name="description"], meta[property="og:description"]', { element: (el) => void el.setAttribute('content', desc) })
+    .on('meta[property="og:url"]', { element: (el) => void el.setAttribute('content', `${url.origin}/e/${e.slug}`) })
+    .on('meta[property="og:image"], meta[name="twitter:image"]', { element: (el) => void (image && el.setAttribute('content', image)) })
+    .on('link[rel="canonical"]', { element: (el) => void el.setAttribute('href', `${url.origin}/e/${e.slug}`) })
+    .on('meta[property="og:image:width"], meta[property="og:image:height"]', { element: (el) => void (image && el.remove()) })
+    .transform(res);
+  const r = new Response(out.body, out);
+  r.headers.set('Cache-Control', 'no-cache');
+  return r;
+}
+

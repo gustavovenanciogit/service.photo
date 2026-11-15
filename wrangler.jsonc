@@ -1,6 +1,6 @@
 // Configuração de publicação na Cloudflare.
 // - Site público: arquivos estáticos da pasta dist/ (gerada pelo `npm run build`).
-// - Servidor (worker/index.ts): só atende /painel/*, /api/* e /proposta/nova (login e dados do painel).
+// - Servidor (worker/index.ts): atende /painel/*, /api/*, /proposta/nova e a loja de fotos (/e/* e /f/*).
 // - Banco de dados D1 "venart": criado automaticamente no primeiro deploy.
 // - Senha do painel: segredo ADMIN_PASSWORD (definido no painel da Cloudflare, nunca aqui).
 {
@@ -16,12 +16,20 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/painel", "/painel/*", "/api/*", "/proposta/nova", "/proposta/nova/"]
+    "run_worker_first": ["/painel", "/painel/*", "/api/*", "/proposta/nova", "/proposta/nova/", "/e/*", "/f/*"]
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "venart"
+    }
+  ],
+  // Loja de fotos: arquivos dos eventos (bucket privado, criado automaticamente no deploy).
+  // Só o servidor acessa; o público recebe apenas prévias com marca d'água via /f/.
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "venart-fotos"
     }
   ],
   // Repositório onde o painel grava as edições de preços e fotos.

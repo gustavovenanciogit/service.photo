@@ -3,6 +3,7 @@
  * Se a sessão expirar, leva de volta para a tela de login.
  */
 import type { Client, Job, Lead, ProposalRecord } from './crm';
+import type { EventPhoto, EventRecord, PhotoPart } from './events';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -60,6 +61,29 @@ export const api = {
   patchProposal: (id: string, p: { status?: string; notes?: string; client_id?: string }) =>
     request<ProposalRecord>('PATCH', `/api/proposals/${encodeURIComponent(id)}`, p),
   deleteProposal: (id: string) => request<{ ok: true }>('DELETE', `/api/proposals/${encodeURIComponent(id)}`),
+
+  events: () => request<EventRecord[]>('GET', '/api/events'),
+  event: (id: string) => request<EventRecord>('GET', `/api/events/${encodeURIComponent(id)}`),
+  createEvent: (e: Partial<EventRecord>) => request<EventRecord>('POST', '/api/events', e),
+  updateEvent: (id: string, e: Partial<EventRecord>) => request<EventRecord>('PUT', `/api/events/${encodeURIComponent(id)}`, e),
+  deleteEvent: (id: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}`),
+  eventPhotos: (id: string) => request<EventPhoto[]>('GET', `/api/events/${encodeURIComponent(id)}/photos`),
+  registerPhotos: (id: string, names: string[]) => request<EventPhoto[]>('POST', `/api/events/${encodeURIComponent(id)}/photos`, { names }),
+  completePhoto: (id: string, pid: string, width: number, height: number) =>
+    request<EventPhoto>('POST', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/complete`, { width, height }),
+  deletePhoto: (id: string, pid: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}`),
+  /** Envia um arquivo da foto (binário, sem JSON). */
+  async uploadPart(id: string, pid: string, part: PhotoPart, blob: Blob, signal?: AbortSignal) {
+    const res = await fetch(`/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/${part}`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob,
+      signal,
+    });
+    if (res.status === 401) throw new ApiError(401, 'Sessão expirada. Faça login de novo.');
+    if (!res.ok) throw new ApiError(res.status, ((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Falha no envio.');
+  },
 };
 
 /** Mostra um aviso rápido no canto da tela. */

@@ -1,0 +1,109 @@
+---
+/**
+ * EVENTOS (LOJA DE FOTOS) — /painel/eventos/
+ * Lista de eventos e criação de um novo. Cada evento tem a própria página de fotos e link.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+---
+
+<PanelLayout title="Eventos">
+  <p class="eyebrow">Loja de fotos</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Eventos</h1>
+  <p class="mt-2 max-w-2xl text-muted">
+    Crie o evento, envie as fotos e divulgue o link. Quem participou encontra as próprias fotos na galeria e faz o pedido.
+  </p>
+
+  <form data-new class="card mt-8 grid gap-4 p-5 sm:grid-cols-[2fr_1fr_1.5fr_auto] sm:items-end sm:p-6" novalidate>
+    <label class="block">
+      <span class="text-sm font-medium">Nome do evento</span>
+      <input name="name" required maxlength="120" class={field} placeholder="Ex.: Treino aberto KOHË" />
+    </label>
+    <label class="block">
+      <span class="text-sm font-medium">Data</span>
+      <input name="date" type="date" required class={field} />
+    </label>
+    <label class="block">
+      <span class="text-sm font-medium">Local <span class="text-muted">(opcional)</span></span>
+      <input name="location" maxlength="160" class={field} placeholder="Ex.: Ponta Negra" />
+    </label>
+    <button class="btn btn-primary min-h-12">Criar evento</button>
+  </form>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+  <ul data-list class="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-3"></ul>
+</PanelLayout>
+
+<script>
+  import { api, h, toast, todayISO } from '@/lib/panel-api';
+  import { EVENT_STATUSES, publicState, saleEndsAt, type EventRecord } from '@/lib/events';
+  import { formatDateBR } from '@/lib/proposal';
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const form = $<HTMLFormElement>('[data-new]');
+  (form.elements.namedItem('date') as HTMLInputElement).value = todayISO();
+
+  const badge = (e: EventRecord) => {
+    const st = publicState(e);
+    if (st === 'aberto') return ['Publicado', 'bg-brand/20 text-brand'];
+    if (st === 'encerrado') return ['Encerrado', 'bg-white/10 text-muted'];
+    return [EVENT_STATUSES.find((s) => s.id === e.status)?.label ?? e.status, 'bg-amber-400/15 text-amber-200'];
+  };
+
+  const render = (events: EventRecord[]) => {
+    const list = $('[data-list]');
+    if (!events.length) {
+      list.replaceChildren(h('li', 'rounded-2xl border border-dashed border-line p-8 text-center text-muted md:col-span-2', 'Nenhum evento ainda. Crie o primeiro acima.'));
+      return;
+    }
+    list.replaceChildren(
+      ...events.map((e) => {
+        const li = h('li', 'card flex flex-col gap-3 overflow-hidden');
+        const a = h('a', 'block', '') as HTMLAnchorElement;
+        a.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}`;
+        const cover = h('div', 'aspect-[16/9] bg-bg-2');
+        if (e.cover_photo_id) {
+          const img = h('img', 'size-full object-cover') as HTMLImageElement;
+          img.src = `/f/${e.id}/${e.cover_photo_id}/thumb.jpg`;
+          img.alt = '';
+          img.loading = 'lazy';
+          cover.append(img);
+        } else {
+          cover.className += ' grid place-items-center text-sm text-muted';
+          cover.textContent = e.photo_count ? 'Sem capa escolhida' : 'Sem fotos ainda';
+        }
+        const body = h('div', 'px-5 pb-5');
+        const [label, cls] = badge(e);
+        const top = h('div', 'flex items-start justify-between gap-3');
+        top.append(h('h2', 'text-2xl font-bold leading-tight', e.name), h('span', `shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`, label!));
+        const info = [formatDateBR(e.date), e.location, `${e.photo_count} foto${e.photo_count === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+        body.append(top, h('p', 'mt-1 text-sm text-muted', info));
+        if (e.published_at && publicState(e) === 'aberto') body.append(h('p', 'mt-1 text-xs text-muted', `Venda até ${formatDateBR(saleEndsAt(e).slice(0, 10))}`));
+        a.append(cover, body);
+        li.append(a);
+        return li;
+      }),
+    );
+  };
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const data = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    if (!data.name?.trim()) return toast('Informe o nome do evento.', 'error');
+    const btn = form.querySelector('button')!;
+    btn.disabled = true;
+    try {
+      const e = await api.createEvent(data);
+      location.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}`;
+    } catch (e) {
+      toast((e as Error).message, 'error');
+      btn.disabled = false;
+    }
+  });
+
+  (async () => {
+    try { render(await api.events()); }
+    catch (e) { toast((e as Error).message, 'error'); }
+    finally { $('[data-loading]').hidden = true; }
+  })();
+</script>
