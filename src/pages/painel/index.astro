@@ -24,6 +24,11 @@ import Icon from '@/components/Icon.astro';
       <span class="btn btn-primary min-h-10 shrink-0 px-4 text-sm">Ver pedidos</span>
     </a>
 
+    <a data-outreach-alert hidden href="/painel/abordagem/" class="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-line bg-bg-2 p-5 transition-colors hover:border-brand/50">
+      <span><span class="font-display text-2xl font-bold uppercase" data-outreach-text></span><span class="block text-sm text-muted">Follow-ups e novos contatos da Fila de abordagem</span></span>
+      <span class="btn btn-outline min-h-10 shrink-0 px-4 text-sm">Abrir fila</span>
+    </a>
+
     <!-- Hoje -->
     <section data-today-box hidden class="card mt-6 p-5 sm:p-6" aria-labelledby="today-title">
       <div class="flex items-center justify-between gap-3">
@@ -82,6 +87,8 @@ import Icon from '@/components/Icon.astro';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
   import { formatDateBR } from '@/lib/proposal';
   import { daysBetween, dueLabel } from '@/lib/schedule';
+  import { buildQueue } from '@/lib/outreach';
+  import { metaDiariaNovos } from '@/data/outreach';
 
   const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
   const today = todayISO();
@@ -119,6 +126,12 @@ import Icon from '@/components/Icon.astro';
           return row(d.text, `📦 ${j.title}${j.client_name ? ` — ${j.client_name}` : ''}`, d.tone === 'late' ? 'bg-red-400/20 text-red-200' : 'bg-amber-400/20 text-amber-200', '/painel/entregas/');
         }),
       );
+    }
+    const oq = buildQueue(clients, today, (() => { try { const v = localStorage.getItem('venart-meta-novos'); return v === null ? metaDiariaNovos : Number(v); } catch { return metaDiariaNovos; } })());
+    const oqTotal = oq.followUps.length + oq.fresh.length;
+    if (oqTotal) {
+      $('[data-outreach-alert]').hidden = false;
+      $('[data-outreach-text]').textContent = oqTotal === 1 ? '1 mensagem para enviar hoje' : `${oqTotal} mensagens para enviar hoje`;
     }
     if (leadCount.novo) {
       $('[data-leads-alert]').hidden = false;

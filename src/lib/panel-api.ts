@@ -39,6 +39,8 @@ export const api = {
 
   clients: () => request<Client[]>('GET', '/api/clients'),
   createClient: (c: Partial<Client>) => request<Client>('POST', '/api/clients', c),
+  clientOutreach: (id: string, action: 'sent' | 'replied' | 'skip' | 'lost') => request<Client>('POST', `/api/clients/${encodeURIComponent(id)}/outreach`, { action, today: todayISO() }),
+  importClients: (clients: Partial<Client>[]) => request<{ created: number; skipped: number }>('POST', '/api/clients/import', { clients }),
   updateClient: (id: string, c: Partial<Client>) => request<Client>('PUT', `/api/clients/${encodeURIComponent(id)}`, c),
   deleteClient: (id: string) => request<{ ok: true }>('DELETE', `/api/clients/${encodeURIComponent(id)}`),
 

@@ -15,13 +15,14 @@ interface Props {
 const { title, bare = false } = Astro.props;
 const path = Astro.url.pathname.replace(/\/$/, '') || '/';
 
-type Item = { href: string; label: string; icon: string; match: (p: string) => boolean; badge?: 'leads' | 'deliveries' };
+type Item = { href: string; label: string; icon: string; match: (p: string) => boolean; badge?: 'leads' | 'deliveries' | 'outreach' };
 const groups: { title: string; items: Item[] }[] = [
   { title: '', items: [{ href: '/painel/', label: 'Início', icon: 'calendar', match: (p) => p === '/painel' }] },
   {
     title: 'Vendas',
     items: [
       { href: '/painel/pedidos/', label: 'Pedidos do site', icon: 'whatsapp', match: (p) => p.startsWith('/painel/pedidos'), badge: 'leads' },
+      { href: '/painel/abordagem/', label: 'Fila de abordagem', icon: 'chat', match: (p) => p.startsWith('/painel/abordagem'), badge: 'outreach' },
       { href: '/painel/propostas/', label: 'Propostas', icon: 'check', match: (p) => p === '/painel/propostas' },
       { href: '/painel/propostas/nova/', label: 'Nova proposta', icon: 'plus', match: (p) => p.startsWith('/painel/propostas/nova') },
       { href: '/painel/clientes/', label: 'Clientes', icon: 'search', match: (p) => p.startsWith('/painel/clientes') },
@@ -129,6 +130,8 @@ const groups: { title: string; items: Item[] }[] = [
 
     <script>
       import { api, todayISO } from '@/lib/panel-api';
+      import { buildQueue } from '@/lib/outreach';
+      import { metaDiariaNovos } from '@/data/outreach';
       const btn = document.getElementById('panel-menu-btn');
       const nav = document.getElementById('panel-nav');
       btn?.addEventListener('click', () => {
@@ -145,6 +148,10 @@ const groups: { title: string; items: Item[] }[] = [
       };
       const refreshBadges = () => {
         api.leadCount().then(({ novo }) => badge('leads', novo, 'bg-brand')).catch(() => {});
+        api.clients().then((clients) => {
+          const q = buildQueue(clients, todayISO(), metaDiariaNovos);
+          badge('outreach', q.followUps.length + q.fresh.length, 'bg-brand');
+        }).catch(() => {});
         api.jobs().then((jobs) => {
           const today = todayISO();
           const due = jobs.filter((j) => j.kind === 'trabalho' && j.due_date && j.due_date <= today && ['agendado', 'fotografado', 'editando'].includes(j.status)).length;

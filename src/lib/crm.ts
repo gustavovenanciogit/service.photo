@@ -32,6 +32,12 @@ export interface Client {
   stage: ClientStage;
   next_followup: string;
   notes: string;
+  /** Detalhe do perfil citado na 1ª mensagem (ex.: "o treino em grupo de vocês na Ponta Negra"). */
+  hook: string;
+  /** Etapa da cadência de abordagem (0 = ainda não abordado). Controlada pela Fila de abordagem. */
+  outreach_step: number;
+  /** Data do último contato da fila (AAAA-MM-DD). */
+  last_contact: string;
   created_at: string;
   updated_at: string;
 }
@@ -66,7 +72,7 @@ const money = (v: unknown) => {
   return Number.isFinite(n) && n >= 0 && n < 10_000_000 ? Math.round(n * 100) / 100 : 0;
 };
 
-export type ClientInput = Omit<Client, 'id' | 'created_at' | 'updated_at'>;
+export type ClientInput = Omit<Client, 'id' | 'created_at' | 'updated_at' | 'outreach_step' | 'last_contact'>;
 
 /** Valida e limpa os dados de um cliente vindos do formulário/API. */
 export function parseClient(input: unknown): Result<ClientInput> {
@@ -86,6 +92,7 @@ export function parseClient(input: unknown): Result<ClientInput> {
       stage,
       next_followup: date(o.next_followup),
       notes: str(o.notes, 4000),
+      hook: str(o.hook, 160),
     },
   };
 }
