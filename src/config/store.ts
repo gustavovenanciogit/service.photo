@@ -8,13 +8,22 @@
  */
 export const store = {
   /** Versão dos Termos de compra aceitos (fica gravada em cada pedido). Mude ao alterar os termos. */
-  termsVersion: '2026-11-v1',
+  termsVersion: '2026-11-v2',
   /** Parcelas no cartão. 1 = só à vista. (Decisão 0.3 do checklist: pendente.) */
   maxInstallments: 1,
   /** Tempo para pagar antes de o pedido expirar (horas). */
   pendingHours: 24,
   /** Máximo de fotos por pedido. */
   maxPhotosPerOrder: 500,
+  /**
+   * Dados do vendedor exibidos nos Termos de compra (exigidos para venda pela internet — Decreto 7.962/2013).
+   * Preencha quando o CNPJ do MEI estiver ativo. Enquanto vazio, a linha não aparece.
+   */
+  seller: {
+    legalName: '', // razão social do MEI (ex.: "GUSTAVO VENANCIO SALES DE SOUZA 000000000")
+    cnpj: '', // ex.: "00.000.000/0001-00"
+    address: '', // endereço (pode ser o do cadastro do MEI)
+  },
   /** Nome que aparece na fatura do cartão. */
   statementDescriptor: 'VENART',
 } as const;

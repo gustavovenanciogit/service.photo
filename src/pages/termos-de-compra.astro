@@ -1,9 +1,9 @@
 ---
 /**
  * TERMOS DE COMPRA — loja de fotos.
- * ⚠️ RASCUNHO (checklist 0.8/0.9): revise com contador/advogado antes de ativar a venda online.
+ * Escrito com as decisões do Gustavo (15/11/2026). Revisar com contador/advogado (checklist 0.9).
  * Ao alterar o texto, mude também store.termsVersion em src/config/store.ts
- * (cada pedido guarda a versão aceita).
+ * (cada pedido guarda a versão aceita). Dados do vendedor: store.seller.
  */
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { showPendingNotices, site } from '@/config/site';
@@ -12,7 +12,9 @@ import { messages, whatsappLink } from '@/lib/whatsapp';
 
 const updated = '15/11/2026';
 const wa = whatsappLink(site.whatsappNumber, 'Olá! Tenho uma dúvida sobre a compra de fotos.');
-const instagram = site.instagramUser ? `@${site.instagramUser}` : '';
+const instagram = site.instagramUser ? `@${site.instagramUser}` : 'o fotógrafo';
+const { seller } = store;
+const sellerLine = [seller.legalName, seller.cnpj && `CNPJ ${seller.cnpj}`, seller.address].filter(Boolean).join(' · ');
 ---
 
 <BaseLayout title="Termos de compra" description={`Condições da compra de fotos digitais — ${site.name}.`} waMessage={messages.general()}>
@@ -22,27 +24,33 @@ const instagram = site.instagramUser ? `@${site.instagramUser}` : '';
         <p class="eyebrow">Loja de fotos</p>
         <h1 class="mt-2 text-5xl font-extrabold sm:text-6xl">Termos de compra</h1>
         <p class="mt-3 text-sm text-muted">Versão {store.termsVersion} · atualizado em {updated}.</p>
-        {showPendingNotices && (
-          <p class="badge-pending mt-4 inline-block">Rascunho: revisar com contador/advogado (checklist 0.9). Confirmar CNPJ, uso permitido e política de cancelamento.</p>
+        <p class="mt-4 text-muted">
+          Estes termos valem para a compra de fotos digitais nas galerias de eventos deste site. Ao finalizar uma compra, você declara que leu e aceita
+          estas condições.
+        </p>
+        {showPendingNotices && !seller.cnpj && (
+          <p class="badge-pending mt-4 inline-block">Pendente: preencher razão social, CNPJ e endereço em src/config/store.ts (seller) e revisar com contador/advogado.</p>
         )}
       </header>
 
       <section class="space-y-3">
-        <h2>Quem vende</h2>
-        <p>{site.name}, fotógrafo em {site.city}/{site.stateCode}. Contato: WhatsApp {site.whatsappDisplay}.</p>
+        <h2>1. Quem vende</h2>
+        <p>{site.name}, fotógrafo em {site.city}/{site.stateCode}.{sellerLine && <> {sellerLine}.</>}</p>
+        <p>Atendimento pelo WhatsApp {site.whatsappDisplay}.</p>
       </section>
 
       <section class="space-y-3">
-        <h2>O que você compra</h2>
+        <h2>2. O que você compra</h2>
         <ul class="space-y-1">
           <li>Os <strong>arquivos digitais</strong> (JPG em alta resolução, sem marca d'água) das fotos que você selecionou na galeria do evento.</li>
-          <li>As imagens da galeria são prévias com marca d'água e tamanho reduzido; o arquivo comprado é a versão final.</li>
-          <li>A compra não inclui impressão, edição adicional nem outras fotos além das selecionadas.</li>
+          <li>As fotos são entregues com a <strong>edição padrão do evento</strong> — a mesma que você vê na prévia. As prévias da galeria têm marca d'água e tamanho reduzido; o arquivo comprado é a versão final.</li>
+          <li>Ajustes extras (recorte, preto e branco, remoção de objetos etc.) <strong>não estão incluídos</strong>. Se quiser, consulte pelo WhatsApp: são orçados à parte.</li>
+          <li>A compra não inclui impressão nem outras fotos além das selecionadas.</li>
         </ul>
       </section>
 
       <section class="space-y-3">
-        <h2>Preço e pagamento</h2>
+        <h2>3. Preço e pagamento</h2>
         <ul class="space-y-1">
           <li>O preço de cada foto e do pacote aparece na galeria de cada evento. Quando o pacote sai mais barato do que as fotos avulsas, ele é aplicado automaticamente.</li>
           <li>O pagamento é feito na página segura do <strong>Mercado Pago</strong>, por Pix ou cartão. Os dados do cartão são tratados pelo Mercado Pago; nós não temos acesso a eles.</li>
@@ -51,40 +59,69 @@ const instagram = site.instagramUser ? `@${site.instagramUser}` : '';
       </section>
 
       <section class="space-y-3">
-        <h2>Entrega</h2>
+        <h2>4. Entrega e prazo de download</h2>
         <ul class="space-y-1">
-          <li>Assim que o pagamento é confirmado, você é levado para a página <strong>"Minhas fotos"</strong>, com o download de cada foto e a opção de baixar todas de uma vez.</li>
-          <li>O download fica disponível pelo prazo informado na própria página do pedido. Baixe e guarde as fotos no seu aparelho.</li>
-          <li>Perdeu o link? Fale no WhatsApp informando o nome e o e-mail usados na compra que nós reenviamos.</li>
+          <li>Assim que o pagamento é confirmado, a página <strong>"Minhas fotos"</strong> libera o download de cada foto e a opção de baixar todas de uma vez.</li>
+          <li>O download fica disponível pelo prazo informado na página do pedido (normalmente 30 dias). <strong>Baixe e guarde as fotos no seu aparelho.</strong></li>
+          <li>Perdeu o link ou o prazo acabou? Fale no WhatsApp informando o nome e o e-mail usados na compra: enquanto os arquivos ainda estiverem guardados (item 5), <strong>reenviamos ou liberamos de novo sem custo</strong>.</li>
         </ul>
       </section>
 
       <section class="space-y-3">
-        <h2>Uso das fotos</h2>
+        <h2>5. Por quanto tempo os arquivos ficam guardados</h2>
+        <p>
+          As fotos de cada evento ficam disponíveis enquanto a venda estiver aberta e, para quem comprou, até o fim do prazo de download. Depois disso, os
+          arquivos do evento são <strong>apagados do site</strong> e não é mais possível reenviá-los. Por isso, salve suas fotos assim que comprar.
+        </p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>6. Como você pode usar as fotos</h2>
         <ul class="space-y-1">
-          <li>As fotos compradas podem ser usadas para fins <strong>pessoais</strong>, inclusive nas suas redes sociais. Se puder, marque {instagram || 'o fotógrafo'} — ajuda muito o meu trabalho.</li>
-          <li>Uso comercial ou publicitário (anúncios, patrocinadores, venda, materiais de empresas) depende de autorização. Fale comigo.</li>
-          <li>Os direitos autorais das fotos continuam sendo do fotógrafo (Lei nº 9.610/1998).</li>
+          <li>As fotos compradas podem ser usadas para fins <strong>pessoais</strong>, inclusive nas <strong>suas redes sociais</strong>.</li>
+          <li>Ao postar, se puder, marque <strong>{instagram}</strong> — isso ajuda muito o meu trabalho.</li>
+          <li>
+            <strong>Uso comercial</strong> depende de autorização: anúncios, patrocinadores, marcas, materiais de empresas, academias ou assessorias
+            divulgando seus serviços, revenda ou distribuição dos arquivos. Fale comigo para combinar uma licença.
+          </li>
+          <li>Os direitos autorais das fotos continuam sendo do fotógrafo (Lei nº 9.610/1998). A compra dá a você o direito de uso descrito acima.</li>
         </ul>
       </section>
 
       <section class="space-y-3">
-        <h2>Cancelamento e problemas</h2>
+        <h2>7. Uso das fotos pelo fotógrafo</h2>
+        <p>
+          O fotógrafo pode usar fotos dos eventos para divulgar o próprio trabalho (site, portfólio e Instagram). Se você aparece em alguma foto e
+          prefere que ela não seja publicada ou que seja retirada da galeria, é só pedir pelo WhatsApp: a foto é retirada.
+        </p>
+        <p>Fotos de crianças e adolescentes: o responsável pode pedir a retirada a qualquer momento. Compras para menores de idade devem ser feitas pelo responsável.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>8. Cancelamento e reembolso</h2>
         <ul class="space-y-1">
-          <li>Você pode pedir o cancelamento da compra em até <strong>7 dias</strong>, conforme o Código de Defesa do Consumidor (art. 49).</li>
-          <li>Se algum arquivo vier com problema ou a foto não for a que você escolheu, fale comigo: corrigimos ou devolvemos o valor correspondente.</li>
-          <li>Em caso de reembolso, o link de download do pedido é desativado.</li>
+          <li>
+            Você pode desistir da compra em até <strong>7 dias</strong> a partir da data do pagamento, conforme o Código de Defesa do Consumidor (art. 49),
+            com <strong>reembolso integral</strong>. Basta pedir pelo WhatsApp informando o código do pedido.
+          </li>
+          <li>O reembolso é feito pelo Mercado Pago, no mesmo meio de pagamento usado. Com o reembolso, o link de download do pedido é desativado.</li>
+          <li>Se algum arquivo vier com problema ou a foto não for a que você escolheu, fale comigo durante o prazo de download: corrigimos ou devolvemos o valor correspondente.</li>
         </ul>
       </section>
 
       <section class="space-y-3">
-        <h2>Você aparece numa foto e não quer que ela fique na galeria?</h2>
-        <p>Peça pelo WhatsApp que nós retiramos a foto da galeria.</p>
+        <h2>9. Seus dados</h2>
+        <p>Nome, e-mail e WhatsApp informados na compra são usados para liberar e reenviar suas fotos, dar suporte e cumprir obrigações fiscais. Veja os detalhes em <a href="/privacidade" class="text-brand underline">Privacidade</a>.</p>
       </section>
 
       <section class="space-y-3">
-        <h2>Seus dados</h2>
-        <p>Veja como tratamos nome, e-mail e WhatsApp informados na compra em <a href="/privacidade" class="text-brand underline">Privacidade</a>.</p>
+        <h2>10. Mudanças nestes termos</h2>
+        <p>Estes termos podem ser atualizados. Cada pedido guarda a versão aceita no momento da compra, e as mudanças não alteram compras já feitas.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Dúvidas</h2>
+        <p>Fale comigo pelo WhatsApp {site.whatsappDisplay}.</p>
         <a href={wa} target="_blank" rel="noopener noreferrer" class="btn btn-primary">Tirar uma dúvida</a>
       </section>
     </article>
