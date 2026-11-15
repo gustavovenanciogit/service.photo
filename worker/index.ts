@@ -9,6 +9,7 @@
  * Senha: segredo ADMIN_PASSWORD (Cloudflare → Workers & Pages → venart → Settings → Variables and Secrets).
  */
 import { LEAD_STATUSES, parseClient, parseJob, parseLead, parseProposal, PROPOSAL_STATUSES, newId } from '../src/lib/crm.ts';
+import { applyOutreach, type OutreachAction } from '../src/lib/outreach.ts';
 import {
   clearCookie, clearFailures, createSession, isLoggedIn, passwordMatches,
   registerFailure, sessionCookie, tooManyAttempts, type AuthEnv,
@@ -131,6 +132,42 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       return json(await db.insertClient(env.DB, newId('cli'), parsed.value), 201);
     }
   }
+  // Importar vários de uma vez (lista sugerida), sem duplicar por @ ou nome.
+  if (path === '/api/clients/import' && method === 'POST') {
+    const body = (await readJson(req)) as { clients?: unknown };
+    if (!Array.isArray(body.clients) || body.clients.length > 200) return json({ error: 'Lista inválida.' }, 400);
+    const existing = await db.listClients(env.DB);
+    const key = (name: string, ig: string) => (ig ? `ig:${ig.toLowerCase()}` : `nm:${name.toLowerCase().trim()}`);
+    const seen = new Set(existing.flatMap((c) => [key(c.name, ''), c.instagram ? key('', c.instagram) : '']).filter(Boolean));
+    let created = 0;
+    for (const raw of body.clients) {
+      const parsed = parseClient({ ...(raw as object), stage: 'prospect' });
+      if (!parsed.ok) continue;
+      const c = parsed.value;
+      if (seen.has(key(c.name, '')) || (c.instagram && seen.has(key('', c.instagram)))) continue;
+      await db.insertClient(env.DB, newId('cli'), c);
+      seen.add(key(c.name, ''));
+      if (c.instagram) seen.add(key('', c.instagram));
+      created++;
+    }
+    return json({ created, skipped: body.clients.length - created });
+  }
+
+  // Ação da Fila de abordagem: enviado / respondeu / pular hoje / sem interesse.
+  const outreachMatch = /^\/api\/clients\/([\w-]{1,40})\/outreach$/.exec(path);
+  if (outreachMatch && method === 'POST') {
+    const body = (await readJson(req)) as { action?: unknown; today?: unknown };
+    const action = body.action as OutreachAction;
+    if (!['sent', 'replied', 'skip', 'lost'].includes(action)) return json({ error: 'Ação inválida.' }, 400);
+    const c = await db.getClient(env.DB, outreachMatch[1]!);
+    if (!c) return json({ error: 'Cliente não encontrado.' }, 404);
+    // Usa a data do aparelho do fotógrafo (a mesma que o painel mostra), aceitando até 1 dia de diferença.
+    const serverDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Manaus' }).format(new Date());
+    const sent = typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : '';
+    const today = sent && Math.abs(Date.parse(sent) - Date.parse(serverDay)) <= 86_400_000 ? sent : serverDay;
+    return json(await db.setOutreach(env.DB, c.id, applyOutreach(c, action, today)));
+  }
+
   const clientMatch = /^\/api\/clients\/([\w-]{1,40})$/.exec(path);
   if (clientMatch) {
     const id = clientMatch[1]!;

@@ -52,6 +52,7 @@ const types = JSON.stringify(clientTypes.map((t) => ({ id: t.id, label: t.label 
         <label class="block"><span class="text-sm font-medium">Instagram</span><input name="instagram" maxlength="60" class={field} placeholder="@perfil" /></label>
         <label class="block"><span class="text-sm font-medium">E-mail</span><input name="email" type="email" maxlength="120" class={field} /></label>
         <label class="block"><span class="text-sm font-medium">Próximo follow-up</span><input name="next_followup" type="date" class={field} /></label>
+        <label class="block sm:col-span-2"><span class="text-sm font-medium">Gancho da 1ª mensagem <span class="font-normal text-muted">(Fila de abordagem)</span></span><input name="hook" maxlength="160" class={field} placeholder="Ex.: o treino em grupo de vocês na Ponta Negra" /><span class="mt-1 block text-xs text-muted">Vira a frase "Vi … e curti muito." Cite algo real do perfil.</span></label>
         <label class="block sm:col-span-2"><span class="text-sm font-medium">Anotações</span><textarea name="notes" rows="4" maxlength="4000" class={field} placeholder="Como conheceu, o que conversaram, próximos passos…"></textarea></label>
       </div>
       <p data-form-error role="alert" class="mt-4 hidden text-sm text-red-300"></p>
@@ -166,7 +167,7 @@ const types = JSON.stringify(clientTypes.map((t) => ({ id: t.id, label: t.label 
   };
 
   // ───────── Formulário ─────────
-  const fields = ['name', 'type', 'stage', 'contact', 'phone', 'instagram', 'email', 'next_followup', 'notes'] as const;
+  const fields = ['name', 'type', 'stage', 'contact', 'phone', 'instagram', 'email', 'next_followup', 'notes', 'hook'] as const;
   const input = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
 
   function open(c?: Client) {

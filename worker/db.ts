@@ -86,7 +86,28 @@ const SCHEMA = [
 ];
 
 let ready: Promise<unknown> | null = null;
-export const ensureSchema = (db: D1Database) => (ready ??= db.batch(SCHEMA.map((s) => db.prepare(s))).catch((e) => ((ready = null), Promise.reject(e))));
+/**
+ * Colunas adicionadas depois da criação da tabela (bancos já em uso recebem sem perder dados).
+ * "duplicate column" significa que já foi aplicada: é ignorado.
+ */
+const MIGRATIONS = [
+  `ALTER TABLE clients ADD COLUMN hook TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE clients ADD COLUMN outreach_step INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE clients ADD COLUMN last_contact TEXT NOT NULL DEFAULT ''`,
+];
+
+async function migrate(db: D1Database) {
+  await db.batch(SCHEMA.map((s) => db.prepare(s)));
+  for (const m of MIGRATIONS) {
+    try {
+      await db.prepare(m).run();
+    } catch (e) {
+      if (!/duplicate column/i.test(String((e as Error).message))) throw e;
+    }
+  }
+}
+
+export const ensureSchema = (db: D1Database) => (ready ??= migrate(db).catch((e) => ((ready = null), Promise.reject(e))));
 
 const now = () => new Date().toISOString();
 
@@ -99,10 +120,10 @@ export async function insertClient(db: D1Database, id: string, c: ClientInput) {
   const t = now();
   await db
     .prepare(
-      `INSERT INTO clients (id, name, type, contact, phone, instagram, email, stage, next_followup, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO clients (id, name, type, contact, phone, instagram, email, stage, next_followup, notes, hook, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(id, c.name, c.type, c.contact, c.phone, c.instagram, c.email, c.stage, c.next_followup, c.notes, t, t)
+    .bind(id, c.name, c.type, c.contact, c.phone, c.instagram, c.email, c.stage, c.next_followup, c.notes, c.hook, t, t)
     .run();
   return db.prepare('SELECT * FROM clients WHERE id = ?').bind(id).first<Client>();
 }
@@ -111,12 +132,23 @@ export async function updateClient(db: D1Database, id: string, c: ClientInput) {
   const r = await db
     .prepare(
       `UPDATE clients SET name = ?, type = ?, contact = ?, phone = ?, instagram = ?, email = ?, stage = ?,
-       next_followup = ?, notes = ?, updated_at = ? WHERE id = ?`,
+       next_followup = ?, notes = ?, hook = ?, updated_at = ? WHERE id = ?`,
     )
-    .bind(c.name, c.type, c.contact, c.phone, c.instagram, c.email, c.stage, c.next_followup, c.notes, now(), id)
+    .bind(c.name, c.type, c.contact, c.phone, c.instagram, c.email, c.stage, c.next_followup, c.notes, c.hook, now(), id)
     .run();
   return r.meta.changes ? db.prepare('SELECT * FROM clients WHERE id = ?').bind(id).first<Client>() : null;
 }
+
+/** Atualiza só o estado da Fila de abordagem (não mexe nos outros dados do cliente). */
+export async function setOutreach(db: D1Database, id: string, o: { stage: string; outreach_step: number; next_followup: string; last_contact: string }) {
+  const r = await db
+    .prepare('UPDATE clients SET stage = ?, outreach_step = ?, next_followup = ?, last_contact = ?, updated_at = ? WHERE id = ?')
+    .bind(o.stage, o.outreach_step, o.next_followup, o.last_contact, now(), id)
+    .run();
+  return r.meta.changes ? db.prepare('SELECT * FROM clients WHERE id = ?').bind(id).first<Client>() : null;
+}
+
+export const getClient = (db: D1Database, id: string) => db.prepare('SELECT * FROM clients WHERE id = ?').bind(id).first<Client>();
 
 export const deleteClient = async (db: D1Database, id: string) =>
   (await db.prepare('DELETE FROM clients WHERE id = ?').bind(id).run()).meta.changes > 0;

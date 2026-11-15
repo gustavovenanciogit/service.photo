@@ -1,0 +1,261 @@
+---
+/**
+ * FILA DE ABORDAGEM — /painel/abordagem/
+ * Mensagens do dia (follow-ups vencidos + novos contatos até a meta), prontas para
+ * copiar e enviar pelo Instagram ou WhatsApp. O envio é feito por você, no seu celular.
+ * Regras: src/lib/outreach.ts · Textos: src/data/outreach.ts · Lista sugerida: src/data/prospects.ts
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { apresentacao, followUps, metaDiariaNovos, primeiroContato } from '@/data/outreach';
+import { prospects } from '@/data/prospects';
+import { clientTypes } from '@/data/proposal';
+
+const payload = {
+  templates: { primeiro: primeiroContato, ...followUps },
+  apresentacao,
+  meta: metaDiariaNovos,
+  site: (Astro.site?.toString() ?? '').replace(/\/$/, ''),
+  prospects,
+  types: clientTypes.map((t) => ({ id: t.id, label: t.label })),
+};
+---
+
+<PanelLayout title="Fila de abordagem">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="eyebrow">Prospecção</p>
+      <h1 class="mt-1 text-5xl font-extrabold">Fila de <span class="text-brand">abordagem</span></h1>
+      <p class="mt-2 max-w-2xl text-muted">As mensagens do dia, prontas. Toque em copiar, cole na conversa, envie e marque como enviado. Os follow-ups são agendados sozinhos.</p>
+    </div>
+    <a href="/painel/clientes/?novo=1" class="btn btn-outline shrink-0"><Icon name="plus" size={18} /> Novo prospect</a>
+  </header>
+
+  <!-- Progresso do dia -->
+  <section class="card mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 p-5" aria-label="Progresso de hoje">
+    <div><p class="text-xs tracking-widest text-muted uppercase">Enviadas hoje</p><p class="font-display text-4xl font-extrabold text-brand" data-sent>0</p></div>
+    <div><p class="text-xs tracking-widest text-muted uppercase">Novos contatos hoje</p><p class="font-display text-4xl font-extrabold"><span data-new-done>0</span><span class="text-muted">/<span data-meta></span></span></p></div>
+    <div><p class="text-xs tracking-widest text-muted uppercase">Na fila de espera</p><p class="font-display text-4xl font-extrabold" data-waiting>0</p></div>
+    <label class="ml-auto flex items-center gap-2 text-sm text-muted">Meta de novos por dia
+      <input data-meta-input type="number" min="0" max="30" class="w-16 rounded-lg border border-line bg-bg px-2 py-1.5 text-center text-ink focus:border-brand focus:outline-none" />
+    </label>
+  </section>
+
+  <!-- Importar lista sugerida -->
+  <section data-import hidden class="card mt-6 flex flex-col gap-4 border-brand/50 p-5 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <p class="font-display text-2xl font-bold uppercase">Lista sugerida de Manaus</p>
+      <p class="text-sm text-muted"><span data-import-count></span> academias, assessorias e organizadores pesquisados, com mensagem personalizada. Confira os marcados com ⚠️ antes de enviar.</p>
+    </div>
+    <button type="button" data-import-btn class="btn btn-primary shrink-0">Importar lista</button>
+  </section>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+
+  <section data-followups-wrap hidden class="mt-8" aria-labelledby="fu-title">
+    <h2 id="fu-title" class="text-3xl font-bold">Follow-ups de hoje</h2>
+    <ul data-followups class="mt-4 grid gap-4 xl:grid-cols-2"></ul>
+  </section>
+
+  <section data-fresh-wrap hidden class="mt-8" aria-labelledby="new-title">
+    <h2 id="new-title" class="text-3xl font-bold">Novos contatos</h2>
+    <p class="mt-1 text-sm text-muted">Antes de enviar, curta 2 ou 3 posts recentes do perfil e comente algo de verdade. Isso aquece o contato.</p>
+    <ul data-fresh class="mt-4 grid gap-4 xl:grid-cols-2"></ul>
+  </section>
+
+  <section data-done hidden class="card mt-8 p-8 text-center">
+    <p class="font-display text-3xl font-bold uppercase text-brand">Fila do dia concluída 🎉</p>
+    <p class="mt-2 text-muted" data-done-text></p>
+  </section>
+
+  <section class="mt-10" aria-labelledby="pipe-title">
+    <h2 id="pipe-title" class="text-2xl font-bold">Em cadência</h2>
+    <p class="mt-1 text-sm text-muted">Contatos aguardando o próximo follow-up.</p>
+    <ul data-pipeline class="mt-3 divide-y divide-line rounded-2xl border border-line bg-bg-2"></ul>
+  </section>
+</PanelLayout>
+
+<script type="application/json" id="outreach-data" set:html={JSON.stringify(payload)} />
+
+<script>
+  import { api, h, toast, todayISO, waNumber } from '@/lib/panel-api';
+  import { buildQueue, channelOf, fillMessage, STEPS, type QueueItem } from '@/lib/outreach';
+  import type { Client } from '@/lib/crm';
+  import { formatDateBR } from '@/lib/proposal';
+  import { whatsappLink } from '@/lib/whatsapp';
+
+  type Prospect = { name: string; type: string; instagram?: string; phone?: string; contact?: string; hook: string; notes: string };
+  const data = JSON.parse(document.getElementById('outreach-data')!.textContent!) as {
+    templates: { primeiro: Record<string, string>; follow1: string; follow2: string; retomada: string };
+    apresentacao: string;
+    meta: number;
+    site: string;
+    prospects: Prospect[];
+    types: { id: string; label: string }[];
+  };
+  const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
+  const today = todayISO();
+  const META_KEY = 'venart-meta-novos';
+  let clients: Client[] = [];
+  let meta = (() => { try { const v = Number(localStorage.getItem(META_KEY)); return Number.isFinite(v) && localStorage.getItem(META_KEY) !== null ? v : data.meta; } catch { return data.meta; } })();
+
+  const templateFor = (item: QueueItem<Client>) => {
+    if (item.step.id === 'primeiro') return data.templates.primeiro[item.client.type] ?? data.templates.primeiro.outro!;
+    return data.templates[item.step.id as 'follow1' | 'follow2' | 'retomada'];
+  };
+  const typeLabel = (id: string) => data.types.find((t) => t.id === id)?.label ?? 'Prospect';
+
+  const act = async (c: Client, action: 'sent' | 'replied' | 'skip' | 'lost', msg: string) => {
+    try {
+      const updated = await api.clientOutreach(c.id, action);
+      clients = clients.map((x) => (x.id === c.id ? updated : x));
+      toast(msg);
+      render();
+      window.dispatchEvent(new Event('venart:badges'));
+    } catch (e) { toast((e as Error).message, 'error'); }
+  };
+
+  const card = (item: QueueItem<Client>) => {
+    const c = item.client;
+    const li = h('li', 'card flex flex-col p-5');
+    const top = h('div', 'flex flex-wrap items-start justify-between gap-2');
+    const info = h('div', 'min-w-0');
+    info.append(h('p', 'text-lg font-semibold', c.name));
+    const meta2 = h('p', 'text-xs text-muted');
+    meta2.textContent = [typeLabel(c.type), c.contact, c.instagram ? `@${c.instagram}` : c.phone].filter(Boolean).join(' · ');
+    info.append(meta2);
+    const tags = h('div', 'flex flex-wrap gap-1.5');
+    tags.append(h('span', 'rounded-full bg-brand/20 px-2.5 py-1 text-xs font-semibold text-brand', item.step.label));
+    if (item.overdueDays > 0) tags.append(h('span', 'rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-200', `atrasado ${item.overdueDays}d`));
+    top.append(info, tags);
+    li.append(top);
+    if (c.notes) li.append(h('p', `mt-2 text-xs ${c.notes.includes('⚠️') ? 'text-amber-200' : 'text-muted'}`, c.notes));
+
+    const msg = h('textarea', 'mt-3 w-full flex-1 rounded-xl border border-line bg-bg p-3 text-sm leading-relaxed text-ink focus:border-brand focus:outline-none') as HTMLTextAreaElement;
+    msg.rows = 7;
+    msg.value = fillMessage(templateFor(item), c, { apresentacao: data.apresentacao, site: data.site });
+    msg.setAttribute('aria-label', `Mensagem para ${c.name} (pode ajustar antes de copiar)`);
+    li.append(msg);
+
+    const actions = h('div', 'mt-3 flex flex-wrap items-center gap-2');
+    const channel = channelOf(c);
+    if (channel === 'instagram') {
+      const open = h('button', 'btn btn-primary min-h-10 px-4 text-sm', 'Copiar e abrir Instagram');
+      open.setAttribute('type', 'button');
+      open.addEventListener('click', () => {
+        // Abre a conversa na hora (gesto do usuário) e copia a mensagem em paralelo.
+        window.open(`https://ig.me/m/${encodeURIComponent(c.instagram)}`, '_blank', 'noopener');
+        navigator.clipboard?.writeText(msg.value).then(() => toast('Mensagem copiada: cole na conversa.')).catch(() => prompt('Copie a mensagem:', msg.value));
+      });
+      const profile = h('a', 'text-xs text-muted underline hover:text-ink', 'ver perfil') as HTMLAnchorElement;
+      profile.href = `https://www.instagram.com/${encodeURIComponent(c.instagram)}/`;
+      profile.target = '_blank';
+      profile.rel = 'noopener noreferrer';
+      actions.append(open, profile);
+    } else if (channel === 'whatsapp') {
+      const a = h('a', 'btn btn-primary min-h-10 px-4 text-sm', 'Abrir WhatsApp com a mensagem') as HTMLAnchorElement;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.addEventListener('click', () => (a.href = whatsappLink(waNumber(c.phone), msg.value)));
+      a.href = whatsappLink(waNumber(c.phone), msg.value);
+      actions.append(a);
+    } else {
+      const e = h('a', 'btn btn-outline min-h-10 px-4 text-sm', 'Sem @ nem WhatsApp: completar cadastro') as HTMLAnchorElement;
+      e.href = `/painel/clientes/?id=${encodeURIComponent(c.id)}`;
+      actions.append(e);
+    }
+    const copy = h('button', 'btn btn-outline min-h-10 px-4 text-sm', 'Só copiar');
+    copy.setAttribute('type', 'button');
+    copy.addEventListener('click', () => navigator.clipboard?.writeText(msg.value).then(() => toast('Mensagem copiada.')).catch(() => prompt('Copie a mensagem:', msg.value)));
+    actions.append(copy);
+    li.append(actions);
+
+    const after = h('div', 'mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3');
+    const b = (label: string, cls: string, fn: () => void) => {
+      const x = h('button', cls, label);
+      x.setAttribute('type', 'button');
+      x.addEventListener('click', fn);
+      return x;
+    };
+    const next = STEPS.find((s) => s.step === c.outreach_step + 1);
+    after.append(
+      b('Enviado ✓', 'btn btn-primary min-h-9 px-4 text-xs', () => act(c, 'sent', next ? `Enviado! ${next.label} agendado.` : 'Enviado! Cadência concluída.')),
+      b('Respondeu', 'btn btn-outline min-h-9 px-3 text-xs', () => act(c, 'replied', 'Ótimo! Movido para "Em negociação".')),
+      b('Pular hoje', 'rounded-full px-3 py-2 text-xs text-muted hover:text-ink', () => act(c, 'skip', 'Volta amanhã.')),
+      b('Sem interesse', 'rounded-full px-3 py-2 text-xs text-muted hover:text-red-300', () => { if (confirm(`Marcar ${c.name} como sem interesse? Sai da fila.`)) act(c, 'lost', 'Removido da fila.'); }),
+    );
+    const edit = h('a', 'ml-auto text-xs text-muted underline hover:text-ink', 'editar') as HTMLAnchorElement;
+    edit.href = `/painel/clientes/?id=${encodeURIComponent(c.id)}`;
+    after.append(edit);
+    li.append(after);
+    return li;
+  };
+
+  const render = () => {
+    const q = buildQueue(clients, today, meta);
+    $('[data-sent]').textContent = String(q.sentToday);
+    $('[data-new-done]').textContent = String(q.sentNewToday);
+    $('[data-meta]').textContent = String(meta);
+    $('[data-waiting]').textContent = String(Math.max(0, q.waitingNew - q.fresh.length));
+
+    $('[data-followups-wrap]').hidden = q.followUps.length === 0;
+    $('[data-followups]').replaceChildren(...q.followUps.map(card));
+    $('[data-fresh-wrap]').hidden = q.fresh.length === 0;
+    $('[data-fresh]').replaceChildren(...q.fresh.map(card));
+
+    const empty = !q.followUps.length && !q.fresh.length;
+    $('[data-done]').hidden = !empty || clients.length === 0;
+    $('[data-done-text]').textContent = q.waitingNew > 0 ? `Meta de novos contatos atingida. Amanhã entram mais ${Math.min(meta, q.waitingNew)}.` : 'Sem prospects novos na fila: cadastre mais ou importe a lista sugerida.';
+
+    // Lista sugerida ainda não importada?
+    const names = new Set(clients.map((c) => c.name.toLowerCase()));
+    const igs = new Set(clients.map((c) => c.instagram.toLowerCase()).filter(Boolean));
+    const missing = data.prospects.filter((p) => !names.has(p.name.toLowerCase()) && !(p.instagram && igs.has(p.instagram.toLowerCase())));
+    $('[data-import]').hidden = missing.length === 0;
+    $('[data-import-count]').textContent = String(missing.length);
+
+    const pipe = clients
+      .filter((c) => c.stage === 'contacted' && c.next_followup > today)
+      .sort((a, b) => a.next_followup.localeCompare(b.next_followup));
+    $('[data-pipeline]').replaceChildren(
+      ...(pipe.length
+        ? pipe.map((c) => {
+            const li = h('li', 'flex items-center justify-between gap-3 px-4 py-3 text-sm');
+            li.append(h('span', 'min-w-0 truncate', c.name), h('span', 'shrink-0 text-muted', `${STEPS.find((s) => s.step === c.outreach_step)?.label ?? ''} em ${formatDateBR(c.next_followup)}`));
+            return li;
+          })
+        : [h('li', 'px-4 py-3 text-sm text-muted', 'Ninguém aguardando follow-up ainda.')]),
+    );
+  };
+
+  const metaInput = $('[data-meta-input]') as HTMLInputElement;
+  metaInput.value = String(meta);
+  metaInput.addEventListener('change', () => {
+    meta = Math.max(0, Math.min(30, Math.floor(Number(metaInput.value) || 0)));
+    metaInput.value = String(meta);
+    try { localStorage.setItem(META_KEY, String(meta)); } catch { /* */ }
+    render();
+  });
+
+  $('[data-import-btn]').addEventListener('click', async () => {
+    const btn = $('[data-import-btn]') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Importando…';
+    try {
+      const r = await api.importClients(
+        data.prospects.map((p) => ({ name: p.name, type: p.type, instagram: p.instagram ?? '', phone: p.phone ?? '', contact: p.contact ?? '', hook: p.hook, notes: p.notes })),
+      );
+      toast(`${r.created} prospect(s) importado(s).`);
+      clients = await api.clients();
+      render();
+      window.dispatchEvent(new Event('venart:badges'));
+    } catch (e) { toast((e as Error).message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Importar lista'; }
+  });
+
+  (async () => {
+    try { clients = await api.clients(); render(); }
+    catch (e) { toast((e as Error).message, 'error'); }
+    finally { $('[data-loading]').hidden = true; }
+  })();
+</script>

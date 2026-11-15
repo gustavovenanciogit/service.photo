@@ -141,6 +141,21 @@ Tudo que chega pelo **formulário de pré-orçamento** e pelo **simulador** apar
 Proteção anti-spam: campo invisível para robôs, limite de 6 pedidos por hora por conexão e checagem de origem.
 Se alguém pedir a exclusão dos dados (LGPD), use **Excluir** no pedido.
 
+### Fila de abordagem (prospecção)
+`/painel/abordagem` mostra as mensagens do dia: **follow-ups vencidos** + **novos contatos** até a meta
+diária (padrão 5, ajustável na tela). Para cada um: **Copiar e abrir Instagram** (abre a conversa pelo
+`ig.me` e copia a mensagem) ou **Abrir WhatsApp** (mensagem já preenchida); depois **Enviado ✓**,
+**Respondeu** (vai para "Em negociação"), **Pular hoje** ou **Sem interesse**.
+
+- Cadência automática: 1º contato → follow-up em 3 dias → follow-up no dia 7 → pausa de 30 dias → retomada.
+- O envio é sempre feito por você no seu celular (não há envio automático: o Instagram bloqueia contas
+  que automatizam mensagens). Ritmo de 5 a 10 por dia é seguro.
+- **Lista sugerida:** botão "Importar lista" traz 22 academias, assessorias e organizadores de Manaus
+  pesquisados (`src/data/prospects.ts`), sem duplicar quem já existe. Itens com ⚠️ precisam de confirmação.
+- **Personalização:** cada cliente tem um "gancho" (Clientes → editar), que vira a frase
+  "Vi … e curti muito." na 1ª mensagem. Use algo real do perfil.
+- **Textos e apresentação:** `src/data/outreach.ts` (`apresentacao`, mensagens por tipo e follow-ups).
+
 ### Agenda e entregas
 - **Agenda** (`/painel/agenda`): calendário do mês e próximos trabalhos. Ao marcar uma proposta como
   **Aceita**, o painel oferece agendar — já preenchido com cliente, serviço, data, local e **prazo de
