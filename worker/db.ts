@@ -111,6 +111,41 @@ const SCHEMA = [
     UNIQUE (event_id, file_name)
   )`,
   `CREATE INDEX IF NOT EXISTS event_photos_seq ON event_photos (event_id, seq)`,
+  // Loja de fotos: pedidos (Fase 2).
+  `CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    token TEXT NOT NULL UNIQUE,
+    event_id TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    event_slug TEXT NOT NULL,
+    buyer_name TEXT NOT NULL,
+    buyer_email TEXT NOT NULL,
+    buyer_phone TEXT NOT NULL,
+    total REAL NOT NULL,
+    use_pack INTEGER NOT NULL DEFAULT 0,
+    photo_count INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pendente',
+    checkout_url TEXT NOT NULL DEFAULT '',
+    preference_id TEXT NOT NULL DEFAULT '',
+    payment_id TEXT NOT NULL DEFAULT '',
+    payment_method TEXT NOT NULL DEFAULT '',
+    paid_at TEXT NOT NULL DEFAULT '',
+    download_days INTEGER NOT NULL DEFAULT 30,
+    download_until TEXT NOT NULL DEFAULT '',
+    checked_at INTEGER NOT NULL DEFAULT 0,
+    terms_version TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS orders_event ON orders (event_id)`,
+  `CREATE INDEX IF NOT EXISTS orders_created ON orders (created_at)`,
+  `CREATE TABLE IF NOT EXISTS order_items (
+    order_id TEXT NOT NULL,
+    photo_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    PRIMARY KEY (order_id, photo_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
     count INTEGER NOT NULL,

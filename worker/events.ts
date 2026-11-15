@@ -25,7 +25,13 @@ export interface EventsEnv {
   DB: D1Database;
   PHOTOS?: R2Bucket;
   ASSETS: Fetcher;
+  /** Com o token do Mercado Pago, a galeria vende online; sem ele, o pedido vai pelo WhatsApp. */
+  MP_ACCESS_TOKEN?: string;
 }
+
+/** Fotos compradas com download ainda válido não podem ser apagadas. */
+const ACTIVE_SALES = `SELECT 1 FROM orders o JOIN order_items i ON i.order_id = o.id
+  WHERE o.status = 'pago' AND o.download_until > ?`;
 
 type Json = (data: unknown, status?: number, headers?: Record<string, string>) => Response;
 
@@ -40,8 +46,8 @@ const toEvent = (r: EventRow | null): EventRecord | null => (r ? { ...r, listed:
 const toPhoto = (r: PhotoRow): EventPhoto => ({ ...r, ready: !!r.ready });
 const now = () => new Date().toISOString();
 
-const getEvent = async (db: D1Database, id: string) => toEvent(await db.prepare('SELECT * FROM events WHERE id = ?').bind(id).first<EventRow>());
-const getBySlug = async (db: D1Database, slug: string) =>
+export const getEvent = async (db: D1Database, id: string) => toEvent(await db.prepare('SELECT * FROM events WHERE id = ?').bind(id).first<EventRow>());
+export const getBySlug = async (db: D1Database, slug: string) =>
   toEvent(await db.prepare('SELECT * FROM events WHERE slug = ?').bind(slug).first<EventRow>());
 
 const slugTaken = async (db: D1Database, slug: string, exceptId = '') =>
@@ -111,6 +117,9 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
       return json(await getEvent(db, eventId));
     }
     if (method === 'DELETE') {
+      if (await db.prepare(`${ACTIVE_SALES} AND o.event_id = ? LIMIT 1`).bind(now(), eventId).first()) {
+        return json({ error: 'Há compradores com download ainda válido neste evento. Exclua depois que o prazo de download terminar.' }, 409);
+      }
       if (env.PHOTOS) await purgePrefix(env.PHOTOS, `events/${eventId}/`);
       await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
       return json({ ok: true });
@@ -157,6 +166,9 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
   if (!photo) return json({ error: 'Foto não encontrada.' }, 404);
 
   if (!part && method === 'DELETE') {
+    if (await db.prepare(`${ACTIVE_SALES} AND i.photo_id = ? LIMIT 1`).bind(now(), photoId).first()) {
+      return json({ error: 'Esta foto foi comprada e o download ainda está válido. Não dá para excluir agora.' }, 409);
+    }
     if (env.PHOTOS) await env.PHOTOS.delete(PHOTO_PARTS.map((p) => photoKey(eventId, p, photoId)));
     await db.prepare('DELETE FROM event_photos WHERE id = ?').bind(photoId).run();
     if (event.cover_photo_id === photoId) await db.prepare("UPDATE events SET cover_photo_id = '' WHERE id = ?").bind(eventId).run();
@@ -225,7 +237,8 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
 // ───────── Público ─────────
 
 /** Dados que o público pode ver (sem datas internas). */
-const publicEvent = (e: EventRecord, state: string) => ({
+const publicEvent = (e: EventRecord, state: string, checkout: boolean) => ({
+  checkout,
   id: e.id,
   slug: e.slug,
   name: e.name,
@@ -245,7 +258,7 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
   const state = e ? publicState(e) : 'oculto';
   if (!e || (state === 'oculto' && !admin)) return json({ error: 'Evento não encontrado.' }, 404);
   const cache: Record<string, string> = state === 'aberto' && !admin ? { 'Cache-Control': 'public, max-age=60' } : {};
-  if (state === 'encerrado' && !admin) return json({ event: publicEvent(e, state), photos: [], next: null }, 200, cache);
+  if (state === 'encerrado' && !admin) return json({ event: publicEvent(e, state, !!env.MP_ACCESS_TOKEN), photos: [], next: null }, 200, cache);
   const after = Math.max(0, Number.parseInt(url.searchParams.get('after') ?? '0', 10) || 0);
   const rows = (
     await env.DB
@@ -255,7 +268,7 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
   ).results;
   const more = rows.length > PAGE;
   const photos = rows.slice(0, PAGE).map((r) => ({ id: r.id, n: r.seq, w: r.width, h: r.height }));
-  return json({ event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state), photos, next: more ? photos.at(-1)!.n : null }, 200, cache);
+  return json({ event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, !!env.MP_ACCESS_TOKEN), photos, next: more ? photos.at(-1)!.n : null }, 200, cache);
 }
 
 /** /f/:eventId/:photoId/(thumb|preview).jpg — só de eventos publicados (ou para o fotógrafo logado). */

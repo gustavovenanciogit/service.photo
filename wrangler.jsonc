@@ -16,7 +16,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/painel", "/painel/*", "/api/*", "/proposta/nova", "/proposta/nova/", "/e/*", "/f/*"]
+    "run_worker_first": ["/painel", "/painel/*", "/api/*", "/proposta/nova", "/proposta/nova/", "/e/*", "/f/*", "/d/*", "/pedido/*"]
   },
   "d1_databases": [
     {
@@ -32,6 +32,8 @@
       "bucket_name": "venart-fotos"
     }
   ],
+  // Venda online (Mercado Pago): segredos MP_ACCESS_TOKEN e MP_WEBHOOK_SECRET, definidos no painel da Cloudflare.
+  // Sem eles, a galeria continua com o pedido pelo WhatsApp.
   // Repositório onde o painel grava as edições de preços e fotos.
   // O token fica no segredo GITHUB_TOKEN (definido no painel da Cloudflare).
   "vars": {

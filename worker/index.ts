@@ -16,10 +16,11 @@ import {
 } from './auth.ts';
 import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
-import { eventsApi, publicEventApi, serveEventPage, servePhoto, type EventsEnv } from './events.ts';
+import { eventsApi, publicEventApi, serveEventPage, servePhoto } from './events.ts';
+import { createOrder, MpError, orderStatus, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
-interface Env extends AuthEnv, GitHubEnv, EventsEnv {
+interface Env extends AuthEnv, GitHubEnv, OrdersEnv {
   ASSETS: Fetcher;
 }
 
@@ -69,6 +70,12 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   const method = req.method;
   const path = url.pathname.replace(/\/+$/, '');
 
+  // Aviso de pagamento do Mercado Pago (vem do servidor deles, sem Origin; conferido por assinatura + consulta).
+  if (path === '/api/webhooks/mercadopago' && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    return webhook(req, env, url, json);
+  }
+
   // Proteção contra requisições de outros sites (além do cookie SameSite=Strict).
   if (method !== 'GET' && method !== 'HEAD') {
     const origin = req.headers.get('Origin');
@@ -105,6 +112,19 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (pubEvent && method === 'GET') {
     await db.ensureSchema(env.DB);
     return publicEventApi(env, pubEvent[1]!, url, await isLoggedIn(req, env), json);
+  }
+
+  // ── Público: compra de fotos ──
+  if (path === '/api/public/orders' && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+    if (!(await db.allowLead(env.DB, await sha256Hex(`venart-orders:${ip}`), 10))) return json({ error: 'Muitos pedidos seguidos. Tente mais tarde.' }, 429);
+    return createOrder(req, env, url, await readJson(req), json);
+  }
+  const pubOrder = /^\/api\/public\/orders\/([A-Za-z0-9_-]{1,64})$/.exec(path);
+  if (pubOrder && method === 'GET') {
+    await db.ensureSchema(env.DB);
+    return orderStatus(env, pubOrder[1]!, url, json);
   }
 
   if (!env.ADMIN_PASSWORD) return json({ error: 'Painel ainda não configurado: defina o segredo ADMIN_PASSWORD na Cloudflare.' }, 503);
@@ -254,6 +274,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   }
 
   if (path.startsWith('/api/site/')) return siteApi(req, env, path, method);
+  if (path === '/api/orders' || path.startsWith('/api/orders/')) return ordersAdminApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/events' || path.startsWith('/api/events/')) return eventsApi(req, env, path, json, (r) => readJson(r));
 
   return json({ error: 'Não encontrado.' }, 404);
@@ -358,6 +379,11 @@ export default {
         await db.ensureSchema(env.DB);
         return await servePhoto(env, path, await isLoggedIn(req, env));
       }
+      if (path.startsWith('/d/') && (req.method === 'GET' || req.method === 'HEAD')) {
+        await db.ensureSchema(env.DB);
+        return await serveDownload(env, path);
+      }
+      if (/^\/pedido\/[A-Za-z0-9_-]{43}\/?$/.test(path)) return await serveOrderPage(req, env, url);
       const eventPage = /^\/e\/([^/]+)\/?$/.exec(path);
       if (eventPage) {
         await db.ensureSchema(env.DB);
@@ -380,7 +406,7 @@ export default {
 
       return env.ASSETS.fetch(req);
     } catch (e) {
-      if (e instanceof HttpError || e instanceof GitHubError) return json({ error: e.message }, e.status);
+      if (e instanceof HttpError || e instanceof GitHubError || e instanceof MpError) return json({ error: e.message }, e.status);
       console.error(e);
       return json({ error: 'Erro interno. Tente novamente.' }, 500);
     }
