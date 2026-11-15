@@ -1,0 +1,202 @@
+---
+/**
+ * MINHAS FOTOS — /pedido/<código secreto>
+ * Página do comprador: situação do pagamento e download das fotos compradas.
+ * O servidor entrega esta página para qualquer pedido; os dados vêm de /api/public/orders/<código>.
+ * Fora do Google; o endereço não é repassado a outros sites (Referrer-Policy: no-referrer).
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { site } from '@/config/site';
+import { messages } from '@/lib/whatsapp';
+---
+
+<BaseLayout title="Minhas fotos" description="Suas fotos compradas." noindex waMessage={messages.general()}>
+  <section class="py-10 lg:py-14" data-order-page data-number={site.whatsappNumber}>
+    <div class="container-site max-w-5xl">
+      <p data-loading class="py-16 text-center text-muted">Carregando seu pedido…</p>
+
+      <div data-error hidden class="card mx-auto max-w-xl p-8 text-center">
+        <Icon name="search" size={40} class="mx-auto text-brand" />
+        <h1 class="mt-4 text-4xl font-extrabold">Pedido não encontrado</h1>
+        <p class="mt-2 text-muted">Confira se o link está completo. Se precisar, me chame no WhatsApp que eu reenvio.</p>
+        <a data-help target="_blank" rel="noopener noreferrer" class="btn btn-primary mt-6">Falar no WhatsApp</a>
+      </div>
+
+      <div data-content hidden>
+        <p class="eyebrow">Pedido <span data-code></span></p>
+        <h1 data-title class="mt-1 text-4xl font-extrabold sm:text-5xl"></h1>
+        <p data-sub class="mt-2 text-muted"></p>
+
+        <!-- Aguardando / recusado / expirado / conferência -->
+        <div data-wait hidden class="card mt-8 p-6">
+          <p data-wait-text class="text-lg"></p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <a data-pay class="btn btn-primary min-h-12" hidden>Ir para o pagamento</a>
+            <button type="button" data-check class="btn btn-outline min-h-12">Já paguei — verificar</button>
+            <a data-help2 target="_blank" rel="noopener noreferrer" class="btn btn-outline min-h-12">Falar no WhatsApp</a>
+          </div>
+          <p data-wait-note class="mt-3 text-xs text-muted"></p>
+        </div>
+
+        <!-- Pago -->
+        <div data-paid hidden>
+          <div class="card mt-8 flex flex-wrap items-center justify-between gap-4 p-5">
+            <div>
+              <p class="font-semibold text-brand">Pagamento confirmado ✓</p>
+              <p data-until class="text-sm text-muted"></p>
+            </div>
+            <button type="button" data-zip class="btn btn-primary min-h-12">Baixar todas (ZIP)</button>
+          </div>
+          <p data-zip-progress hidden class="mt-3 text-sm text-muted"></p>
+          <p class="mt-4 text-sm text-muted">
+            No celular, toque em <strong>Baixar</strong> em cada foto e salve na galeria. No computador, o ZIP é mais prático.{' '}
+            <strong>Guarde este link</strong> até baixar tudo.
+          </p>
+        </div>
+
+        <ul data-grid class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"></ul>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { photoLabel } from '@/lib/events';
+  import { downloadName } from '@/lib/orders';
+  import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+  import { zipParts } from '@/lib/zip';
+
+  type OrderView = {
+    id: string; status: string; event_name: string; event_slug: string; buyer_first_name: string; total: number; use_pack: boolean;
+    photo_count: number; paid_at: string; download_until: string; can_download: boolean; checkout_url: string; items: { id: string; n: number }[];
+  };
+  const root = document.querySelector<HTMLElement>('[data-order-page]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  const token = location.pathname.split('/')[2] ?? '';
+  const paymentId = new URLSearchParams(location.search).get('payment_id') ?? '';
+  let order: OrderView;
+  let polls = 0;
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Manaus' });
+  const help = (text: string) => whatsappLink(root.dataset.number!, text);
+
+  async function load(withPayment = false) {
+    const q = withPayment && /^\d+$/.test(paymentId) ? `?payment_id=${paymentId}` : '';
+    const res = await fetch(`/api/public/orders/${encodeURIComponent(token)}${q}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    order = (await res.json()) as OrderView;
+    render();
+  }
+
+  function render() {
+    const o = order;
+    $('[data-code]').textContent = o.id;
+    $('[data-title]').textContent = o.status === 'pago' ? `Suas fotos de ${o.event_name}` : o.event_name;
+    $('[data-sub]').textContent = `${o.photo_count} foto${o.photo_count === 1 ? '' : 's'} · ${formatBRL(o.total)}${o.use_pack ? ' (pacote)' : ''}`;
+    const helpMsg = help(`Olá! Preciso de ajuda com o pedido ${o.id} (${o.event_name}).`);
+    $<HTMLAnchorElement>('[data-help2]').href = helpMsg;
+
+    const paid = o.status === 'pago';
+    $('[data-paid]').hidden = !paid;
+    $('[data-wait]').hidden = paid;
+    if (paid) {
+      $('[data-until]').textContent = o.can_download ? `Download disponível até ${fmtDate(o.download_until)}.` : 'O prazo de download terminou. Me chame no WhatsApp se precisar.';
+      $('[data-zip]').hidden = !o.can_download || o.items.length < 2;
+    } else {
+      const texts: Record<string, string> = {
+        pendente: 'Aguardando a confirmação do pagamento. No Pix, costuma levar poucos segundos depois de pagar.',
+        recusado: 'O pagamento não foi aprovado. Você pode tentar de novo com outra forma de pagamento.',
+        expirado: 'O prazo para pagar este pedido terminou. Volte à galeria e faça um novo pedido.',
+        reembolsado: 'Este pedido foi reembolsado e o download foi desativado.',
+        divergente: 'Recebemos um pagamento, mas ele precisa de uma conferência manual. Me chame no WhatsApp que eu resolvo rapidinho.',
+      };
+      $('[data-wait-text]').textContent = texts[o.status] ?? 'Situação do pedido em atualização.';
+      const pay = $<HTMLAnchorElement>('[data-pay]');
+      pay.hidden = !o.checkout_url;
+      if (o.checkout_url) pay.href = o.checkout_url;
+      pay.textContent = o.status === 'recusado' ? 'Tentar pagar de novo' : 'Ir para o pagamento';
+      $('[data-check]').hidden = !['pendente', 'recusado'].includes(o.status);
+      $('[data-wait-note]').textContent = o.status === 'pendente' ? 'Esta página confere sozinha a cada poucos segundos.' : '';
+    }
+
+    $('[data-grid]').replaceChildren(
+      ...o.items.map((it) => {
+        const li = document.createElement('li');
+        li.className = 'card overflow-hidden';
+        const img = document.createElement('img');
+        img.src = `/d/${token}/${it.id}/thumb`;
+        img.alt = `Foto ${photoLabel(it.n)}`;
+        img.loading = 'lazy';
+        img.className = 'aspect-[4/3] w-full object-cover';
+        const bar = document.createElement('div');
+        bar.className = 'flex items-center justify-between gap-2 p-2.5';
+        const label = document.createElement('span');
+        label.className = 'text-sm font-semibold';
+        label.textContent = photoLabel(it.n);
+        bar.append(label);
+        if (o.can_download) {
+          const a = document.createElement('a');
+          a.href = `/d/${token}/${it.id}/full`;
+          a.download = downloadName(o.event_slug, it.n);
+          a.className = 'btn btn-primary min-h-9 px-3 text-xs';
+          a.textContent = 'Baixar';
+          bar.append(a);
+        }
+        li.append(img, bar);
+        return li;
+      }),
+    );
+    $('[data-content]').hidden = false;
+    $('[data-loading]').hidden = true;
+
+    // Pendente: confere sozinho (a cada 5 s nos primeiros minutos, depois a cada 30 s).
+    if (o.status === 'pendente' && polls < 60) {
+      polls++;
+      setTimeout(() => load().catch(() => {}), polls < 24 ? 5000 : 30000);
+    }
+  }
+
+  $('[data-check]').addEventListener('click', async () => {
+    const b = $<HTMLButtonElement>('[data-check]');
+    b.disabled = true;
+    b.textContent = 'Verificando…';
+    await load(true).catch(() => {});
+    b.disabled = false;
+    b.textContent = 'Já paguei — verificar';
+  });
+
+  $('[data-zip]').addEventListener('click', async () => {
+    const btn = $<HTMLButtonElement>('[data-zip]');
+    const progress = $('[data-zip-progress]');
+    btn.disabled = true;
+    progress.hidden = false;
+    try {
+      const files: { name: string; data: Uint8Array }[] = [];
+      for (const [i, it] of order.items.entries()) {
+        progress.textContent = `Preparando o ZIP: ${i + 1} de ${order.items.length} fotos…`;
+        const res = await fetch(`/d/${token}/${it.id}/full`);
+        if (!res.ok) throw new Error('Falha ao baixar uma das fotos. Tente de novo.');
+        files.push({ name: downloadName(order.event_slug, it.n), data: new Uint8Array(await res.arrayBuffer()) });
+      }
+      const blob = new Blob(zipParts(files) as BlobPart[], { type: 'application/zip' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `venart-${order.event_slug}-${order.id}.zip`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      progress.textContent = 'ZIP pronto! Confira a pasta de downloads.';
+    } catch (e) {
+      progress.textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  load(true).catch(() => {
+    $('[data-loading]').hidden = true;
+    $('[data-error]').hidden = false;
+    $<HTMLAnchorElement>('[data-help]').href = help('Olá! Não estou conseguindo abrir o link das minhas fotos.');
+  });
+</script>

@@ -22,8 +22,8 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 | Fase | Entrega | Depende de | Situação |
 |---|---|---|---|
 | 0 | Decisões e preparação | — | 🟡 em andamento |
-| 1 | Eventos no painel: criar, configurar, subir fotos e gerar o link | Fase 0 (itens 0.5 e 0.12) | 🟡 pronto para teste real |
-| 2 | Loja: carrinho, pagamento e download automático | Fases 0 e 1 | ⚪ |
+| 1 | Eventos no painel: criar, configurar, subir fotos e gerar o link | Fase 0 (itens 0.5 e 0.12) | ✅ no ar (falta o teste real 1.12) |
+| 2 | Loja: carrinho, pagamento e download automático | Fases 0 e 1 | 🟡 pronto; falta ativar o Mercado Pago (0.10, 0.11, 2.8) |
 | 3 | Pós-venda e gestão (pedidos, relatórios, limite do MEI) | Fase 2 | ⚪ |
 | 4 | Lançamento (teste real e divulgação) | Fases 2 e 3 | ⚪ |
 | 5 | Busca por número de peito | Fase 4 | ⚪ |
@@ -34,7 +34,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ## Fase 0 — Decisões e preparação
 
 ### Decisões comerciais
-- [ ] **0.1 👤 Gateway de pagamento:** Mercado Pago (recomendado) ou Asaas.
+- [x] **0.1 👤 Gateway de pagamento:** **Mercado Pago** (Checkout Pro) — seguimos com a recomendação ao iniciar a Fase 2.
       Simule uma venda de R$ 12,90 no Pix e no cartão nos dois antes de decidir (simulação de custos na conversa de 15/11/2026).
 - [ ] **0.2 👤 Preços da loja:**
   - [ ] Foto avulsa: R$ 12,90? (valor da Tabela 2026)
@@ -50,7 +50,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ### Jurídico e fiscal
 - [ ] **0.6 👤 Contador:** confirmar que a venda de fotos digitais está coberta pela atividade do seu MEI e como emitir nota.
 - [ ] **0.7 👤 Limite do MEI:** acompanhar o faturamento total (serviços + loja) frente ao limite de **R$ 81.000/ano** (~R$ 6.750/mês). A Fase 3 terá um alerta no painel.
-- [ ] **0.8 🤖 Rascunho dos Termos de compra** (o que é comprado, prazo de download, uso permitido das fotos, direito de arrependimento, contato) para você revisar.
+- [x] **0.8 🤖 Rascunho dos Termos de compra** → página `/termos-de-compra` (link no rodapé e no checkout) (o que é comprado, prazo de download, uso permitido das fotos, direito de arrependimento, contato) para você revisar.
 - [ ] **0.9 👤 Revisar e aprovar** os Termos de compra (idealmente com advogado ou contador).
 
 ### Contas e acessos
@@ -101,22 +101,25 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ## Fase 2 — Loja (pagamento e download)
 
 ### Compra
-- [ ] **2.1 🤖 Seleção de fotos** na galeria (marcar várias) e **carrinho** com o total, aplicando a regra do pacote (0.2).
-- [ ] **2.2 🤖 Dados do comprador:** nome, e-mail e WhatsApp (para reenviar o link) + aceite dos Termos de compra.
-- [ ] **2.3 🤖 Tabelas no banco:** `orders` (código, comprador, total, status, gateway, datas) e `order_items`.
-- [ ] **2.4 🤖 Checkout do gateway** (página de pagamento do próprio Mercado Pago/Asaas: você não lida com dados de cartão).
+- [x] **2.1 🤖 Seleção de fotos** na galeria e total com a regra do pacote (o preço é recalculado no servidor; o navegador não manda valor).
+- [x] **2.2 🤖 Dados do comprador:** nome, e-mail e WhatsApp + aceite obrigatório dos Termos (a versão aceita fica gravada no pedido).
+- [x] **2.3 🤖 Tabelas no banco:** `orders` (código VNA-XXXXXX, link secreto, comprador, total, status, pagamento, prazos) e `order_items`.
+- [x] **2.4 🤖 Checkout Pro do Mercado Pago** (página de pagamento deles: Pix e cartão; parcelas conforme 0.3 — hoje só à vista). Pedido não pago expira em 24 h.
 
 ### Confirmação do pagamento
-- [ ] **2.5 🤖 Aviso automático do gateway (webhook)** para o servidor, com **verificação de assinatura** (impede pagamento falso).
-- [ ] **2.6 🤖 Conferência dupla:** o servidor consulta o pagamento no gateway antes de liberar (não confia só no aviso).
-- [ ] **2.7 🤖 Tratar todos os casos:** pago, pendente (Pix aguardando), recusado, expirado, estornado/reembolsado (bloqueia o download).
-- [ ] **2.8 👤 Salvar as credenciais** como segredos na Cloudflare (eu te guio: nunca vão no código).
+- [x] **2.5 🤖 Aviso automático (webhook)** em `/api/webhooks/mercadopago` com **verificação de assinatura** (`MP_WEBHOOK_SECRET`).
+- [x] **2.6 🤖 Conferência dupla:** o servidor sempre consulta o pagamento no Mercado Pago (pedido, moeda e valor exato) antes de liberar. A página do pedido também confere sozinha (Pix confirmado aparece em segundos).
+- [x] **2.7 🤖 Todos os casos:** pago, pendente, recusado (pode tentar de novo), expirado, reembolsado (bloqueia o download) e **divergente** (valor diferente → fica "para conferir" no painel).
+- [ ] **2.8 👤 Salvar as credenciais** como segredos na Cloudflare: `MP_ACCESS_TOKEN` (Access Token) e `MP_WEBHOOK_SECRET` (assinatura secreta do webhook). Enquanto não estiverem lá, a galeria continua com o pedido pelo WhatsApp.
 
 ### Entrega
-- [ ] **2.9 🤖 Página "Minhas fotos"** `/pedido/<código>`: download de cada foto e **"baixar todas" (ZIP)**, com links temporários.
-- [ ] **2.10 🤖 Reenvio do acesso:** o comprador informa e-mail ou WhatsApp e recebe o link de novo (dentro do prazo de 0.4).
-- [ ] **2.11 🤖 Mensagem pronta** de WhatsApp com o link do pedido (o envio de e-mail automático fica para avaliar, pois exige domínio próprio).
-- [ ] **2.12 🤖 Testes no ambiente de testes do gateway:** Pix pago, Pix expirado, cartão aprovado, cartão recusado, reembolso, webhook repetido, tentativa de baixar sem pagar.
+- [x] **2.9 🤖 Página "Minhas fotos"** `/pedido/<link secreto>`: botão Baixar em cada foto (arquivo original, nome `venart-<evento>-0001.jpg`) e **Baixar todas (ZIP)** montado no aparelho do comprador.
+- [x] **2.10 🤖 Reenvio do acesso:** o comprador pede pelo WhatsApp; no painel **Vendas** há "Enviar link pelo WhatsApp" com a mensagem pronta. (O link também fica salvo no aparelho de quem comprou.)
+- [x] **2.11 🤖 Mensagem pronta** de WhatsApp com o link do pedido e o prazo de download.
+- [x] **2.12 🤖 Testes** com um simulador do Mercado Pago: Pix pendente → pago, cartão aprovado, recusado → nova tentativa aprovada, valor divergente, reembolso, assinatura falsa (recusada), download sem pagar (bloqueado), link inventado, foto inexistente, outra origem, ZIP idêntico ao original.
+- [ ] **2.13 👤🤖 Teste no ambiente de testes do Mercado Pago** (com as credenciais de teste e os cartões de teste deles) depois de 2.8.
+- [x] **Extra 🤖 Painel → Loja → Vendas:** lista com filtros e busca, resumo do mês, conferir pagamento, liberar manualmente (pagou por fora), bloquear download, +30 dias, anotações.
+- [x] **Extra 🤖 Segurança:** evento/foto com download ainda válido não pode ser excluído; o link do pedido não é repassado a outros sites.
 
 **✅ Pronto quando:** no modo de teste, uma compra por Pix e outra por cartão liberam o download sozinhas, e um pedido não pago não baixa nada.
 
@@ -124,8 +127,8 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 
 ## Fase 3 — Pós-venda e gestão
 
-- [ ] **3.1 🤖 Painel → Vendas:** lista de pedidos (status, valor, fotos, comprador), busca e filtros.
-- [ ] **3.2 🤖 Ações:** reenviar link, liberar manualmente (ex.: pagou por fora), registrar reembolso.
+- [x] **3.1 🤖 Painel → Vendas:** lista de pedidos (status, valor, fotos, comprador), busca e filtros. *(adiantado na Fase 2)*
+- [x] **3.2 🤖 Ações:** reenviar link, liberar manualmente (ex.: pagou por fora), registrar reembolso. *(adiantado na Fase 2)*
 - [ ] **3.3 🤖 Relatórios:** vendas por galeria e por mês, ticket médio, Pix × cartão, taxas pagas, valor líquido.
 - [ ] **3.4 🤖 Alerta do limite do MEI:** soma o faturamento da loja + valores informados dos serviços e avisa ao chegar a 70% e 90% de R$ 81.000/ano.
 - [ ] **3.5 🤖 Pré-venda** "todas as minhas fotos" antes do evento (se aprovada em 0.2).
@@ -208,4 +211,5 @@ Confirme sempre as taxas vigentes no painel de cada empresa.
 | 15/11/2026 | Tudo (evento, dados, preços, fotos, link) é configurado pelo painel Venart; o link é divulgado por você; listagem no site público vem depois | Gustavo |
 | 15/11/2026 | Uma exportação só do Lightroom (~3000 px); o painel gera prévia e miniatura com marca d'água | Claude (sugestão) |
 | 15/11/2026 | Até o pagamento automático (Fase 2), a galeria envia o pedido pelo WhatsApp com os números das fotos | Claude (sugestão) |
+| 15/11/2026 | Gateway: Mercado Pago (Checkout Pro), cartão só à vista até decidir 0.3 | Gustavo ("vamos para a próxima fase") |
 | | | |

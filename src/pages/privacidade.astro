@@ -8,7 +8,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import { site } from '@/config/site';
 import { messages, whatsappLink } from '@/lib/whatsapp';
 
-const updated = '14/11/2026';
+const updated = '15/11/2026';
 const wa = whatsappLink(site.whatsappNumber, 'Olá! Gostaria de falar sobre os meus dados pessoais registrados no seu site.');
 ---
 
@@ -34,18 +34,20 @@ const wa = whatsappLink(site.whatsappNumber, 'Olá! Gostaria de falar sobre os m
           <li>serviço de interesse, data prevista e local;</li>
           <li>mensagem e valores da simulação.</li>
         </ul>
+        <p>Quando você <strong>compra fotos</strong> de um evento, ficam registrados: nome, e-mail, WhatsApp, as fotos compradas, o valor, a situação do pagamento e a data em que você aceitou os Termos de compra. O pagamento é feito no Mercado Pago, que trata os dados do pagamento (como o cartão) segundo a política dele; nós não recebemos os dados do cartão.</p>
+        <p>Na galeria, as fotos que você seleciona e os dados do formulário de compra ficam guardados <strong>só no seu aparelho</strong> (armazenamento do navegador), para você não perder a seleção.</p>
         <p>Para evitar abuso (envio automático em massa), o endereço de internet de quem envia é guardado apenas de forma embaralhada (hash), sem identificar a pessoa.</p>
         <p>O site <strong>não usa</strong> cookies de rastreamento, publicidade ou estatísticas de visitas.</p>
       </section>
 
       <section class="space-y-3">
         <h2>Para que são usados</h2>
-        <p>Somente para responder ao seu pedido, preparar orçamentos e combinar o serviço que você solicitou.</p>
+        <p>Somente para responder ao seu pedido, preparar orçamentos e combinar o serviço que você solicitou. Nas compras de fotos: para liberar o download, reenviar o link quando você pedir, prestar suporte e cumprir obrigações fiscais.</p>
       </section>
 
       <section class="space-y-3">
         <h2>Onde ficam e quem acessa</h2>
-        <p>Os dados ficam armazenados na infraestrutura da Cloudflare e só podem ser vistos pelo fotógrafo, em uma área protegida por senha. Eles não são vendidos nem compartilhados com terceiros.</p>
+        <p>Os dados (e as fotos dos eventos) ficam armazenados na infraestrutura da Cloudflare e só podem ser vistos pelo fotógrafo, em uma área protegida por senha. Eles não são vendidos nem compartilhados com terceiros.</p>
         <p>A conversa pelo WhatsApp é enviada por você, pelo seu aplicativo, e segue as regras de privacidade do próprio WhatsApp.</p>
       </section>
 

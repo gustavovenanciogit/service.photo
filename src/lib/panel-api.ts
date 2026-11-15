@@ -4,6 +4,7 @@
  */
 import type { Client, Job, Lead, ProposalRecord } from './crm';
 import type { EventPhoto, EventRecord, PhotoPart } from './events';
+import type { Order } from './orders';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -61,6 +62,10 @@ export const api = {
   patchProposal: (id: string, p: { status?: string; notes?: string; client_id?: string }) =>
     request<ProposalRecord>('PATCH', `/api/proposals/${encodeURIComponent(id)}`, p),
   deleteProposal: (id: string) => request<{ ok: true }>('DELETE', `/api/proposals/${encodeURIComponent(id)}`),
+
+  orders: () => request<{ configured: boolean; orders: Order[] }>('GET', '/api/orders'),
+  orderAction: (id: string, body: { action?: 'sync' | 'release' | 'block' | 'extend'; notes?: string }) =>
+    request<Order>('PATCH', `/api/orders/${encodeURIComponent(id)}`, body),
 
   events: () => request<EventRecord[]>('GET', '/api/events'),
   event: (id: string) => request<EventRecord>('GET', `/api/events/${encodeURIComponent(id)}`),

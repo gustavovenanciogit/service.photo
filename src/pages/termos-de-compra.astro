@@ -1,0 +1,92 @@
+---
+/**
+ * TERMOS DE COMPRA — loja de fotos.
+ * ⚠️ RASCUNHO (checklist 0.8/0.9): revise com contador/advogado antes de ativar a venda online.
+ * Ao alterar o texto, mude também store.termsVersion em src/config/store.ts
+ * (cada pedido guarda a versão aceita).
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { showPendingNotices, site } from '@/config/site';
+import { store } from '@/config/store';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const updated = '15/11/2026';
+const wa = whatsappLink(site.whatsappNumber, 'Olá! Tenho uma dúvida sobre a compra de fotos.');
+const instagram = site.instagramUser ? `@${site.instagramUser}` : '';
+---
+
+<BaseLayout title="Termos de compra" description={`Condições da compra de fotos digitais — ${site.name}.`} waMessage={messages.general()}>
+  <section class="py-14 lg:py-20">
+    <article class="container-site max-w-3xl space-y-8 text-ink/90 [&_h2]:mt-2 [&_h2]:text-3xl [&_h2]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_p]:leading-relaxed">
+      <header>
+        <p class="eyebrow">Loja de fotos</p>
+        <h1 class="mt-2 text-5xl font-extrabold sm:text-6xl">Termos de compra</h1>
+        <p class="mt-3 text-sm text-muted">Versão {store.termsVersion} · atualizado em {updated}.</p>
+        {showPendingNotices && (
+          <p class="badge-pending mt-4 inline-block">Rascunho: revisar com contador/advogado (checklist 0.9). Confirmar CNPJ, uso permitido e política de cancelamento.</p>
+        )}
+      </header>
+
+      <section class="space-y-3">
+        <h2>Quem vende</h2>
+        <p>{site.name}, fotógrafo em {site.city}/{site.stateCode}. Contato: WhatsApp {site.whatsappDisplay}.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>O que você compra</h2>
+        <ul class="space-y-1">
+          <li>Os <strong>arquivos digitais</strong> (JPG em alta resolução, sem marca d'água) das fotos que você selecionou na galeria do evento.</li>
+          <li>As imagens da galeria são prévias com marca d'água e tamanho reduzido; o arquivo comprado é a versão final.</li>
+          <li>A compra não inclui impressão, edição adicional nem outras fotos além das selecionadas.</li>
+        </ul>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Preço e pagamento</h2>
+        <ul class="space-y-1">
+          <li>O preço de cada foto e do pacote aparece na galeria de cada evento. Quando o pacote sai mais barato do que as fotos avulsas, ele é aplicado automaticamente.</li>
+          <li>O pagamento é feito na página segura do <strong>Mercado Pago</strong>, por Pix ou cartão. Os dados do cartão são tratados pelo Mercado Pago; nós não temos acesso a eles.</li>
+          <li>Um pedido não pago em {store.pendingHours} horas expira automaticamente.</li>
+        </ul>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Entrega</h2>
+        <ul class="space-y-1">
+          <li>Assim que o pagamento é confirmado, você é levado para a página <strong>"Minhas fotos"</strong>, com o download de cada foto e a opção de baixar todas de uma vez.</li>
+          <li>O download fica disponível pelo prazo informado na própria página do pedido. Baixe e guarde as fotos no seu aparelho.</li>
+          <li>Perdeu o link? Fale no WhatsApp informando o nome e o e-mail usados na compra que nós reenviamos.</li>
+        </ul>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Uso das fotos</h2>
+        <ul class="space-y-1">
+          <li>As fotos compradas podem ser usadas para fins <strong>pessoais</strong>, inclusive nas suas redes sociais. Se puder, marque {instagram || 'o fotógrafo'} — ajuda muito o meu trabalho.</li>
+          <li>Uso comercial ou publicitário (anúncios, patrocinadores, venda, materiais de empresas) depende de autorização. Fale comigo.</li>
+          <li>Os direitos autorais das fotos continuam sendo do fotógrafo (Lei nº 9.610/1998).</li>
+        </ul>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Cancelamento e problemas</h2>
+        <ul class="space-y-1">
+          <li>Você pode pedir o cancelamento da compra em até <strong>7 dias</strong>, conforme o Código de Defesa do Consumidor (art. 49).</li>
+          <li>Se algum arquivo vier com problema ou a foto não for a que você escolheu, fale comigo: corrigimos ou devolvemos o valor correspondente.</li>
+          <li>Em caso de reembolso, o link de download do pedido é desativado.</li>
+        </ul>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Você aparece numa foto e não quer que ela fique na galeria?</h2>
+        <p>Peça pelo WhatsApp que nós retiramos a foto da galeria.</p>
+      </section>
+
+      <section class="space-y-3">
+        <h2>Seus dados</h2>
+        <p>Veja como tratamos nome, e-mail e WhatsApp informados na compra em <a href="/privacidade" class="text-brand underline">Privacidade</a>.</p>
+        <a href={wa} target="_blank" rel="noopener noreferrer" class="btn btn-primary">Tirar uma dúvida</a>
+      </section>
+    </article>
+  </section>
+</BaseLayout>

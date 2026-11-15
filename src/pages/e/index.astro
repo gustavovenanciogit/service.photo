@@ -9,6 +9,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import Icon from '@/components/Icon.astro';
 import { site } from '@/config/site';
 import { messages } from '@/lib/whatsapp';
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
 ---
 
 <BaseLayout title="Fotos do evento" description="Encontre suas fotos do evento e compre em alta resolução." noindex waMessage={messages.general()}>
@@ -65,8 +66,39 @@ import { messages } from '@/lib/whatsapp';
           <p class="text-muted"><span data-sel-total></span> <button type="button" data-clear class="ml-1 underline hover:text-ink">limpar</button></p>
         </div>
         <a data-order target="_blank" rel="noopener noreferrer" class="btn btn-primary min-h-11 shrink-0 px-4 text-sm">Pedir pelo WhatsApp</a>
+        <button type="button" data-buy hidden class="btn btn-primary min-h-11 shrink-0 px-5 text-sm">Comprar</button>
       </div>
     </div>
+
+    <!-- Compra -->
+    <dialog data-checkout class="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-line bg-bg-2 p-0 text-ink backdrop:bg-black/70">
+      <form data-checkout-form class="space-y-4 p-5 sm:p-6" novalidate>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="text-3xl font-bold">Finalizar compra</h2>
+            <p data-co-summary class="mt-1 text-sm text-muted"></p>
+          </div>
+          <button type="button" data-co-close class="grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label="Fechar"><Icon name="close" size={20} /></button>
+        </div>
+        <label class="block"><span class="text-sm font-medium">Nome</span><input name="name" required maxlength="80" autocomplete="name" class={field} /></label>
+        <label class="block"><span class="text-sm font-medium">E-mail</span><input name="email" type="email" required maxlength="120" autocomplete="email" class={field} /></label>
+        <label class="block">
+          <span class="text-sm font-medium">WhatsApp</span>
+          <input name="phone" type="tel" required maxlength="20" inputmode="tel" autocomplete="tel" placeholder="(92) 99999-9999" class={field} />
+          <span class="mt-1 block text-xs text-muted">Para reenviar o link das fotos, se você precisar.</span>
+        </label>
+        <label class="flex items-start gap-3 text-sm">
+          <input name="accept" type="checkbox" required class="mt-1 size-4 shrink-0 accent-[var(--color-brand)]" />
+          <span>Li e aceito os <a href="/termos-de-compra" target="_blank" class="text-brand underline">Termos de compra</a> e a <a href="/privacidade" target="_blank" class="text-brand underline">Privacidade</a>.</span>
+        </label>
+        <p data-co-error role="alert" class="text-sm text-red-300" hidden></p>
+        <button class="btn btn-primary min-h-12 w-full">Ir para o pagamento</button>
+        <p class="text-center text-xs text-muted">
+          Pix ou cartão, na página segura do Mercado Pago. Depois do pagamento, você volta para cá e baixa as fotos em alta resolução.
+        </p>
+        <p class="text-center text-xs text-muted">Prefere falar comigo? <a data-buy-wa target="_blank" rel="noopener noreferrer" class="underline hover:text-ink">Pedir pelo WhatsApp</a></p>
+      </form>
+    </dialog>
 
     <!-- Foto ampliada -->
     <dialog data-lightbox class="m-auto h-dvh max-h-none w-full max-w-none bg-black p-0 text-ink backdrop:bg-black/80">
@@ -96,7 +128,7 @@ import { messages } from '@/lib/whatsapp';
   type Photo = { id: string; n: number; w: number; h: number };
   type PublicEvent = {
     id: string; slug: string; name: string; date: string; location: string; description: string;
-    price_single: number; price_pack: number; photo_count: number; sale_ends_at: string; state: string;
+    price_single: number; price_pack: number; photo_count: number; sale_ends_at: string; state: string; checkout: boolean;
   };
 
   const root = document.querySelector<HTMLElement>('[data-gallery]')!;
@@ -106,13 +138,16 @@ import { messages } from '@/lib/whatsapp';
   const photos: Photo[] = [];
   let next: number | null = 0;
   let loading = false;
-  let selected = new Set<number>();
+  /** Fotos escolhidas: número → id. */
+  let selected = new Map<number, string>();
   const storeKey = () => `venart-sel-${ev.id}`;
 
   const save = () => { try { localStorage.setItem(storeKey(), JSON.stringify([...selected])); } catch { /* sem armazenamento */ } };
   const restore = () => {
-    try { selected = new Set((JSON.parse(localStorage.getItem(storeKey()) ?? '[]') as unknown[]).filter((n): n is number => Number.isInteger(n))); }
-    catch { selected = new Set(); }
+    try {
+      const raw = JSON.parse(localStorage.getItem(storeKey()) ?? '[]') as unknown[];
+      selected = new Map(raw.filter((e): e is [number, string] => Array.isArray(e) && Number.isInteger(e[0]) && /^ph_[a-z0-9]+$/.test(String(e[1]))));
+    } catch { selected = new Map(); }
   };
 
   async function loadMore() {
@@ -186,7 +221,7 @@ import { messages } from '@/lib/whatsapp';
     const check = document.createElement('button');
     check.type = 'button';
     check.className = 'absolute top-1.5 right-1.5 grid size-9 place-items-center rounded-full border-2 border-white/80 bg-black/40 text-sm font-bold';
-    check.addEventListener('click', () => toggle(p.n));
+    check.addEventListener('click', () => toggle(p));
     const label = document.createElement('span');
     label.className = 'pointer-events-none absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 text-[11px] font-semibold';
     label.textContent = photoLabel(p.n);
@@ -211,8 +246,9 @@ import { messages } from '@/lib/whatsapp';
     photos.slice(start).forEach((p, i) => grid.append(tile(p, start + i)));
   }
 
-  function toggle(n: number) {
-    if (selected.has(n)) selected.delete(n); else selected.add(n);
+  function toggle(p: Photo) {
+    const n = p.n;
+    if (selected.has(n)) selected.delete(n); else selected.set(n, p.id);
     save();
     const li = root.querySelector<HTMLElement>(`[data-grid] li[data-n="${n}"]`);
     if (li) paintTile(li);
@@ -227,12 +263,66 @@ import { messages } from '@/lib/whatsapp';
     const p = selectionPrice(count, ev);
     $('[data-sel-count]').textContent = `${count} foto${count === 1 ? '' : 's'} selecionada${count === 1 ? '' : 's'}`;
     $('[data-sel-total]').textContent = `${formatBRL(p.total)}${p.usePack ? ' (pacote)' : ''}`;
-    $<HTMLAnchorElement>('[data-order]').href = whatsappLink(root.dataset.number!, orderMessage(ev, [...selected], `${location.origin}/e/${ev.slug}`));
+    const wa = whatsappLink(root.dataset.number!, orderMessage(ev, [...selected.keys()], `${location.origin}/e/${ev.slug}`));
+    $<HTMLAnchorElement>('[data-order]').href = wa;
+    $<HTMLAnchorElement>('[data-buy-wa]').href = wa;
+    $('[data-order]').hidden = ev.checkout;
+    $('[data-buy]').hidden = !ev.checkout;
   }
   $('[data-clear]').addEventListener('click', () => {
     if (!confirm('Limpar a seleção?')) return;
     selected.clear(); save(); renderBar();
     root.querySelectorAll<HTMLElement>('[data-grid] li').forEach(paintTile);
+  });
+
+  // ── Compra (Mercado Pago) ──
+  const co = $<HTMLDialogElement>('[data-checkout]');
+  const coForm = $<HTMLFormElement>('[data-checkout-form]');
+  const BUYER_KEY = 'venart-comprador';
+  $('[data-buy]').addEventListener('click', () => {
+    const p = selectionPrice(selected.size, ev);
+    $('[data-co-summary]').textContent = `${selected.size} foto${selected.size === 1 ? '' : 's'} · ${formatBRL(p.total)}${p.usePack ? ' (pacote)' : ''}`;
+    try {
+      const saved = JSON.parse(localStorage.getItem(BUYER_KEY) ?? '{}') as Record<string, string>;
+      for (const k of ['name', 'email', 'phone']) {
+        const input = coForm.elements.namedItem(k) as HTMLInputElement;
+        if (!input.value && typeof saved[k] === 'string') input.value = saved[k]!;
+      }
+    } catch { /* sem armazenamento */ }
+    $('[data-co-error]').hidden = true;
+    co.showModal();
+  });
+  $('[data-co-close]').addEventListener('click', () => co.close());
+  coForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(coForm)) as Record<string, string>;
+    const err = $('[data-co-error]');
+    const btn = coForm.querySelector<HTMLButtonElement>('button:not([type])')!;
+    btn.disabled = true;
+    btn.textContent = 'Abrindo o pagamento…';
+    err.hidden = true;
+    try {
+      try { localStorage.setItem(BUYER_KEY, JSON.stringify({ name: d.name, email: d.email, phone: d.phone })); } catch { /* ok */ }
+      const res = await fetch('/api/public/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: ev.slug, photo_ids: [...selected.values()], name: d.name, email: d.email, phone: d.phone, accept: d.accept === 'on' }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; checkout_url?: string; token?: string };
+      if (!res.ok || !data.checkout_url) throw new Error(data.error ?? 'Não foi possível iniciar o pagamento. Tente de novo.');
+      // Guarda o link do pedido neste aparelho (para voltar depois, mesmo sem o e-mail).
+      try {
+        const list = JSON.parse(localStorage.getItem('venart-pedidos') ?? '[]') as unknown[];
+        localStorage.setItem('venart-pedidos', JSON.stringify([{ token: data.token, event: ev.name, at: Date.now() }, ...list].slice(0, 20)));
+      } catch { /* ok */ }
+      selected.clear(); save();
+      location.href = data.checkout_url;
+    } catch (ex) {
+      err.textContent = (ex as Error).message;
+      err.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Ir para o pagamento';
+    }
   });
 
   // ── Foto ampliada ──
@@ -264,7 +354,7 @@ import { messages } from '@/lib/whatsapp';
   $('[data-lb-close]').addEventListener('click', () => lb.close());
   $('[data-lb-prev]').addEventListener('click', () => showPhoto(current - 1));
   $('[data-lb-next]').addEventListener('click', () => showPhoto(current + 1));
-  $('[data-lb-select]').addEventListener('click', () => toggle(photos[current]!.n));
+  $('[data-lb-select]').addEventListener('click', () => toggle(photos[current]!));
   lb.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') showPhoto(current - 1);
     if (e.key === 'ArrowRight') showPhoto(current + 1);

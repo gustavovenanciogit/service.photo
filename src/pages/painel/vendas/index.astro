@@ -1,0 +1,177 @@
+---
+/**
+ * VENDAS — /painel/vendas/
+ * Pedidos da loja de fotos: situação do pagamento, comprador, reenvio do link e ações manuais.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm text-ink focus:border-brand focus:outline-none';
+---
+
+<PanelLayout title="Vendas">
+  <p class="eyebrow">Loja de fotos</p>
+  <h1 class="mt-1 text-5xl font-extrabold">Vendas</h1>
+  <p class="mt-2 max-w-2xl text-muted">Pedidos feitos nas galerias. O download é liberado sozinho quando o Mercado Pago confirma o pagamento.</p>
+
+  <div data-setup hidden class="card mt-6 border-amber-300/50 p-5">
+    <p class="font-semibold text-amber-200">Venda online ainda desativada</p>
+    <p class="mt-1 text-sm text-muted">
+      Falta colocar as credenciais do Mercado Pago na Cloudflare (segredos <code>MP_ACCESS_TOKEN</code> e <code>MP_WEBHOOK_SECRET</code>).
+      Enquanto isso, as galerias continuam com o pedido pelo WhatsApp. O passo a passo está no checklist da loja (itens 0.10, 0.11 e 2.8).
+    </p>
+  </div>
+
+  <div data-summary class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+
+  <div class="mt-6 grid gap-3 sm:grid-cols-[1fr_1fr_2fr]">
+    <select data-f-status class={field} aria-label="Filtrar por situação">
+      <option value="">Todas as situações</option>
+    </select>
+    <select data-f-event class={field} aria-label="Filtrar por evento"><option value="">Todos os eventos</option></select>
+    <input data-f-q class={field} placeholder="Buscar por nome, e-mail, WhatsApp ou código" aria-label="Buscar" />
+  </div>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+  <ul data-list class="mt-5 space-y-3"></ul>
+</PanelLayout>
+
+<script>
+  import { api, h, toast, waNumber } from '@/lib/panel-api';
+  import { deliveryMessage, ORDER_STATUSES, type Order } from '@/lib/orders';
+  import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  let orders: Order[] = [];
+  const statusLabel = (s: string) => ORDER_STATUSES.find((x) => x.id === s)?.label ?? s;
+  const tone: Record<string, string> = {
+    pago: 'bg-brand/20 text-brand',
+    pendente: 'bg-amber-400/15 text-amber-200',
+    divergente: 'bg-red-500/20 text-red-200',
+    recusado: 'bg-white/10 text-muted',
+    expirado: 'bg-white/10 text-muted',
+    reembolsado: 'bg-white/10 text-muted',
+  };
+  const methods: Record<string, string> = { bank_transfer: 'Pix', credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', ticket: 'Boleto', account_money: 'Saldo Mercado Pago', manual: 'Liberado manualmente' };
+  const dt = (iso: string) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Manaus', dateStyle: 'short', timeStyle: 'short' }) : '');
+  const linkOf = (o: Order) => `${location.origin}/pedido/${o.token}`;
+
+  ORDER_STATUSES.forEach((s) => $('[data-f-status]').append(new Option(s.label, s.id)));
+
+  const act = async (o: Order, body: Parameters<typeof api.orderAction>[1], msg: string) => {
+    try {
+      const updated = await api.orderAction(o.id, body);
+      orders = orders.map((x) => (x.id === o.id ? updated : x));
+      toast(msg);
+      render();
+    } catch (e) { toast((e as Error).message, 'error'); }
+  };
+
+  const button = (label: string, cls: string, fn: () => void) => {
+    const b = h('button', `btn ${cls} min-h-9 px-3 text-xs`, label);
+    b.setAttribute('type', 'button');
+    b.addEventListener('click', fn);
+    return b;
+  };
+
+  function card(o: Order) {
+    const li = h('li', 'card p-4 sm:p-5');
+    const top = h('div', 'flex flex-wrap items-start justify-between gap-3');
+    const left = h('div', 'min-w-0');
+    left.append(h('p', 'text-lg font-bold', `${o.buyer_name} · ${formatBRL(o.total)}${o.use_pack ? ' (pacote)' : ''}`));
+    left.append(h('p', 'text-sm text-muted', `${o.event_name} · ${o.photo_count} foto${o.photo_count === 1 ? '' : 's'} · ${o.id} · ${dt(o.created_at)}`));
+    left.append(h('p', 'mt-1 text-xs text-muted break-all', [o.buyer_email, o.buyer_phone].join(' · ')));
+    const badge = h('span', `shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${tone[o.status] ?? ''}`, statusLabel(o.status));
+    top.append(left, badge);
+    li.append(top);
+
+    const info: string[] = [];
+    if (o.payment_method) info.push(methods[o.payment_method] ?? o.payment_method);
+    if (o.paid_at) info.push(`pago em ${dt(o.paid_at)}`);
+    if (o.download_until) info.push(`download até ${dt(o.download_until).slice(0, 10)}`);
+    if (info.length) li.append(h('p', 'mt-2 text-xs text-muted', info.join(' · ')));
+    if (o.status === 'divergente') li.append(h('p', 'mt-2 text-sm text-red-200', 'O pagamento recebido não bate com o pedido (valor, moeda ou referência). Confira no Mercado Pago antes de liberar.'));
+
+    const actions = h('div', 'mt-3 flex flex-wrap gap-2');
+    if (o.status === 'pago') {
+      const wa = h('a', 'btn btn-primary min-h-9 px-3 text-xs', 'Enviar link pelo WhatsApp') as HTMLAnchorElement;
+      wa.href = whatsappLink(waNumber(o.buyer_phone), deliveryMessage(o, linkOf(o)));
+      wa.target = '_blank';
+      wa.rel = 'noopener noreferrer';
+      actions.append(wa);
+      actions.append(button('Copiar link', 'btn-outline', () => navigator.clipboard.writeText(linkOf(o)).then(() => toast('Link copiado!'), () => prompt('Copie:', linkOf(o)))));
+      actions.append(button('+30 dias de download', 'btn-outline', () => act(o, { action: 'extend' }, 'Prazo estendido.')));
+      actions.append(button('Bloquear download', 'btn-outline text-red-300', () => {
+        if (confirm('Bloquear o download deste pedido (ex.: reembolso feito)?')) act(o, { action: 'block' }, 'Download bloqueado.');
+      }));
+    } else {
+      if (['pendente', 'recusado', 'expirado', 'divergente'].includes(o.status) && o.payment_method !== 'manual') {
+        actions.append(button('Conferir pagamento', 'btn-outline', () => act(o, { action: 'sync' }, 'Conferido no Mercado Pago.')));
+      }
+      if (o.status !== 'reembolsado') {
+        actions.append(button('Liberar (pago por fora)', 'btn-outline', () => {
+          if (confirm(`Liberar o download de ${o.buyer_name} sem pagamento pelo Mercado Pago? Use só se recebeu por outro meio.`)) act(o, { action: 'release' }, 'Download liberado.');
+        }));
+      }
+      const wa = h('a', 'btn btn-outline min-h-9 px-3 text-xs', 'Chamar no WhatsApp') as HTMLAnchorElement;
+      wa.href = whatsappLink(waNumber(o.buyer_phone), `Oi, ${o.buyer_name.split(' ')[0]}! Vi seu pedido de fotos de ${o.event_name}. Posso ajudar com o pagamento?`);
+      wa.target = '_blank';
+      wa.rel = 'noopener noreferrer';
+      actions.append(wa);
+    }
+    actions.append(button(o.notes ? 'Anotação ✎' : 'Anotar', 'btn-outline', () => {
+      const n = prompt('Anotação deste pedido:', o.notes);
+      if (n !== null) act(o, { notes: n }, 'Anotação salva.');
+    }));
+    li.append(actions);
+    if (o.notes) li.append(h('p', 'mt-2 rounded-lg bg-white/5 p-2 text-xs text-muted', o.notes));
+    return li;
+  }
+
+  function render() {
+    // Resumo do mês (pedidos pagos).
+    const month = new Date().toISOString().slice(0, 7);
+    const paidMonth = orders.filter((o) => o.status === 'pago' && o.paid_at.slice(0, 7) === month);
+    const sum = paidMonth.reduce((s, o) => s + o.total, 0);
+    const stat = (label: string, value: string, cls = '') => {
+      const d = h('div', `card p-4 ${cls}`);
+      d.append(h('p', 'text-xs tracking-widest text-muted uppercase', label), h('p', 'mt-1 font-display text-3xl font-extrabold', value));
+      return d;
+    };
+    const divergent = orders.filter((o) => o.status === 'divergente').length;
+    $('[data-summary]').replaceChildren(
+      stat('Vendido no mês', formatBRL(sum)),
+      stat('Pedidos pagos no mês', String(paidMonth.length)),
+      stat('Aguardando pagamento', String(orders.filter((o) => o.status === 'pendente').length)),
+      stat('Para conferir', String(divergent), divergent ? 'border-red-400/60' : ''),
+    );
+
+    const st = $<HTMLSelectElement>('[data-f-status]').value;
+    const evf = $<HTMLSelectElement>('[data-f-event]').value;
+    const q = $<HTMLInputElement>('[data-f-q]').value.trim().toLowerCase();
+    const list = orders.filter(
+      (o) =>
+        (!st || o.status === st) &&
+        (!evf || o.event_id === evf) &&
+        (!q ||
+          [o.buyer_name, o.buyer_email, o.id].some((v) => v.toLowerCase().includes(q)) ||
+          (q.replace(/\D/g, '').length >= 4 && o.buyer_phone.replace(/\D/g, '').includes(q.replace(/\D/g, '')))),
+    );
+    $('[data-list]').replaceChildren(
+      ...(list.length ? list.map(card) : [h('li', 'rounded-2xl border border-dashed border-line p-8 text-center text-muted', orders.length ? 'Nenhum pedido com esses filtros.' : 'Nenhuma venda ainda.')]),
+    );
+  }
+
+  ['[data-f-status]', '[data-f-event]'].forEach((s) => $(s).addEventListener('change', render));
+  $('[data-f-q]').addEventListener('input', render);
+
+  (async () => {
+    try {
+      const data = await api.orders();
+      orders = data.orders;
+      $('[data-setup]').hidden = data.configured;
+      const events = new Map(orders.map((o) => [o.event_id, o.event_name]));
+      events.forEach((name, id) => $('[data-f-event]').append(new Option(name, id)));
+      render();
+    } catch (e) { toast((e as Error).message, 'error'); }
+    finally { $('[data-loading]').hidden = true; }
+  })();
+</script>
