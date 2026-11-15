@@ -9,6 +9,8 @@ apenas do **painel profissional** (com senha) e de registrar os pedidos feitos p
 
 **No ar:** https://venart.gustavovesss.workers.dev
 
+**Em andamento:** loja de fotos com pagamento e download automático: acompanhe em [docs/LOJA-DE-FOTOS.md](docs/LOJA-DE-FOTOS.md).
+
 Preços conforme a **Tabela 2026**. Itens a revisar e fotos a adicionar: **[PENDENCIAS.md](PENDENCIAS.md)**.
 
 ---
