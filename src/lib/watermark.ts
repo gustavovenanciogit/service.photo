@@ -1,56 +1,78 @@
 /**
- * Prévia com marca d'água e miniatura, geradas NO NAVEGADOR na hora do envio.
- * Assim o fotógrafo exporta só uma versão (a de venda) no Lightroom.
- *   - preview: lado maior 1200 px, marca d'água repetida em diagonal + número da foto
- *   - thumb:   lado maior 520 px, marca d'água mais leve
+ * PROCESSAMENTO DAS FOTOS (navegador do painel)
+ * ------------------------------------------------------------------
+ * A partir do original (que vai intacto para o armazenamento privado), gera:
+ *   - preview: lado maior = "pré-visualização reduzida" da aba Proteção (800/1200/1600 px)
+ *   - thumb:   lado maior 520 px
+ * As duas recebem a marca d'água (modelo da galeria) e o desfoque configurado DIRETO NOS PIXELS.
+ * O editor de marca d'água usa as mesmas funções (renderPreview) — o que você vê é o que é publicado.
  */
-const PREVIEW = 1200;
-const THUMB = 520;
+import { api } from './panel-api';
+import { effectiveModel, MODELS, signature, type ModelId, type ModelParams, type ProtectionSettings, type WatermarkSettings } from './watermark-models';
+import { drawPhoto, renderWatermark, type RenderAssets } from './watermark-render';
 
-function fit(w: number, h: number, max: number) {
-  const s = Math.min(1, max / Math.max(w, h));
-  return { w: Math.round(w * s), h: Math.round(h * s) };
+export const THUMB = 520;
+export const FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
+
+export interface WatermarkJob {
+  model: ModelId;
+  params: ModelParams;
+  protection: ProtectionSettings;
+  assets: RenderAssets;
+  sig: string;
 }
 
-function draw(bitmap: ImageBitmap, max: number, label: string, strength: number) {
-  const { w, h } = fit(bitmap.width, bitmap.height, max);
-  const canvas = document.createElement('canvas');
+let fontsReady: Promise<unknown> | null = null;
+export const loadFonts = () => (fontsReady ??= document.fonts.load(`800 40px ${FONT}`).catch(() => null));
+
+/** Carrega o logotipo enviado (PNG). Sem logotipo, usa o símbolo padrão da Venart. */
+export async function loadLogo(s: Pick<WatermarkSettings, 'logoVersion'>): Promise<ImageBitmap | null> {
+  if (!s.logoVersion) return null;
+  try {
+    const res = await fetch('/api/settings/watermark/logo', { credentials: 'same-origin', cache: 'no-store' });
+    return res.ok ? await createImageBitmap(await res.blob()) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Configuração efetiva para uma galeria (modelo próprio ou o padrão). */
+export async function loadWatermarkJob(eventModel: number, settings?: WatermarkSettings): Promise<WatermarkJob> {
+  const s = settings ?? (await api.watermarkSettings());
+  const [logo] = await Promise.all([loadLogo(s), loadFonts()]);
+  const model = effectiveModel(eventModel, s);
+  const params = s.models[model] ?? MODELS[model].defaults;
+  return { model, params, protection: s.protection, assets: { logo, font: FONT }, sig: signature(model, params, s.protection, s.logoVersion) };
+}
+
+export const fit = (w: number, h: number, max: number) => {
+  const k = Math.min(1, max / Math.max(w, h));
+  return { w: Math.round(w * k), h: Math.round(h * k) };
+};
+
+/** Desenha foto + proteção + marca d'água num canvas (usado no envio e no editor). */
+export function renderPreview(
+  canvas: HTMLCanvasElement,
+  img: CanvasImageSource & { width: number; height: number },
+  max: number,
+  job: Pick<WatermarkJob, 'model' | 'params' | 'protection' | 'assets'>,
+  seed: string,
+  opts: { label?: string; watermark?: boolean } = {},
+) {
+  const { w, h } = fit(img.width, img.height, max);
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d')!;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(bitmap, 0, 0, w, h);
-
-  // Marca d'água em diagonal, cobrindo a foto toda (difícil de recortar).
-  const size = Math.round(Math.max(w, h) / 11);
-  ctx.save();
-  ctx.translate(w / 2, h / 2);
-  ctx.rotate(-Math.PI / 7);
-  ctx.font = `800 ${size}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = Math.max(1, size / 28);
-  const stepX = size * 5.2;
-  const stepY = size * 2.4;
-  const span = Math.hypot(w, h);
-  for (let y = -span / 2; y <= span / 2; y += stepY) {
-    const offset = (Math.round(y / stepY) % 2) * (stepX / 2);
-    for (let x = -span / 2 - offset; x <= span / 2; x += stepX) {
-      ctx.fillStyle = `rgba(255,255,255,${0.22 * strength})`;
-      ctx.strokeStyle = `rgba(0,0,0,${0.18 * strength})`;
-      ctx.strokeText('VENART', x, y);
-      ctx.fillText('VENART', x, y);
-    }
-  }
-  ctx.restore();
-
-  // Número da foto (o cliente informa no pedido).
-  if (label) {
-    const fs = Math.round(Math.max(12, w / 40));
+  drawPhoto(ctx, img, w, h, opts.watermark === false ? { blur: 'none', blurRegion: 'all' } : job.protection);
+  if (opts.watermark !== false) renderWatermark(ctx, w, h, job.model, job.params, seed, job.assets);
+  if (opts.label) {
+    // Número da foto (o cliente informa no pedido).
+    const fs = Math.round(Math.max(12, w / 42));
     ctx.font = `700 ${fs}px system-ui, sans-serif`;
-    const text = `${label} · venart`;
+    const text = `${opts.label} · venart`;
     const tw = ctx.measureText(text).width;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, h - fs * 1.8, tw + fs * 1.4, fs * 1.8);
     ctx.fillStyle = '#fff';
     ctx.textBaseline = 'middle';
@@ -63,16 +85,22 @@ function draw(bitmap: ImageBitmap, max: number, label: string, strength: number)
 const toJpeg = (canvas: HTMLCanvasElement, quality: number) =>
   new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Falha ao gerar a prévia.'))), 'image/jpeg', quality));
 
-export async function makeVariants(file: Blob, label: string) {
-  let bitmap: ImageBitmap;
+export async function decode(file: Blob) {
   try {
-    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    return await createImageBitmap(file, { imageOrientation: 'from-image' });
   } catch {
     throw new Error('Não foi possível decodificar a foto (arquivo corrompido?).');
   }
+}
+
+/** Gera prévia e miniatura protegidas. seed = id da foto (distribuição reproduzível). */
+export async function makeVariants(file: Blob, label: string, seed: string, job: WatermarkJob) {
+  const bitmap = await decode(file);
   try {
-    const preview = await toJpeg(draw(bitmap, PREVIEW, label, 1), 0.8);
-    const thumb = await toJpeg(draw(bitmap, THUMB, '', 0.8), 0.72);
+    const canvas = document.createElement('canvas');
+    const preview = await toJpeg(renderPreview(canvas, bitmap, job.protection.maxSize, job, seed, { label }), 0.8);
+    const thumb = await toJpeg(renderPreview(canvas, bitmap, THUMB, job, seed), 0.72);
+    canvas.width = canvas.height = 0; // libera memória
     return { preview, thumb, width: bitmap.width, height: bitmap.height };
   } finally {
     bitmap.close();

@@ -20,6 +20,8 @@ import {
 } from '../src/lib/events.ts';
 import { newId } from '../src/lib/crm.ts';
 import { provider, PROVIDER_NAMES, type PaymentsEnv } from './payments.ts';
+import { getWatermarkSettings } from './settings.ts';
+import { jpegSize } from '../src/lib/jpeg.ts';
 import { imageKind } from '../src/lib/site-content.ts';
 
 export interface EventsEnv extends PaymentsEnv {
@@ -145,7 +147,7 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
     return json(await getEvent(db, id), 201);
   }
 
-  const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})(?:\/photos(?:\/(ph_[a-z0-9]{6,30})(?:\/(thumb|preview|sale|complete))?)?)?$/.exec(path);
+  const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})(?:\/photos(?:\/(ph_[a-z0-9]{6,30})(?:\/(thumb|preview|sale|complete|original))?)?)?$/.exec(path);
   if (!m) return json({ error: 'Não encontrado.' }, 404);
   const [, eventId, photoId, part] = m as unknown as [string, string, string | undefined, string | undefined];
   const event = await getEvent(db, eventId);
@@ -228,13 +230,22 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
   if (part === 'complete' && method === 'POST') {
     const missing = needBucket(env, json);
     if (missing) return missing;
-    const body = (await readJson(req)) as { width?: unknown; height?: unknown };
+    const body = (await readJson(req)) as { width?: unknown; height?: unknown; sig?: unknown };
+    const sig = typeof body.sig === 'string' && /^[a-z0-9-]{1,40}$/.test(body.sig) ? body.sig : '';
     const dim = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v > 0 && v < 30_000 ? v : 0);
     const heads = await Promise.all(PHOTO_PARTS.map((p) => env.PHOTOS!.head(photoKey(eventId, p, photoId))));
     if (heads.some((h) => !h)) return json({ error: 'Arquivos da foto incompletos. Envie de novo.' }, 409);
-    await db.prepare('UPDATE event_photos SET ready = 1, width = ?, height = ? WHERE id = ?').bind(dim(body.width), dim(body.height), photoId).run();
+    await db.prepare('UPDATE event_photos SET ready = 1, width = ?, height = ?, wm_sig = ? WHERE id = ?').bind(dim(body.width), dim(body.height), sig, photoId).run();
     await recount(db, eventId);
-    return json(toPhoto({ ...photo, ready: 1, width: dim(body.width), height: dim(body.height) }));
+    return json(toPhoto({ ...photo, ready: 1, width: dim(body.width), height: dim(body.height), wm_sig: sig }));
+  }
+
+  // Original (sem marca) só para o fotógrafo logado — usado para refazer as prévias com outra marca d'água.
+  if (part === 'original' && method === 'GET') {
+    if (!env.PHOTOS) return json({ error: 'Armazenamento não configurado.' }, 503);
+    const obj = await env.PHOTOS.get(photoKey(eventId, 'sale', photoId));
+    if (!obj) return json({ error: 'Original não encontrado.' }, 404);
+    return new Response(obj.body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex' } });
   }
 
   if (part && part !== 'complete' && method === 'PUT') {
@@ -246,6 +257,13 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
     const bytes = new Uint8Array(await req.arrayBuffer());
     if (!bytes.length || bytes.length > PART_LIMITS[p]) return json({ error: 'Arquivo vazio ou grande demais.' }, 413);
     if (imageKind(bytes) !== 'jpg') return json({ error: 'Envie fotos em JPG.' }, 415);
+    // Prévia e miniatura públicas: o servidor confere o tamanho (proteção "pré-visualização reduzida").
+    if (p !== 'sale') {
+      const dims = jpegSize(bytes);
+      const max = p === 'thumb' ? 640 : (await getWatermarkSettings(db)).protection.maxSize;
+      if (!dims) return json({ error: 'Prévia inválida.' }, 415);
+      if (Math.max(dims.width, dims.height) > max + 2) return json({ error: `Prévia maior que o permitido (${max} px). Recarregue a página e envie de novo.` }, 422);
+    }
     await env.PHOTOS!.put(photoKey(eventId, p, photoId), bytes, {
       httpMetadata: { contentType: 'image/jpeg' },
       customMetadata: p === 'sale' ? { original: photo.file_name } : {},
@@ -262,13 +280,13 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
   const published_at = before?.published_at || (e.status === 'publicado' ? t : '');
   const values = [
     e.slug, e.name, e.date, e.location, e.category, e.description, e.cover_photo_id,
-    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, published_at, t,
+    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, published_at, e.watermark_model, t,
   ];
   if (before) {
     await db
       .prepare(
         `UPDATE events SET slug=?, name=?, date=?, location=?, category=?, description=?, cover_photo_id=?, price_single=?, price_pack=?,
-         sale_days=?, download_days=?, status=?, listed=?, published_at=?, updated_at=? WHERE id=?`,
+         sale_days=?, download_days=?, status=?, listed=?, published_at=?, watermark_model=?, updated_at=? WHERE id=?`,
       )
       .bind(...values, id)
       .run();
@@ -276,7 +294,7 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
     await db
       .prepare(
         `INSERT INTO events (slug, name, date, location, category, description, cover_photo_id, price_single, price_pack,
-         sale_days, download_days, status, listed, published_at, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         sale_days, download_days, status, listed, published_at, watermark_model, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(...values, id, t)
       .run();

@@ -26,6 +26,7 @@ import { buildInfiniteLink, checkInfinite, infiniteMethod, linkUrl, parseInfinit
 import { store } from '../src/config/store.ts';
 import { getBySlug, type EventsEnv } from './events.ts';
 import { ipHandle, provider, type Provider } from './payments.ts';
+import { allowLead } from './db.ts';
 
 export type OrdersEnv = EventsEnv;
 
@@ -313,6 +314,10 @@ export async function serveDownload(env: OrdersEnv, path: string) {
   if (!item) return notFound();
   const o = toOrder(row);
   if (kind === 'full' && !canDownload(o)) return new Response('Download indisponível para este pedido.', { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  // Limite contra abuso: até 5 downloads por foto (+30) a cada 24 h por pedido.
+  if (kind === 'full' && !(await allowLead(env.DB, `dl:${row.id}`, 30 + row.photo_count * 5, 86_400_000))) {
+    return new Response('Muitos downloads deste pedido hoje. Tente amanhã ou fale com o fotógrafo.', { status: 429, headers: { 'Cache-Control': 'no-store' } });
+  }
   const obj = await env.PHOTOS.get(photoKey(row.event_id, kind === 'full' ? 'sale' : 'thumb', photoId));
   if (!obj) return notFound();
   const headers: Record<string, string> = {

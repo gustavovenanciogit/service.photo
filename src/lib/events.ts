@@ -39,6 +39,7 @@ export interface EventRecord {
   download_days: number;
   status: EventStatus;
   listed: boolean; // aparecer no site público (Fase 4)
+  watermark_model: number; // 0 = modelo padrão; 1–8 = modelo próprio desta galeria
   photo_count: number;
   published_at: string; // ISO
   purged_at: string; // quando os arquivos foram apagados automaticamente (vazio = ainda guardados)
@@ -54,11 +55,12 @@ export interface EventPhoto {
   width: number;
   height: number;
   ready: boolean;
+  wm_sig: string; // assinatura da marca d'água aplicada (para saber se precisa refazer)
 }
 
 export type EventInput = Pick<
   EventRecord,
-  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'cover_photo_id'
+  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'cover_photo_id' | 'watermark_model'
 > & { slug: string };
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -100,6 +102,7 @@ export function parseEvent(input: unknown): Result<EventInput> {
       download_days: Math.round(num(o.download_days, 1, 365, EVENT_DEFAULTS.download_days)),
       status,
       listed: o.listed === true,
+      watermark_model: [1, 2, 3, 4, 5, 6, 7, 8].includes(Number(o.watermark_model)) ? Number(o.watermark_model) : 0,
     },
   };
 }
