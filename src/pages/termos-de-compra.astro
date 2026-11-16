@@ -14,7 +14,7 @@ const updated = '15/11/2026';
 const wa = whatsappLink(site.whatsappNumber, 'Olá! Tenho uma dúvida sobre a compra de fotos.');
 const instagram = site.instagramUser ? `@${site.instagramUser}` : 'o fotógrafo';
 const { seller } = store;
-const sellerLine = [seller.legalName, seller.cnpj && `CNPJ ${seller.cnpj}`, seller.address].filter(Boolean).join(' · ');
+const sellerLine = [seller.legalName && `razão social ${seller.legalName}`, seller.cnpj && `CNPJ ${seller.cnpj}`, seller.address].filter(Boolean).join(' · ');
 ---
 
 <BaseLayout title="Termos de compra" description={`Condições da compra de fotos digitais — ${site.name}.`} waMessage={messages.general()}>
@@ -28,14 +28,15 @@ const sellerLine = [seller.legalName, seller.cnpj && `CNPJ ${seller.cnpj}`, sell
           Estes termos valem para a compra de fotos digitais nas galerias de eventos deste site. Ao finalizar uma compra, você declara que leu e aceita
           estas condições.
         </p>
-        {showPendingNotices && !seller.cnpj && (
-          <p class="badge-pending mt-4 inline-block">Pendente: preencher razão social, CNPJ e endereço em src/config/store.ts (seller) e revisar com contador/advogado.</p>
+        {showPendingNotices && (!seller.cnpj || !seller.address) && (
+          <p class="badge-pending mt-4 inline-block">Pendente: endereço do vendedor em src/config/store.ts (seller) e revisão com contador/advogado.</p>
         )}
       </header>
 
       <section class="space-y-3">
         <h2>1. Quem vende</h2>
-        <p>{site.name}, fotógrafo em {site.city}/{site.stateCode}.{sellerLine && <> {sellerLine}.</>}</p>
+        <p><strong>{site.name}</strong>, fotógrafo em {site.city}/{site.stateCode}.</p>
+        {sellerLine && <p class="text-sm text-muted">Dados do vendedor: {sellerLine}.</p>}
         <p>Atendimento pelo WhatsApp {site.whatsappDisplay}.</p>
       </section>
 

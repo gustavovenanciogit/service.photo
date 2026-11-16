@@ -20,9 +20,9 @@ export const store = {
    * Preencha quando o CNPJ do MEI estiver ativo. Enquanto vazio, a linha não aparece.
    */
   seller: {
-    legalName: '', // razão social do MEI (ex.: "GUSTAVO VENANCIO SALES DE SOUZA 000000000")
-    cnpj: '', // ex.: "00.000.000/0001-00"
-    address: '', // endereço (pode ser o do cadastro do MEI)
+    legalName: 'GUSTAVO VENANCIO SALES DE SOUZA', // razão social do MEI (como aparece no CNPJ)
+    cnpj: '68.729.010/0001-04',
+    address: '', // endereço (pendente: o do cadastro do MEI ou um comercial)
   },
   /** Nome que aparece na fatura do cartão. */
   statementDescriptor: 'VENART',
