@@ -19,14 +19,13 @@ import {
   type EventInput, type EventPhoto, type EventRecord, type PhotoPart,
 } from '../src/lib/events.ts';
 import { newId } from '../src/lib/crm.ts';
+import { provider, PROVIDER_NAMES, type PaymentsEnv } from './payments.ts';
 import { imageKind } from '../src/lib/site-content.ts';
 
-export interface EventsEnv {
+export interface EventsEnv extends PaymentsEnv {
   DB: D1Database;
   PHOTOS?: R2Bucket;
   ASSETS: Fetcher;
-  /** Com o token do Mercado Pago, a galeria vende online; sem ele, o pedido vai pelo WhatsApp. */
-  MP_ACCESS_TOKEN?: string;
 }
 
 /** Fotos compradas com download ainda válido não podem ser apagadas. */
@@ -237,8 +236,9 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
 // ───────── Público ─────────
 
 /** Dados que o público pode ver (sem datas internas). */
-const publicEvent = (e: EventRecord, state: string, checkout: boolean) => ({
-  checkout,
+const publicEvent = (e: EventRecord, state: string, env: PaymentsEnv) => ({
+  checkout: !!provider(env),
+  payment_name: provider(env) ? PROVIDER_NAMES[provider(env)!] : '',
   id: e.id,
   slug: e.slug,
   name: e.name,
@@ -258,7 +258,7 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
   const state = e ? publicState(e) : 'oculto';
   if (!e || (state === 'oculto' && !admin)) return json({ error: 'Evento não encontrado.' }, 404);
   const cache: Record<string, string> = state === 'aberto' && !admin ? { 'Cache-Control': 'public, max-age=60' } : {};
-  if (state === 'encerrado' && !admin) return json({ event: publicEvent(e, state, !!env.MP_ACCESS_TOKEN), photos: [], next: null }, 200, cache);
+  if (state === 'encerrado' && !admin) return json({ event: publicEvent(e, state, env), photos: [], next: null }, 200, cache);
   const after = Math.max(0, Number.parseInt(url.searchParams.get('after') ?? '0', 10) || 0);
   const rows = (
     await env.DB
@@ -268,7 +268,7 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
   ).results;
   const more = rows.length > PAGE;
   const photos = rows.slice(0, PAGE).map((r) => ({ id: r.id, n: r.seq, w: r.width, h: r.height }));
-  return json({ event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, !!env.MP_ACCESS_TOKEN), photos, next: more ? photos.at(-1)!.n : null }, 200, cache);
+  return json({ event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, env), photos, next: more ? photos.at(-1)!.n : null }, 200, cache);
 }
 
 /** /f/:eventId/:photoId/(thumb|preview).jpg — só de eventos publicados (ou para o fotógrafo logado). */

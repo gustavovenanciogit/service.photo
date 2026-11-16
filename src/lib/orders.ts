@@ -35,6 +35,7 @@ export interface Order {
   paid_at: string;
   download_until: string;
   terms_version: string;
+  provider: 'infinitepay' | 'mercadopago';
   notes: string;
   created_at: string;
   updated_at: string;

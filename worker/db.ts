@@ -162,6 +162,8 @@ const MIGRATIONS = [
   `ALTER TABLE clients ADD COLUMN hook TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE clients ADD COLUMN outreach_step INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE clients ADD COLUMN last_contact TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE orders ADD COLUMN provider TEXT NOT NULL DEFAULT 'mercadopago'`,
+  `ALTER TABLE orders ADD COLUMN payment_ref TEXT NOT NULL DEFAULT ''`,
 ];
 
 async function migrate(db: D1Database) {

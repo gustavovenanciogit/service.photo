@@ -94,7 +94,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         <p data-co-error role="alert" class="text-sm text-red-300" hidden></p>
         <button class="btn btn-primary min-h-12 w-full">Ir para o pagamento</button>
         <p class="text-center text-xs text-muted">
-          Pix ou cartão, na página segura do Mercado Pago. Depois do pagamento, você volta para cá e baixa as fotos em alta resolução.
+          Pix ou cartão, na página segura de pagamento<span data-pay-name></span>. Depois do pagamento, você volta para cá e baixa as fotos em alta resolução.
         </p>
         <p class="text-center text-xs text-muted">Prefere falar comigo? <a data-buy-wa target="_blank" rel="noopener noreferrer" class="underline hover:text-ink">Pedir pelo WhatsApp</a></p>
       </form>
@@ -128,7 +128,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   type Photo = { id: string; n: number; w: number; h: number };
   type PublicEvent = {
     id: string; slug: string; name: string; date: string; location: string; description: string;
-    price_single: number; price_pack: number; photo_count: number; sale_ends_at: string; state: string; checkout: boolean;
+    price_single: number; price_pack: number; photo_count: number; sale_ends_at: string; state: string; checkout: boolean; payment_name: string;
   };
 
   const root = document.querySelector<HTMLElement>('[data-gallery]')!;
@@ -275,7 +275,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     root.querySelectorAll<HTMLElement>('[data-grid] li').forEach(paintTile);
   });
 
-  // ── Compra (Mercado Pago) ──
+  // ── Compra (InfinitePay ou Mercado Pago) ──
   const co = $<HTMLDialogElement>('[data-checkout]');
   const coForm = $<HTMLFormElement>('[data-checkout-form]');
   const BUYER_KEY = 'venart-comprador';
@@ -289,6 +289,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         if (!input.value && typeof saved[k] === 'string') input.value = saved[k]!;
       }
     } catch { /* sem armazenamento */ }
+    $('[data-pay-name]').textContent = ev.payment_name ? ` ${ev.payment_name === 'InfinitePay' ? 'da' : 'do'} ${ev.payment_name}` : '';
     $('[data-co-error]').hidden = true;
     co.showModal();
   });
