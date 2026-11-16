@@ -32,8 +32,10 @@
       "bucket_name": "venart-fotos"
     }
   ],
-  // Venda online (Mercado Pago): segredos MP_ACCESS_TOKEN e MP_WEBHOOK_SECRET, definidos no painel da Cloudflare.
-  // Sem eles, a galeria continua com o pedido pelo WhatsApp.
+  // Venda online — segredos definidos no painel da Cloudflare (tipo "Secret", para não serem apagados no deploy):
+  //   InfinitePay:  INFINITEPAY_HANDLE (seu @, sem o @) e, opcional, INFINITEPAY_API_KEY
+  //   Mercado Pago: MP_ACCESS_TOKEN e MP_WEBHOOK_SECRET
+  // Com os dois, usa a InfinitePay (ou o que estiver em PAYMENT_PROVIDER). Sem nenhum, pedido pelo WhatsApp.
   // Repositório onde o painel grava as edições de preços e fotos.
   // O token fica no segredo GITHUB_TOKEN (definido no painel da Cloudflare).
   "vars": {

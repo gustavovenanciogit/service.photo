@@ -17,7 +17,7 @@ import {
 import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
 import { eventsApi, publicEventApi, serveEventPage, servePhoto } from './events.ts';
-import { createOrder, MpError, orderStatus, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
+import { createOrder, MpError, orderStatus, ordersAdminApi, serveDownload, serveOrderPage, webhook, webhookInfinite, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
 interface Env extends AuthEnv, GitHubEnv, OrdersEnv {
@@ -74,6 +74,10 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (path === '/api/webhooks/mercadopago' && method === 'POST') {
     await db.ensureSchema(env.DB);
     return webhook(req, env, url, json);
+  }
+  if (path === '/api/webhooks/infinitepay' && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    return webhookInfinite(req, env, json);
   }
 
   // Proteção contra requisições de outros sites (além do cookie SameSite=Strict).

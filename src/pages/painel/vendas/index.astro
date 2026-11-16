@@ -10,12 +10,12 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
 <PanelLayout title="Vendas">
   <p class="eyebrow">Loja de fotos</p>
   <h1 class="mt-1 text-5xl font-extrabold">Vendas</h1>
-  <p class="mt-2 max-w-2xl text-muted">Pedidos feitos nas galerias. O download é liberado sozinho quando o Mercado Pago confirma o pagamento.</p>
+  <p class="mt-2 max-w-2xl text-muted">Pedidos feitos nas galerias. O download é liberado sozinho quando o pagamento é confirmado (InfinitePay ou Mercado Pago).</p>
 
   <div data-setup hidden class="card mt-6 border-amber-300/50 p-5">
     <p class="font-semibold text-amber-200">Venda online ainda desativada</p>
     <p class="mt-1 text-sm text-muted">
-      Falta colocar as credenciais do Mercado Pago na Cloudflare (segredos <code>MP_ACCESS_TOKEN</code> e <code>MP_WEBHOOK_SECRET</code>).
+      Falta configurar o meio de pagamento na Cloudflare: InfinitePay (<code>INFINITEPAY_HANDLE</code>) ou Mercado Pago (<code>MP_ACCESS_TOKEN</code> e <code>MP_WEBHOOK_SECRET</code>).
       Enquanto isso, as galerias continuam com o pedido pelo WhatsApp. O passo a passo está no checklist da loja (itens 0.10, 0.11 e 2.8).
     </p>
   </div>
@@ -50,7 +50,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     expirado: 'bg-white/10 text-muted',
     reembolsado: 'bg-white/10 text-muted',
   };
-  const methods: Record<string, string> = { bank_transfer: 'Pix', credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', ticket: 'Boleto', account_money: 'Saldo Mercado Pago', manual: 'Liberado manualmente' };
+  const methods: Record<string, string> = { bank_transfer: 'Pix', pix: 'Pix', credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', ticket: 'Boleto', account_money: 'Saldo Mercado Pago', manual: 'Liberado manualmente' };
   const dt = (iso: string) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Manaus', dateStyle: 'short', timeStyle: 'short' }) : '');
   const linkOf = (o: Order) => `${location.origin}/pedido/${o.token}`;
 
@@ -84,6 +84,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     li.append(top);
 
     const info: string[] = [];
+    info.push(o.provider === 'infinitepay' ? 'InfinitePay' : 'Mercado Pago');
     if (o.payment_method) info.push(methods[o.payment_method] ?? o.payment_method);
     if (o.paid_at) info.push(`pago em ${dt(o.paid_at)}`);
     if (o.download_until) info.push(`download até ${dt(o.download_until).slice(0, 10)}`);
@@ -104,11 +105,11 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
       }));
     } else {
       if (['pendente', 'recusado', 'expirado', 'divergente'].includes(o.status) && o.payment_method !== 'manual') {
-        actions.append(button('Conferir pagamento', 'btn-outline', () => act(o, { action: 'sync' }, 'Conferido no Mercado Pago.')));
+        actions.append(button('Conferir pagamento', 'btn-outline', () => act(o, { action: 'sync' }, 'Pagamento conferido.')));
       }
       if (o.status !== 'reembolsado') {
         actions.append(button('Liberar (pago por fora)', 'btn-outline', () => {
-          if (confirm(`Liberar o download de ${o.buyer_name} sem pagamento pelo Mercado Pago? Use só se recebeu por outro meio.`)) act(o, { action: 'release' }, 'Download liberado.');
+          if (confirm(`Liberar o download de ${o.buyer_name} sem pagamento pelo site? Use só se recebeu por outro meio.`)) act(o, { action: 'release' }, 'Download liberado.');
         }));
       }
       const wa = h('a', 'btn btn-outline min-h-9 px-3 text-xs', 'Chamar no WhatsApp') as HTMLAnchorElement;

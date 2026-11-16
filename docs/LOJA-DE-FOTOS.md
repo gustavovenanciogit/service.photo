@@ -117,6 +117,8 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [x] **2.10 🤖 Reenvio do acesso:** o comprador pede pelo WhatsApp; no painel **Vendas** há "Enviar link pelo WhatsApp" com a mensagem pronta. (O link também fica salvo no aparelho de quem comprou.)
 - [x] **2.11 🤖 Mensagem pronta** de WhatsApp com o link do pedido e o prazo de download.
 - [x] **2.12 🤖 Testes** com um simulador do Mercado Pago: Pix pendente → pago, cartão aprovado, recusado → nova tentativa aprovada, valor divergente, reembolso, assinatura falsa (recusada), download sem pagar (bloqueado), link inventado, foto inexistente, outra origem, ZIP idêntico ao original.
+- [x] **2.8b 👤 Teste no modo teste do Mercado Pago (conta PF):** compra com cartão `APRO` aprovada e download liberado em 15/11/2026.
+- [ ] **2.14 🤖👤 InfinitePay (conta PJ já ativa):** integração do Checkout Integrado pronta (link de pagamento, aviso + conferência no `payment_check`, valor conferido, transação única). Falta: ativar o Checkout Integrado no app, salvar `INFINITEPAY_HANDLE` (e `INFINITEPAY_API_KEY`, se houver) como segredos e fazer **uma compra real de R$ 12,90 por Pix** (não há modo teste). Reembolso: manual no app + "Bloquear download" no painel.
 - [ ] **2.13 👤🤖 Teste no ambiente de testes do Mercado Pago** (com as credenciais de teste e os cartões de teste deles) depois de 2.8.
 - [x] **Extra 🤖 Painel → Loja → Vendas:** lista com filtros e busca, resumo do mês, conferir pagamento, liberar manualmente (pagou por fora), bloquear download, +30 dias, anotações.
 - [x] **Extra 🤖 Segurança:** evento/foto com download ainda válido não pode ser excluído; o link do pedido não é repassado a outros sites.
@@ -212,5 +214,6 @@ Confirme sempre as taxas vigentes no painel de cada empresa.
 | 15/11/2026 | Uma exportação só do Lightroom (~3000 px); o painel gera prévia e miniatura com marca d'água | Claude (sugestão) |
 | 15/11/2026 | Até o pagamento automático (Fase 2), a galeria envia o pedido pelo WhatsApp com os números das fotos | Claude (sugestão) |
 | 15/11/2026 | Termos: uso pessoal + redes (comercial só com licença); crédito @venart_mid pedido, não obrigatório; arrependimento em 7 dias com reembolso total; reenvio gratuito após o prazo enquanto os arquivos existirem; portfólio com remoção a pedido; ajustes extras não incluídos; arquivos apagados após venda + download | Gustavo |
+| 16/11/2026 | Adicionada a InfinitePay (conta PJ já ativa) como meio de pagamento principal; Mercado Pago fica como alternativa | Gustavo |
 | 15/11/2026 | Gateway: Mercado Pago (Checkout Pro), cartão só à vista até decidir 0.3 | Gustavo ("vamos para a próxima fase") |
 | | | |

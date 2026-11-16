@@ -74,14 +74,14 @@ import { messages } from '@/lib/whatsapp';
   const root = document.querySelector<HTMLElement>('[data-order-page]')!;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   const token = location.pathname.split('/')[2] ?? '';
-  const paymentId = new URLSearchParams(location.search).get('payment_id') ?? '';
   let order: OrderView;
   let polls = 0;
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Manaus' });
   const help = (text: string) => whatsappLink(root.dataset.number!, text);
 
   async function load(withPayment = false) {
-    const q = withPayment && /^\d+$/.test(paymentId) ? `?payment_id=${paymentId}` : '';
+    // Na volta do pagamento, repassa os dados da transação (o servidor confere tudo no meio de pagamento).
+    const q = withPayment ? location.search : '';
     const res = await fetch(`/api/public/orders/${encodeURIComponent(token)}${q}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(String(res.status));
     order = (await res.json()) as OrderView;
