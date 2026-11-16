@@ -13,6 +13,7 @@ export const ORDER_STATUSES = [
   { id: 'expirado', label: 'Expirado' },
   { id: 'reembolsado', label: 'Reembolsado' },
   { id: 'divergente', label: 'Conferir (valor diferente)' },
+  { id: 'teste', label: 'Teste (não conta)' },
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number]['id'];
 
@@ -126,7 +127,7 @@ export function checkPayment(order: Pick<Order, 'id' | 'total'>, p: MpPayment): 
  * aprovado > reembolsado > pendente > recusado; empate: o mais recente.
  */
 export function pickPayment(payments: (MpPayment & { date_created?: string })[]) {
-  const rank: Record<OrderStatus, number> = { pago: 5, divergente: 4, reembolsado: 3, pendente: 2, recusado: 1, expirado: 0 };
+  const rank: Record<OrderStatus, number> = { pago: 5, divergente: 4, reembolsado: 3, pendente: 2, recusado: 1, expirado: 0, teste: 0 };
   return [...payments].sort(
     (a, b) => rank[mapPaymentStatus(b.status)] - rank[mapPaymentStatus(a.status)] || String(b.date_created ?? '').localeCompare(String(a.date_created ?? '')),
   )[0];

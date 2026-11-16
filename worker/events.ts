@@ -15,7 +15,7 @@
  *   GET /e/:slug                                 → página da galeria (com título e capa para compartilhar)
  */
 import {
-  parseEvent, photoKey, PHOTO_PARTS, publicState, saleEndsAt,
+  parseEvent, photoKey, PHOTO_PARTS, publicState, purgeAfter, saleEndsAt,
   type EventInput, type EventPhoto, type EventRecord, type PhotoPart,
 } from '../src/lib/events.ts';
 import { newId } from '../src/lib/crm.ts';
@@ -58,14 +58,49 @@ const recount = (db: D1Database, eventId: string) =>
     .bind(eventId, now())
     .run();
 
-/** Apaga todos os arquivos com um prefixo (em lotes de até 1000). */
-async function purgePrefix(bucket: R2Bucket, prefix: string) {
-  let cursor: string | undefined;
-  do {
-    const page = await bucket.list({ prefix, cursor, limit: 1000 });
-    if (page.objects.length) await bucket.delete(page.objects.map((o) => o.key));
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
+/**
+ * Apaga todos os arquivos com um prefixo (em lotes de até 1000).
+ * maxPages limita o trabalho por execução; devolve true quando não sobrou nada.
+ */
+async function purgePrefix(bucket: R2Bucket, prefix: string, maxPages = Infinity) {
+  for (let i = 0; i < maxPages; i++) {
+    // Sempre a primeira página: o que foi apagado some da listagem.
+    const page = await bucket.list({ prefix, limit: 1000 });
+    if (!page.objects.length) return true;
+    await bucket.delete(page.objects.map((o) => o.key));
+    if (!page.truncated) return true;
+  }
+  return false;
+}
+
+/**
+ * LIMPEZA AUTOMÁTICA (roda 1×/dia): apaga os arquivos dos eventos cujo prazo terminou
+ * (publicação + prazo de venda + prazo de download), como dizem os Termos de compra.
+ * Nunca apaga se algum comprador ainda tem download válido (ex.: prazo estendido no painel).
+ * Os dados do evento e dos pedidos ficam (relatórios); só as fotos saem.
+ */
+export async function purgeExpired(env: EventsEnv, now = new Date()) {
+  if (!env.PHOTOS) return [];
+  const db = env.DB;
+  const rows = (await db.prepare("SELECT * FROM events WHERE published_at != '' AND purged_at = ''").all<EventRow>()).results;
+  const done: string[] = [];
+  for (const e of rows.map((r) => toEvent(r)!)) {
+    const after = purgeAfter(e);
+    if (!after || Date.parse(after) > now.getTime()) continue;
+    if (await db.prepare(`${ACTIVE_SALES} AND o.event_id = ? LIMIT 1`).bind(now.toISOString(), e.id).first()) continue;
+    // Até 20 lotes por dia (limite de chamadas do plano gratuito); o resto continua no dia seguinte.
+    const finished = await purgePrefix(env.PHOTOS, `events/${e.id}/`, 20);
+    if (!finished) break;
+    const t = now.toISOString();
+    await db.batch([
+      db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(e.id),
+      db.prepare("UPDATE events SET purged_at = ?, photo_count = 0, cover_photo_id = '', status = 'encerrado', updated_at = ? WHERE id = ?").bind(t, t, e.id),
+    ]);
+    console.log('Limpeza: arquivos apagados do evento', e.id, e.name);
+    done.push(e.id);
+    break; // um evento por execução
+  }
+  return done;
 }
 
 const needBucket = (env: EventsEnv, json: Json) =>
@@ -93,6 +128,21 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
       await insertOrUpdate(db, id, { ...e, slug }, null);
       return json(await getEvent(db, id), 201);
     }
+  }
+
+  // Duplicar (ex.: treino semanal): mesmos dados e preços, sem fotos, como rascunho.
+  const dup = /^\/api\/events\/(evt_[a-z0-9]{6,30})\/duplicate$/.exec(path);
+  if (dup && method === 'POST') {
+    const src = await getEvent(db, dup[1]!);
+    if (!src) return json({ error: 'Evento não encontrado.' }, 404);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Manaus' }).format(new Date());
+    const parsed = parseEvent({ ...src, name: `${src.name} (cópia)`.slice(0, 120), date: today, slug: '', status: 'rascunho', cover_photo_id: '' });
+    if (!parsed.ok) return json({ error: parsed.error }, 400);
+    let slug = parsed.value.slug;
+    for (let i = 2; await slugTaken(db, slug); i++) slug = `${parsed.value.slug.slice(0, 56)}-${i}`;
+    const id = newId('evt');
+    await insertOrUpdate(db, id, { ...parsed.value, slug }, null);
+    return json(await getEvent(db, id), 201);
   }
 
   const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})(?:\/photos(?:\/(ph_[a-z0-9]{6,30})(?:\/(thumb|preview|sale|complete))?)?)?$/.exec(path);

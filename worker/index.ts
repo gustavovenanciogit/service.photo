@@ -16,7 +16,7 @@ import {
 } from './auth.ts';
 import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
-import { eventsApi, publicEventApi, serveEventPage, servePhoto } from './events.ts';
+import { eventsApi, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
 import { createOrder, MpError, orderStatus, ordersAdminApi, serveDownload, serveOrderPage, webhook, webhookInfinite, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
@@ -278,6 +278,26 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   }
 
   if (path.startsWith('/api/site/')) return siteApi(req, env, path, method);
+  // Faturamento lançado à mão (limite do MEI)
+  if (path === '/api/revenue') {
+    if (method === 'GET') return json((await env.DB.prepare('SELECT * FROM revenue_entries ORDER BY month DESC, created_at DESC LIMIT 2000').all()).results);
+    if (method === 'POST') {
+      const b = (await readJson(req)) as { month?: unknown; amount?: unknown; description?: unknown };
+      const month = typeof b.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(b.month) ? b.month : '';
+      const amount = typeof b.amount === 'number' ? Math.round(b.amount * 100) / 100 : NaN;
+      if (!month) return json({ error: 'Informe o mês.' }, 400);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) return json({ error: 'Informe um valor válido.' }, 400);
+      const row = { id: newId('fat'), month, amount, description: typeof b.description === 'string' ? b.description.trim().slice(0, 200) : '', created_at: new Date().toISOString() };
+      await env.DB.prepare('INSERT INTO revenue_entries (id, month, amount, description, created_at) VALUES (?,?,?,?,?)').bind(row.id, row.month, row.amount, row.description, row.created_at).run();
+      return json(row, 201);
+    }
+  }
+  const revMatch = /^\/api\/revenue\/(fat_[a-z0-9]{6,30})$/.exec(path);
+  if (revMatch && method === 'DELETE') {
+    const r = await env.DB.prepare('DELETE FROM revenue_entries WHERE id = ?').bind(revMatch[1]!).run();
+    return r.meta.changes ? json({ ok: true }) : json({ error: 'Lançamento não encontrado.' }, 404);
+  }
+
   if (path === '/api/orders' || path.startsWith('/api/orders/')) return ordersAdminApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/events' || path.startsWith('/api/events/')) return eventsApi(req, env, path, json, (r) => readJson(r));
 
@@ -414,5 +434,15 @@ export default {
       console.error(e);
       return json({ error: 'Erro interno. Tente novamente.' }, 500);
     }
+  },
+
+  // Tarefa diária: limpeza automática dos arquivos de eventos com prazo encerrado.
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      (async () => {
+        await db.ensureSchema(env.DB);
+        await purgeExpired(env);
+      })().catch((e) => console.error('Limpeza falhou', e)),
+    );
   },
 } satisfies ExportedHandler<Env>;

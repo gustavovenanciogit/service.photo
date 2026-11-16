@@ -125,7 +125,10 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
       </label>
 
       <div class="flex flex-wrap justify-between gap-3 border-t border-line pt-5">
-        <button type="button" data-delete class="btn min-h-11 px-4 text-sm text-red-300 hover:bg-red-500/10">Excluir evento</button>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" data-delete class="btn min-h-11 px-4 text-sm text-red-300 hover:bg-red-500/10">Excluir evento</button>
+          <button type="button" data-duplicate class="btn btn-outline min-h-11 px-4 text-sm">Duplicar evento</button>
+        </div>
         <button class="btn btn-primary min-h-11 px-6">Salvar dados</button>
       </div>
     </form>
@@ -162,7 +165,9 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     s.textContent = st === 'aberto' ? 'Publicado' : st === 'encerrado' ? 'Encerrado' : 'Rascunho (só você vê)';
     s.className = `rounded-full px-2.5 py-1 text-xs font-semibold ${st === 'aberto' ? 'bg-brand/20 text-brand' : st === 'encerrado' ? 'bg-white/10 text-muted' : 'bg-amber-400/15 text-amber-200'}`;
     const ready = photos.filter((p) => p.ready).length;
-    $('[data-count]').textContent = `${ready} foto${ready === 1 ? '' : 's'} na galeria${ev.published_at && st === 'aberto' ? ` · venda até ${formatDateBR(saleEndsAt(ev).slice(0, 10))}` : ''}`;
+    if (ev.purged_at) {
+      $('[data-count]').textContent = `Fotos apagadas automaticamente em ${formatDateBR(ev.purged_at.slice(0, 10))} (fim do prazo de download). Os pedidos continuam nos relatórios.`;
+    } else $('[data-count]').textContent = `${ready} foto${ready === 1 ? '' : 's'} na galeria${ev.published_at && st === 'aberto' ? ` · venda até ${formatDateBR(saleEndsAt(ev).slice(0, 10))}` : ''}`;
     document.title = `${ev.name} · Painel`;
 
     const actions = $('[data-status-actions]');
@@ -232,6 +237,14 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     const d = Object.fromEntries(new FormData(form)) as Record<string, string>;
     if (d.slug !== ev.slug && ev.published_at && !confirm('Mudar o endereço faz o link já divulgado parar de funcionar. Continuar?')) return;
     await save({ ...ev, ...d, listed: d.listed === 'on' } as unknown as Partial<EventRecord>);
+  });
+
+  $('[data-duplicate]').addEventListener('click', async () => {
+    if (!confirm('Criar um novo evento com os mesmos dados, preços e prazos (sem as fotos)?')) return;
+    try {
+      const copy = await api.duplicateEvent(id);
+      location.href = `/painel/eventos/editar/?id=${encodeURIComponent(copy.id)}`;
+    } catch (e) { toast((e as Error).message, 'error'); }
   });
 
   $('[data-delete]').addEventListener('click', async () => {

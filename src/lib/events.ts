@@ -41,6 +41,7 @@ export interface EventRecord {
   listed: boolean; // aparecer no site público (Fase 4)
   photo_count: number;
   published_at: string; // ISO
+  purged_at: string; // quando os arquivos foram apagados automaticamente (vazio = ainda guardados)
   created_at: string;
   updated_at: string;
 }

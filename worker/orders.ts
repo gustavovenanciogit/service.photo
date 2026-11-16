@@ -344,7 +344,7 @@ export async function serveOrderPage(req: Request, env: OrdersEnv, url: URL) {
 export async function ordersAdminApi(req: Request, env: OrdersEnv, path: string, json: Json, readJson: (r: Request) => Promise<unknown>) {
   const db = env.DB;
   if (path === '/api/orders' && req.method === 'GET') {
-    const rows = (await db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 1000').all<OrderRow>()).results;
+    const rows = (await db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 5000').all<OrderRow>()).results;
     const prov = provider(env);
     return json({ configured: !!prov, provider: prov ?? '', orders: rows.map(({ checked_at: _c, preference_id: _p, payment_ref: _r, ...r }) => toOrder(r as OrderRow)) });
   }
@@ -375,6 +375,9 @@ export async function ordersAdminApi(req: Request, env: OrdersEnv, path: string,
   } else if (body.action === 'block') {
     // Reembolso feito fora do sistema: bloqueia o download.
     await db.prepare("UPDATE orders SET status='reembolsado', updated_at=? WHERE id=?").bind(t, row.id).run();
+  } else if (body.action === 'test') {
+    // Pedido de teste: sai dos relatórios e do total do mês (e não baixa mais).
+    await db.prepare("UPDATE orders SET status='teste', updated_at=? WHERE id=?").bind(t, row.id).run();
   } else if (body.action === 'extend') {
     // Mais 30 dias de download (ex.: comprador perdeu o prazo).
     if (row.status !== 'pago') return json({ error: 'Só pedidos pagos.' }, 409);

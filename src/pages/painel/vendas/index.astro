@@ -49,6 +49,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     recusado: 'bg-white/10 text-muted',
     expirado: 'bg-white/10 text-muted',
     reembolsado: 'bg-white/10 text-muted',
+    teste: 'bg-white/5 text-muted/70',
   };
   const methods: Record<string, string> = { bank_transfer: 'Pix', pix: 'Pix', credit_card: 'Cartão de crédito', debit_card: 'Cartão de débito', ticket: 'Boleto', account_money: 'Saldo Mercado Pago', manual: 'Liberado manualmente' };
   const dt = (iso: string) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Manaus', dateStyle: 'short', timeStyle: 'short' }) : '');
@@ -117,6 +118,11 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
       wa.target = '_blank';
       wa.rel = 'noopener noreferrer';
       actions.append(wa);
+    }
+    if (o.status !== 'teste') {
+      actions.append(button('Marcar como teste', 'btn-outline', () => {
+        if (confirm('Marcar como pedido de teste? Ele sai do total do mês e dos relatórios, e o download é desativado.')) act(o, { action: 'test' }, 'Marcado como teste.');
+      }));
     }
     actions.append(button(o.notes ? 'Anotação ✎' : 'Anotar', 'btn-outline', () => {
       const n = prompt('Anotação deste pedido:', o.notes);
