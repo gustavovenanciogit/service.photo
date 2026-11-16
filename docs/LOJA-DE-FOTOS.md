@@ -129,15 +129,16 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 
 ## Fase 3 — Pós-venda e gestão
 
-- [x] **3.1 🤖 Painel → Vendas:** lista de pedidos (status, valor, fotos, comprador), busca e filtros. *(adiantado na Fase 2)*
-- [x] **3.2 🤖 Ações:** reenviar link, liberar manualmente (ex.: pagou por fora), registrar reembolso. *(adiantado na Fase 2)*
-- [ ] **3.3 🤖 Relatórios:** vendas por galeria e por mês, ticket médio, Pix × cartão, taxas pagas, valor líquido.
-- [ ] **3.4 🤖 Alerta do limite do MEI:** soma o faturamento da loja + valores informados dos serviços e avisa ao chegar a 70% e 90% de R$ 81.000/ano.
-- [ ] **3.5 🤖 Pré-venda** "todas as minhas fotos" antes do evento (se aprovada em 0.2).
-- [ ] **3.6 🤖 Exportar pedidos** em planilha (para o contador).
-- [ ] **3.7 🤖 Termos de compra e Privacidade** publicados no site, com links no checkout.
-
-**✅ Pronto quando:** você consegue acompanhar e resolver qualquer pedido sem precisar de mim.
+- [x] **3.1 🤖 Painel → Vendas:** lista de pedidos (status, valor, fotos, comprador), busca e filtros.
+- [x] **3.2 🤖 Ações:** reenviar link, liberar manualmente, bloquear download (reembolso), +30 dias, anotações e **marcar como teste** (sai dos relatórios).
+- [x] **3.3 🤖 Relatórios** (Loja → Relatórios e MEI): mês a mês (pedidos, fotos, total, ticket médio, Pix × cartão) e por evento. Valores brutos — as taxas da InfinitePay/Mercado Pago não vêm pela API; confira no extrato.
+- [x] **3.4 🤖 Alerta do limite do MEI:** loja + faturamento lançado à mão (serviços), com aviso no início do painel a partir de 70% e 90% de R$ 81.000/ano (proporcional no ano de abertura, se a data de abertura for preenchida em `store.mei.openedAt`).
+- [ ] **3.5 🤖 Pré-venda** "todas as minhas fotos" antes do evento — aguardando decisão.
+- [x] **3.6 🤖 Planilha para o contador** (CSV que abre no Excel), por mês ou ano.
+- [x] **3.7 🤖 Termos de compra e Privacidade** publicados, com links no checkout.
+- [x] **3.8 🤖 Duplicar evento** (mesmos dados, preços e prazos; sem fotos; como rascunho).
+- [x] **3.9 🤖 Limpeza automática** diária dos arquivos de eventos com prazo encerrado (publicação + venda + download), nunca se houver comprador com download válido; aviso na lista de eventos 14 dias antes.
+- [ ] **3.10 👤 Informar a data de abertura do CNPJ** (para o limite proporcional do 1º ano) e lançar o faturamento de serviços do ano.
 
 ---
 

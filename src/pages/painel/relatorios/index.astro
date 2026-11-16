@@ -1,0 +1,240 @@
+---
+/**
+ * RELATÓRIOS — /painel/relatorios/
+ * Vendas da loja por mês e por evento, limite do MEI (loja + faturamento lançado à mão)
+ * e planilha para o contador.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm text-ink focus:border-brand focus:outline-none';
+---
+
+<PanelLayout title="Relatórios">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="eyebrow">Loja de fotos</p>
+      <h1 class="mt-1 text-5xl font-extrabold">Relatórios</h1>
+      <p class="mt-2 max-w-2xl text-muted">Valores brutos dos pedidos pagos (antes das taxas da InfinitePay/Mercado Pago). Testes e reembolsos ficam de fora.</p>
+    </div>
+    <label class="text-sm">
+      <span class="sr-only">Ano</span>
+      <select data-year class={field}></select>
+    </label>
+  </div>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+
+  <div data-ready hidden>
+    <!-- Limite do MEI -->
+    <section class="card mt-8 p-5 sm:p-6" aria-labelledby="mei-title">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 id="mei-title" class="text-2xl font-bold">Limite do MEI</h2>
+          <p data-mei-sub class="text-sm text-muted"></p>
+        </div>
+        <p data-mei-value class="font-display text-4xl font-extrabold"></p>
+      </div>
+      <div class="relative mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+        <div data-mei-bar class="h-full rounded-full transition-[width]"></div>
+        <span class="absolute inset-y-0 left-[70%] w-px bg-amber-300/70" aria-hidden="true"></span>
+        <span class="absolute inset-y-0 left-[90%] w-px bg-red-400/80" aria-hidden="true"></span>
+      </div>
+      <p data-mei-msg class="mt-3 text-sm"></p>
+      <p class="mt-2 text-xs text-muted">
+        Soma das vendas da loja + o faturamento que você lançar abaixo (serviços, ensaios, eventos fechados por fora). O limite considera tudo que o MEI fatura.
+        Confirme sempre com o seu contador.
+      </p>
+    </section>
+
+    <!-- Por mês -->
+    <section class="card mt-6 p-5 sm:p-6" aria-labelledby="month-title">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="month-title" class="text-2xl font-bold">Mês a mês</h2>
+        <div class="flex flex-wrap items-center gap-2">
+          <select data-csv-month class={`${field} w-auto`} aria-label="Período da planilha"></select>
+          <button type="button" data-csv class="btn btn-primary min-h-10 px-4 text-sm">Baixar planilha (contador)</button>
+        </div>
+      </div>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[720px] text-sm">
+          <thead class="text-left text-xs tracking-wider text-muted uppercase">
+            <tr><th class="py-2 pr-3">Mês</th><th class="px-3 text-right">Pedidos</th><th class="px-3 text-right">Fotos</th><th class="px-3 text-right">Loja</th><th class="px-3 text-right">Ticket médio</th><th class="px-3 text-right">Pix</th><th class="px-3 text-right">Cartão / outros</th><th class="px-3 text-right">Outros lançamentos</th><th class="pl-3 text-right">Total MEI</th></tr>
+          </thead>
+          <tbody data-months class="divide-y divide-line"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="mt-6 grid gap-6 xl:grid-cols-2">
+      <!-- Por evento -->
+      <section class="card p-5 sm:p-6" aria-labelledby="ev-title">
+        <h2 id="ev-title" class="text-2xl font-bold">Por evento</h2>
+        <ul data-events class="mt-4 space-y-2"></ul>
+      </section>
+
+      <!-- Lançamentos manuais -->
+      <section class="card p-5 sm:p-6" aria-labelledby="rev-title">
+        <h2 id="rev-title" class="text-2xl font-bold">Outros faturamentos do MEI</h2>
+        <p class="mt-1 text-sm text-muted">Lance o que o MEI recebeu fora da loja (ensaios, coberturas, assessorias), para o limite ficar correto.</p>
+        <form data-rev-form class="mt-4 grid gap-2 sm:grid-cols-2" novalidate>
+          <input name="month" type="month" required class={field} aria-label="Mês" />
+          <input name="amount" inputmode="decimal" required placeholder="Valor (R$)" class={field} aria-label="Valor" />
+          <input name="description" maxlength="200" placeholder="Descrição (ex.: cobertura KOHË)" class={`${field} sm:col-span-2`} aria-label="Descrição" />
+          <button class="btn btn-primary min-h-10 px-4 text-sm sm:col-span-2">Lançar</button>
+        </form>
+        <ul data-rev-list class="mt-4 space-y-2"></ul>
+      </section>
+    </div>
+  </div>
+</PanelLayout>
+
+<script>
+  import { api, h, toast, todayISO } from '@/lib/panel-api';
+  import { store } from '@/config/store';
+  import { byEvent, isSale, manausMonth, meiLimit, meiStatus, monthlySummary, ordersCsv, type RevenueEntry } from '@/lib/reports';
+  import { formatBRL } from '@/lib/whatsapp';
+  import type { Order } from '@/lib/orders';
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const money = (n: number) => (n ? formatBRL(n) : '—');
+  let orders: Order[] = [];
+  let entries: RevenueEntry[] = [];
+  const thisYear = Number(todayISO().slice(0, 4));
+
+  function render() {
+    const year = Number($<HTMLSelectElement>('[data-year]').value);
+    const rows = monthlySummary(orders, entries, year);
+    const store_ = rows.reduce((s, r) => s + r.total, 0);
+    const other = rows.reduce((s, r) => s + r.other, 0);
+    const revenue = Math.round((store_ + other) * 100) / 100;
+
+    // Limite do MEI
+    const limit = meiLimit(year, store.mei);
+    const st = meiStatus(revenue, limit);
+    $('[data-mei-value]').textContent = `${Math.round(st.pct * 100)}%`;
+    $('[data-mei-sub]').textContent = `${formatBRL(revenue)} de ${formatBRL(limit)} em ${year}${limit !== store.mei.annualLimit ? ' (limite proporcional do ano de abertura)' : ''}`;
+    const bar = $('[data-mei-bar]');
+    bar.style.width = `${Math.min(100, st.pct * 100)}%`;
+    bar.className = `h-full rounded-full transition-[width] ${st.level === 'ok' ? 'bg-brand' : st.level === 'atencao' ? 'bg-amber-300' : 'bg-red-400'}`;
+    const msgs = {
+      ok: `Tudo tranquilo. Ainda cabem ${formatBRL(st.remaining)} no ano.`,
+      atencao: `Atenção: você passou de 70% do limite. Restam ${formatBRL(st.remaining)}. Converse com o contador sobre o planejamento.`,
+      alerta: `Alerta: passou de 90% do limite. Restam ${formatBRL(st.remaining)}. Fale com o contador antes de novas vendas grandes.`,
+      excedido: 'O faturamento passou do limite do MEI. Fale com o seu contador o quanto antes.',
+    };
+    const msg = $('[data-mei-msg]');
+    msg.textContent = msgs[st.level];
+    msg.className = `mt-3 text-sm ${st.level === 'ok' ? 'text-muted' : st.level === 'atencao' ? 'text-amber-200' : 'text-red-200'}`;
+
+    // Mês a mês
+    const cell = (text: string, cls = 'px-3 text-right') => h('td', `py-2 ${cls}`, text);
+    $('[data-months]').replaceChildren(
+      ...rows.map((r, i) => {
+        const tr = h('tr', r.orders || r.other ? '' : 'text-muted/60');
+        tr.append(cell(`${MONTHS[i]}/${year}`, 'pr-3'), cell(r.orders ? String(r.orders) : '—'), cell(r.photos ? String(r.photos) : '—'), cell(money(r.total)), cell(money(r.ticket)), cell(money(r.pix)), cell(money(r.cartao + r.manual)), cell(money(r.other)), cell(money(r.total + r.other), 'pl-3 text-right font-semibold'));
+        return tr;
+      }),
+      (() => {
+        const tr = h('tr', 'font-bold');
+        const tot = (k: 'orders' | 'photos' | 'total' | 'pix' | 'cartao' | 'manual' | 'other') => rows.reduce((s, r) => s + r[k], 0);
+        const n = tot('orders');
+        tr.append(cell('Total', 'pr-3'), cell(String(n)), cell(String(tot('photos'))), cell(money(tot('total'))), cell(money(n ? tot('total') / n : 0)), cell(money(tot('pix'))), cell(money(tot('cartao') + tot('manual'))), cell(money(tot('other'))), cell(money(revenue), 'pl-3 text-right'));
+        return tr;
+      })(),
+    );
+
+    // Por evento
+    const evs = byEvent(orders, year);
+    $('[data-events]').replaceChildren(
+      ...(evs.length
+        ? evs.map((e) => {
+            const li = h('li', 'flex items-center justify-between gap-3 rounded-xl border border-line bg-bg p-3');
+            const left = h('div', 'min-w-0');
+            left.append(h('p', 'truncate font-semibold', e.event_name), h('p', 'text-xs text-muted', `${e.orders} pedido${e.orders === 1 ? '' : 's'} · ${e.photos} foto${e.photos === 1 ? '' : 's'}`));
+            li.append(left, h('span', 'font-display text-xl font-bold text-brand', formatBRL(e.total)));
+            return li;
+          })
+        : [h('li', 'rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted', 'Nenhuma venda neste ano.')]),
+    );
+
+    // Lançamentos manuais do ano
+    const list = entries.filter((e) => e.month.startsWith(String(year)));
+    $('[data-rev-list]').replaceChildren(
+      ...(list.length
+        ? list.map((e) => {
+            const li = h('li', 'flex items-center justify-between gap-3 rounded-xl border border-line bg-bg p-3 text-sm');
+            const [y, m] = e.month.split('-');
+            li.append(h('span', 'min-w-0 flex-1 truncate', `${MONTHS[Number(m) - 1]}/${y} · ${e.description || 'Sem descrição'}`), h('span', 'font-semibold', formatBRL(e.amount)));
+            const del = h('button', 'rounded px-2 py-1 text-xs text-red-300 hover:bg-white/10', 'Excluir');
+            del.setAttribute('type', 'button');
+            del.setAttribute('aria-label', `Excluir lançamento ${e.description}`);
+            del.addEventListener('click', async () => {
+              if (!confirm('Excluir este lançamento?')) return;
+              try { await api.deleteRevenue(e.id); entries = entries.filter((x) => x.id !== e.id); render(); }
+              catch (err) { toast((err as Error).message, 'error'); }
+            });
+            li.append(del);
+            return li;
+          })
+        : [h('li', 'text-sm text-muted', 'Nenhum lançamento neste ano.')]),
+    );
+
+    // Opções da planilha
+    const sel = $<HTMLSelectElement>('[data-csv-month]');
+    const prev = sel.value;
+    sel.replaceChildren(new Option(`Ano todo (${year})`, String(year)), ...rows.map((r, i) => new Option(`${MONTHS[i]}/${year}`, r.month)));
+    sel.value = [...sel.options].some((o) => o.value === prev) ? prev : String(year);
+  }
+
+  $('[data-csv]').addEventListener('click', () => {
+    const period = $<HTMLSelectElement>('[data-csv-month]').value;
+    // Planilha: pedidos pagos, reembolsados e para conferir do período (pela data de pagamento).
+    const list = orders
+      .filter((o) => o.paid_at && ['pago', 'reembolsado', 'divergente'].includes(o.status) && manausMonth(o.paid_at).startsWith(period))
+      .sort((a, b) => a.paid_at.localeCompare(b.paid_at));
+    if (!list.length) return toast('Nenhum pedido pago nesse período.', 'error');
+    const blob = new Blob([ordersCsv(list)], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `venart-vendas-${period}.csv`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
+    toast(`Planilha com ${list.length} pedido(s) baixada.`);
+  });
+
+  const revForm = $<HTMLFormElement>('[data-rev-form]');
+  (revForm.elements.namedItem('month') as HTMLInputElement).value = todayISO().slice(0, 7);
+  revForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(revForm)) as Record<string, string>;
+    const amount = Number(String(d.amount).replace(/\./g, '').replace(',', '.'));
+    try {
+      const row = await api.addRevenue({ month: d.month ?? '', amount, description: d.description ?? '' });
+      entries = [row, ...entries];
+      (revForm.elements.namedItem('amount') as HTMLInputElement).value = '';
+      (revForm.elements.namedItem('description') as HTMLInputElement).value = '';
+      const y = row.month.slice(0, 4);
+      if ($<HTMLSelectElement>('[data-year]').value !== y) $<HTMLSelectElement>('[data-year]').value = y;
+      render();
+      toast('Lançado.');
+    } catch (err) { toast((err as Error).message, 'error'); }
+  });
+
+  $('[data-year]').addEventListener('change', render);
+
+  (async () => {
+    try {
+      const [o, r] = await Promise.all([api.orders(), api.revenue()]);
+      orders = o.orders;
+      entries = r;
+      const years = new Set([thisYear, ...orders.filter(isSale).map((x) => Number(manausMonth(x.paid_at).slice(0, 4))), ...entries.map((x) => Number(x.month.slice(0, 4)))]);
+      $('[data-year]').replaceChildren(...[...years].sort((a, b) => b - a).map((y) => new Option(String(y), String(y))));
+      $<HTMLSelectElement>('[data-year]').value = String(thisYear);
+      render();
+      $('[data-ready]').hidden = false;
+    } catch (e) { toast((e as Error).message, 'error'); }
+    finally { $('[data-loading]').hidden = true; }
+  })();
+</script>

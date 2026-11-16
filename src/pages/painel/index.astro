@@ -24,6 +24,11 @@ import Icon from '@/components/Icon.astro';
       <span class="btn btn-primary min-h-10 shrink-0 px-4 text-sm">Ver pedidos</span>
     </a>
 
+    <a data-mei-alert hidden href="/painel/relatorios/" class="mt-4 flex items-center justify-between gap-4 rounded-2xl border p-5 transition-colors">
+      <span><span class="font-display text-2xl font-bold uppercase" data-mei-text></span><span class="block text-sm text-muted">Faturamento do MEI no ano (loja + lançamentos). Converse com o contador.</span></span>
+      <span class="btn btn-outline min-h-10 shrink-0 px-4 text-sm">Ver relatórios</span>
+    </a>
+
     <a data-outreach-alert hidden href="/painel/abordagem/" class="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-line bg-bg-2 p-5 transition-colors hover:border-brand/50">
       <span><span class="font-display text-2xl font-bold uppercase" data-outreach-text></span><span class="block text-sm text-muted">Follow-ups e novos contatos da Fila de abordagem</span></span>
       <span class="btn btn-outline min-h-10 shrink-0 px-4 text-sm">Abrir fila</span>
@@ -89,6 +94,24 @@ import Icon from '@/components/Icon.astro';
   import { daysBetween, dueLabel } from '@/lib/schedule';
   import { buildQueue } from '@/lib/outreach';
   import { metaDiariaNovos } from '@/data/outreach';
+  import { store } from '@/config/store';
+  import { meiLimit, meiStatus, monthlySummary } from '@/lib/reports';
+
+  // Alerta do limite do MEI (a partir de 70%).
+  Promise.all([api.orders(), api.revenue()])
+    .then(([o, entries]) => {
+      const year = Number(todayISO().slice(0, 4));
+      const rows = monthlySummary(o.orders, entries, year);
+      const revenue = rows.reduce((s, r) => s + r.total + r.other, 0);
+      const st = meiStatus(revenue, meiLimit(year, store.mei));
+      if (st.level === 'ok') return;
+      const el = document.querySelector<HTMLElement>('[data-mei-alert]')!;
+      el.classList.add(...(st.level === 'atencao' ? ['border-amber-300/50', 'bg-amber-400/5'] : ['border-red-400/60', 'bg-red-500/10']));
+      document.querySelector<HTMLElement>('[data-mei-text]')!.textContent =
+        st.level === 'excedido' ? 'Limite do MEI ultrapassado' : `MEI: ${Math.round(st.pct * 100)}% do limite anual`;
+      el.hidden = false;
+    })
+    .catch(() => {});
 
   const $ = (s: string) => document.querySelector<HTMLElement>(s)!;
   const today = todayISO();

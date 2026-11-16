@@ -5,6 +5,7 @@
 import type { Client, Job, Lead, ProposalRecord } from './crm';
 import type { EventPhoto, EventRecord, PhotoPart } from './events';
 import type { Order } from './orders';
+import type { RevenueEntry } from './reports';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -64,8 +65,13 @@ export const api = {
   deleteProposal: (id: string) => request<{ ok: true }>('DELETE', `/api/proposals/${encodeURIComponent(id)}`),
 
   orders: () => request<{ configured: boolean; orders: Order[] }>('GET', '/api/orders'),
-  orderAction: (id: string, body: { action?: 'sync' | 'release' | 'block' | 'extend'; notes?: string }) =>
+  orderAction: (id: string, body: { action?: 'sync' | 'release' | 'block' | 'extend' | 'test'; notes?: string }) =>
     request<Order>('PATCH', `/api/orders/${encodeURIComponent(id)}`, body),
+
+  revenue: () => request<RevenueEntry[]>('GET', '/api/revenue'),
+  addRevenue: (e: { month: string; amount: number; description: string }) => request<RevenueEntry>('POST', '/api/revenue', e),
+  deleteRevenue: (id: string) => request<{ ok: true }>('DELETE', `/api/revenue/${encodeURIComponent(id)}`),
+  duplicateEvent: (id: string) => request<EventRecord>('POST', `/api/events/${encodeURIComponent(id)}/duplicate`, {}),
 
   events: () => request<EventRecord[]>('GET', '/api/events'),
   event: (id: string) => request<EventRecord>('GET', `/api/events/${encodeURIComponent(id)}`),

@@ -146,6 +146,14 @@ const SCHEMA = [
     seq INTEGER NOT NULL,
     PRIMARY KEY (order_id, photo_id)
   )`,
+  // Faturamento lançado à mão (serviços etc.), para o controle do limite do MEI.
+  `CREATE TABLE IF NOT EXISTS revenue_entries (
+    id TEXT PRIMARY KEY,
+    month TEXT NOT NULL,
+    amount REAL NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
     count INTEGER NOT NULL,
@@ -164,6 +172,7 @@ const MIGRATIONS = [
   `ALTER TABLE clients ADD COLUMN last_contact TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE orders ADD COLUMN provider TEXT NOT NULL DEFAULT 'mercadopago'`,
   `ALTER TABLE orders ADD COLUMN payment_ref TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN purged_at TEXT NOT NULL DEFAULT ''`,
 ];
 
 async function migrate(db: D1Database) {

@@ -24,6 +24,15 @@ export const store = {
     cnpj: '68.729.010/0001-04',
     address: '', // endereço (pendente: o do cadastro do MEI ou um comercial)
   },
+  /**
+   * Limite de faturamento do MEI (R$ por ano). No ano de abertura, o limite é proporcional:
+   * R$ 6.750 × meses desde a abertura (incluindo o mês de abertura). Confirme os valores com o contador.
+   */
+  mei: {
+    annualLimit: 81_000,
+    monthlyLimit: 6_750,
+    openedAt: '', // data de abertura do CNPJ (AAAA-MM-DD), para o limite proporcional do 1º ano
+  },
   /** Nome que aparece na fatura do cartão. */
   statementDescriptor: 'VENART',
 } as const;

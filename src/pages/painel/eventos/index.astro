@@ -36,7 +36,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
 
 <script>
   import { api, h, toast, todayISO } from '@/lib/panel-api';
-  import { EVENT_STATUSES, publicState, saleEndsAt, type EventRecord } from '@/lib/events';
+  import { EVENT_STATUSES, publicState, purgeAfter, saleEndsAt, type EventRecord } from '@/lib/events';
   import { formatDateBR } from '@/lib/proposal';
 
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
@@ -79,6 +79,11 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         const info = [formatDateBR(e.date), e.location, `${e.photo_count} foto${e.photo_count === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
         body.append(top, h('p', 'mt-1 text-sm text-muted', info));
         if (e.published_at && publicState(e) === 'aberto') body.append(h('p', 'mt-1 text-xs text-muted', `Venda até ${formatDateBR(saleEndsAt(e).slice(0, 10))}`));
+        if (e.purged_at) body.append(h('p', 'mt-1 text-xs text-muted', `Fotos apagadas em ${formatDateBR(e.purged_at.slice(0, 10))}`));
+        else if (e.published_at) {
+          const days = Math.ceil((Date.parse(purgeAfter(e)) - Date.now()) / 86_400_000);
+          if (days <= 14) body.append(h('p', 'mt-1 text-xs text-amber-200', days > 0 ? `As fotos serão apagadas em ${days} dia${days === 1 ? '' : 's'} (fim do prazo de download)` : 'Fotos serão apagadas na próxima limpeza'));
+        }
         a.append(cover, body);
         li.append(a);
         return li;
