@@ -20,12 +20,32 @@ export interface PaymentsEnv {
 
 export const ipHandle = (env: PaymentsEnv) => (env.INFINITEPAY_HANDLE ?? '').trim().replace(/^[@$]/, '');
 
+/** Valor de PAYMENT_PROVIDER escrito de qualquer jeito ("Mercado Pago", " mercadopago ", "MP"…). */
+export function preferred(v: string | undefined): Provider | null {
+  const s = (v ?? '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+  if (['mercadopago', 'mp', 'mercado'].includes(s)) return 'mercadopago';
+  if (['infinitepay', 'infinite', 'infinity', 'infinitypay', 'ip'].includes(s)) return 'infinitepay';
+  return null;
+}
+
 export function provider(env: PaymentsEnv): Provider | null {
   const ip = !!ipHandle(env);
-  const mp = !!env.MP_ACCESS_TOKEN;
-  if (env.PAYMENT_PROVIDER === 'mercadopago' && mp) return 'mercadopago';
-  if (env.PAYMENT_PROVIDER === 'infinitepay' && ip) return 'infinitepay';
+  const mp = !!env.MP_ACCESS_TOKEN?.trim();
+  const want = preferred(env.PAYMENT_PROVIDER);
+  if (want === 'mercadopago' && mp) return 'mercadopago';
+  if (want === 'infinitepay' && ip) return 'infinitepay';
   return ip ? 'infinitepay' : mp ? 'mercadopago' : null;
 }
+
+/** Diagnóstico para o painel (sem revelar nenhum segredo). */
+export const paymentStatus = (env: PaymentsEnv) => ({
+  active: provider(env),
+  infinitepay: !!ipHandle(env),
+  mercadopago: !!env.MP_ACCESS_TOKEN?.trim(),
+  mercadopagoTest: /^TEST-/.test(env.MP_ACCESS_TOKEN?.trim() ?? ''),
+  webhookSecret: !!env.MP_WEBHOOK_SECRET?.trim(),
+  preferred: preferred(env.PAYMENT_PROVIDER),
+  preferredRaw: !!env.PAYMENT_PROVIDER,
+});
 
 export const PROVIDER_NAMES: Record<Provider, string> = { infinitepay: 'InfinitePay', mercadopago: 'Mercado Pago' };

@@ -25,7 +25,7 @@ import {
 import { buildInfiniteLink, checkInfinite, infiniteMethod, linkUrl, parseInfiniteRef, type InfiniteCheck, type InfiniteRef } from '../src/lib/infinitepay.ts';
 import { store } from '../src/config/store.ts';
 import { getBySlug, type EventsEnv } from './events.ts';
-import { ipHandle, provider, type Provider } from './payments.ts';
+import { ipHandle, paymentStatus, provider, type Provider } from './payments.ts';
 import { allowLead } from './db.ts';
 
 export type OrdersEnv = EventsEnv;
@@ -55,7 +55,7 @@ export class MpError extends Error {
 async function mp<T>(env: OrdersEnv, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${env.MP_API_BASE || 'https://api.mercadopago.com'}${path}`, {
     ...init,
-    headers: { Authorization: `Bearer ${env.MP_ACCESS_TOKEN}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    headers: { Authorization: `Bearer ${env.MP_ACCESS_TOKEN?.trim()}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });
   if (!res.ok) {
     console.error('Mercado Pago', path.split('?')[0], res.status, (await res.text()).slice(0, 300));
@@ -211,7 +211,7 @@ export async function createOrder(req: Request, env: OrdersEnv, url: URL, body: 
 
   try {
     if (prov === 'infinitepay') {
-      const link = await ip<{ url?: unknown; checkout_url?: unknown }>(env, '/links', buildInfiniteLink(order, ev, url.origin, ipHandle(env)));
+      const link = await ip<{ url?: unknown; checkout_url?: unknown }>(env, '/links', buildInfiniteLink({ ...order, buyer_phone: c.phone }, ev, url.origin, ipHandle(env)));
       const checkout = linkUrl(link);
       if (!checkout) throw new MpError('A InfinitePay não devolveu o link de pagamento. Tente de novo.');
       await db.prepare('UPDATE orders SET checkout_url = ? WHERE id = ?').bind(checkout, order.id).run();
@@ -351,7 +351,7 @@ export async function ordersAdminApi(req: Request, env: OrdersEnv, path: string,
   if (path === '/api/orders' && req.method === 'GET') {
     const rows = (await db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 5000').all<OrderRow>()).results;
     const prov = provider(env);
-    return json({ configured: !!prov, provider: prov ?? '', orders: rows.map(({ checked_at: _c, preference_id: _p, payment_ref: _r, ...r }) => toOrder(r as OrderRow)) });
+    return json({ configured: !!prov, provider: prov ?? '', payments: paymentStatus(env), orders: rows.map(({ checked_at: _c, preference_id: _p, payment_ref: _r, ...r }) => toOrder(r as OrderRow)) });
   }
   const m = /^\/api\/orders\/(VNA-[A-Z0-9]{6})$/.exec(path);
   if (!m || req.method !== 'PATCH') return json({ error: 'Não encontrado.' }, 404);

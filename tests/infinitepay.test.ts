@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildInfiniteLink, checkInfinite, infiniteMethod, linkUrl, parseInfiniteRef, toCents } from '../src/lib/infinitepay.ts';
+import { buildInfiniteLink, checkInfinite, infiniteMethod, infinitePhone, linkUrl, parseInfiniteRef, toCents } from '../src/lib/infinitepay.ts';
 
 test('toCents sem erro de arredondamento', () => {
   assert.equal(toCents(12.9), 1290);
@@ -16,6 +16,16 @@ test('buildInfiniteLink usa o valor do pedido em centavos', () => {
   assert.equal(b.redirect_url, `https://site/pedido/${'T'.repeat(43)}`);
   assert.equal(b.webhook_url, 'https://site/api/webhooks/infinitepay');
   assert.match(b.items[0]!.description, /3 fotos/);
+  assert.equal('phone_number' in b.customer, false);
+  const withPhone = buildInfiniteLink({ id: 'VNA-AAAAAA', token: 'T'.repeat(43), total: 12.9, photo_count: 1, buyer_name: 'Ana', buyer_email: 'a@b.com', buyer_phone: '(92) 98888-0000' }, { name: 'X' }, 'https://site', 'venart');
+  assert.deepEqual(withPhone.customer, { name: 'Ana', email: 'a@b.com', phone_number: '+5592988880000' });
+});
+
+test('telefone do comprador no formato da InfinitePay', () => {
+  assert.equal(infinitePhone('(92) 98888-0000'), '+5592988880000');
+  assert.equal(infinitePhone('92 3234-5678'), '+559232345678');
+  assert.equal(infinitePhone('+55 92 98888-0000'), '+5592988880000');
+  assert.equal(infinitePhone('123'), '');
 });
 
 test('linkUrl aceita url ou checkout_url, só https', () => {
@@ -42,4 +52,15 @@ test('checkInfinite exige pago E valor certo', () => {
   assert.equal(checkInfinite(o, { success: true, paid: false, amount: 3870 }), 'pendente');
   assert.equal(checkInfinite(o, { success: false }), 'pendente');
   assert.equal(infiniteMethod('pix'), 'pix');
+});
+
+test('PAYMENT_PROVIDER aceita variações de escrita', async () => {
+  const { preferred, provider } = await import('../worker/payments.ts');
+  for (const v of ['mercadopago', ' mercadopago ', 'Mercado Pago', '"mercadopago"', 'MP', 'mercadopago\n']) assert.equal(preferred(v), 'mercadopago', JSON.stringify(v));
+  assert.equal(preferred('InfinitePay'), 'infinitepay');
+  assert.equal(preferred('outro'), null);
+  const env = { INFINITEPAY_HANDLE: 'venart', MP_ACCESS_TOKEN: 'APP_USR-x' };
+  assert.equal(provider(env), 'infinitepay');
+  assert.equal(provider({ ...env, PAYMENT_PROVIDER: 'Mercado Pago ' }), 'mercadopago');
+  assert.equal(provider({ ...env, PAYMENT_PROVIDER: 'mercadopago', MP_ACCESS_TOKEN: ' ' }), 'infinitepay');
 });

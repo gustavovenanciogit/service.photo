@@ -14,9 +14,20 @@ import type { Order, OrderStatus } from './orders.ts';
 
 export const toCents = (reais: number) => Math.round(reais * 100);
 
+/**
+ * Telefone no formato da InfinitePay (+55 + DDD + número). A página de pagamento deles
+ * envia o código de confirmação para este número — por isso mandamos o WhatsApp do comprador.
+ */
+export function infinitePhone(phone: string) {
+  const d = phone.replace(/\D/g, '');
+  if (d.length === 10 || d.length === 11) return `+55${d}`;
+  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) return `+${d}`;
+  return '';
+}
+
 /** Corpo do link de pagamento. */
 export function buildInfiniteLink(
-  order: Pick<Order, 'id' | 'token' | 'total' | 'photo_count' | 'buyer_name' | 'buyer_email'>,
+  order: Pick<Order, 'id' | 'token' | 'total' | 'photo_count' | 'buyer_name' | 'buyer_email'> & { buyer_phone?: string },
   ev: { name: string },
   origin: string,
   handle: string,
@@ -33,7 +44,11 @@ export function buildInfiniteLink(
     order_nsu: order.id,
     redirect_url: `${origin}/pedido/${order.token}`,
     webhook_url: `${origin}/api/webhooks/infinitepay`,
-    customer: { name: order.buyer_name, email: order.buyer_email },
+    customer: {
+      name: order.buyer_name,
+      email: order.buyer_email,
+      ...(infinitePhone(order.buyer_phone ?? '') ? { phone_number: infinitePhone(order.buyer_phone ?? '') } : {}),
+    },
   };
 }
 
