@@ -39,6 +39,52 @@ import { messages } from '@/lib/whatsapp';
           <p data-wait-note class="mt-3 text-xs text-muted"></p>
         </div>
 
+        <!-- Pagamento dentro do site (checkout transparente) -->
+        <section data-paybox hidden class="card mt-6 overflow-hidden" aria-labelledby="pay-title">
+          <div class="border-b border-line p-5 sm:p-6">
+            <h2 id="pay-title" class="text-2xl font-bold">Pagamento</h2>
+            <p class="mt-1 text-sm text-muted">Total: <strong data-pay-total class="text-brand"></strong> · ambiente seguro do Mercado Pago</p>
+            <div role="tablist" aria-label="Forma de pagamento" class="mt-4 inline-flex rounded-full border border-line bg-bg p-1">
+              <button role="tab" type="button" data-paytab="pix" aria-selected="true" class="rounded-full px-5 py-2 text-sm font-semibold aria-selected:bg-brand aria-selected:text-bg">Pix</button>
+              <button role="tab" type="button" data-paytab="card" aria-selected="false" class="rounded-full px-5 py-2 text-sm font-semibold aria-selected:bg-brand aria-selected:text-bg">Cartão</button>
+            </div>
+          </div>
+
+          <!-- Pix -->
+          <div data-paypanel="pix" class="p-5 sm:p-6">
+            <div data-pix-start>
+              <p class="text-sm text-muted">O QR Code aparece aqui mesmo. Pague no app do seu banco e as fotos são liberadas sozinhas em segundos.</p>
+              <button type="button" data-pix-gen class="btn btn-primary mt-4 min-h-12 px-6">Gerar QR Code Pix</button>
+            </div>
+            <div data-pix-box hidden class="grid gap-5 sm:grid-cols-[220px_1fr] sm:items-center">
+              <div data-pix-qr class="mx-auto size-[220px] rounded-xl bg-white p-3" role="img" aria-label="QR Code Pix"></div>
+              <div class="min-w-0">
+                <p class="font-semibold">Escaneie o QR Code ou use o Pix copia e cola:</p>
+                <div class="mt-2 flex gap-2">
+                  <input data-pix-code readonly class="min-w-0 flex-1 rounded-xl border border-line bg-bg px-3 py-2.5 font-mono text-xs text-ink" aria-label="Código Pix copia e cola" />
+                  <button type="button" data-pix-copy class="btn btn-primary min-h-11 shrink-0 px-4 text-sm">Copiar</button>
+                </div>
+                <p data-pix-timer class="mt-2 text-xs text-muted"></p>
+                <p class="mt-3 flex items-center gap-2 text-sm text-brand"><span class="inline-block size-2 animate-pulse rounded-full bg-brand" aria-hidden="true"></span> Aguardando o pagamento… esta página atualiza sozinha.</p>
+              </div>
+            </div>
+            <p data-pix-error hidden role="alert" class="mt-3 text-sm text-red-300"></p>
+          </div>
+
+          <!-- Cartão -->
+          <div data-paypanel="card" hidden class="p-5 sm:p-6">
+            <p class="text-sm text-muted">Os dados do cartão são digitados em campos seguros do Mercado Pago — eles não passam pelo site da Venart. <span data-card-terms></span></p>
+            <div id="card-brick" class="mt-4"></div>
+            <p data-card-loading class="mt-3 text-sm text-muted">Carregando o formulário seguro…</p>
+            <p data-card-msg hidden role="alert" class="mt-3 rounded-xl border px-4 py-3 text-sm"></p>
+            <button type="button" data-card-fallback hidden class="btn btn-primary mt-4 min-h-12 px-6">Pagar com cartão na página do Mercado Pago</button>
+          </div>
+
+          <p class="border-t border-line px-5 py-3 text-xs text-muted sm:px-6">
+            Prefere outra opção? <button type="button" data-pay-other class="font-semibold text-ink underline">Pagar na página do Mercado Pago</button>
+          </p>
+        </section>
+
         <!-- Pago -->
         <div data-paid hidden>
           <div class="card mt-8 flex flex-wrap items-center justify-between gap-4 p-5">
@@ -61,15 +107,25 @@ import { messages } from '@/lib/whatsapp';
   </section>
 </BaseLayout>
 
+<style is:global>
+  /* Durante o pagamento, o botão flutuante do WhatsApp sai de cima do "Copiar" (a ajuda continua no link da página). */
+  body[data-paying] #wa-float {
+    display: none;
+  }
+</style>
+
 <script>
   import { photoLabel } from '@/lib/events';
   import { downloadName } from '@/lib/orders';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
   import { zipParts } from '@/lib/zip';
+  import { store } from '@/config/store';
+  import qrcode from 'qrcode-generator';
 
   type OrderView = {
     id: string; status: string; event_name: string; event_slug: string; buyer_first_name: string; total: number; use_pack: boolean;
     photo_count: number; paid_at: string; download_until: string; can_download: boolean; checkout_url: string; items: { id: string; n: number }[];
+    pay_online?: boolean; pix?: { code: string; expires: string } | null; mp_public_key?: string;
   };
   const root = document.querySelector<HTMLElement>('[data-order-page]')!;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
@@ -110,9 +166,10 @@ import { messages } from '@/lib/whatsapp';
         reembolsado: 'Este pedido foi reembolsado e o download foi desativado.',
         divergente: 'Recebemos um pagamento, mas ele precisa de uma conferência manual. Me chame no WhatsApp que eu resolvo rapidinho.',
       };
+      if (o.pay_online) texts.pendente = 'Escolha como pagar abaixo. Assim que o pagamento for confirmado, suas fotos aparecem aqui para baixar.';
       $('[data-wait-text]').textContent = texts[o.status] ?? 'Situação do pedido em atualização.';
       const pay = $<HTMLAnchorElement>('[data-pay]');
-      pay.hidden = !o.checkout_url;
+      pay.hidden = !o.checkout_url || !!o.pay_online;
       if (o.checkout_url) pay.href = o.checkout_url;
       pay.textContent = o.status === 'recusado' ? 'Tentar pagar de novo' : 'Ir para o pagamento';
       $('[data-check]').hidden = !['pendente', 'recusado'].includes(o.status);
@@ -148,11 +205,169 @@ import { messages } from '@/lib/whatsapp';
     );
     $('[data-content]').hidden = false;
     $('[data-loading]').hidden = true;
+    renderPay();
 
     // Pendente: confere sozinho (a cada 5 s nos primeiros minutos, depois a cada 30 s).
     if (o.status === 'pendente' && polls < 60) {
       polls++;
       setTimeout(() => load().catch(() => {}), polls < 24 ? 5000 : 30000);
+    }
+  }
+
+  // ───────── Pagamento dentro do site ─────────
+  const post = async (path: string, body: unknown = {}) => {
+    const res = await fetch(`/api/public/orders/${encodeURIComponent(token)}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
+    if (!res.ok && !('status' in data)) throw new Error(data.error ?? 'Não foi possível continuar. Tente de novo.');
+    return data;
+  };
+  let payReady = false;
+  let pixTimer = 0;
+  function renderPay() {
+    const show = !!order.pay_online && ['pendente', 'recusado'].includes(order.status);
+    $('[data-paybox]').hidden = !show;
+    document.body.toggleAttribute('data-paying', show);
+    if (!show) { clearInterval(pixTimer); return; }
+    $('[data-pay-total]').textContent = formatBRL(order.total);
+    if (order.pix) showPix(order.pix);
+    if (!payReady) {
+      payReady = true;
+      root.querySelectorAll<HTMLElement>('[data-paytab]').forEach((b) =>
+        b.addEventListener('click', () => {
+          root.querySelectorAll<HTMLElement>('[data-paytab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+          root.querySelectorAll<HTMLElement>('[data-paypanel]').forEach((p) => (p.hidden = p.dataset.paypanel !== b.dataset.paytab));
+          if (b.dataset.paytab === 'card') setupCard();
+        }),
+      );
+    }
+  }
+  function showPix(pix: { code: string; expires: string }) {
+    $('[data-pix-start]').hidden = true;
+    $('[data-pix-box]').hidden = false;
+    const input = $<HTMLInputElement>('[data-pix-code]');
+    if (input.value !== pix.code) {
+      input.value = pix.code;
+      const qr = qrcode(0, 'M');
+      qr.addData(pix.code);
+      qr.make();
+      $('[data-pix-qr]').innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
+    }
+    clearInterval(pixTimer);
+    const tick = () => {
+      const left = Math.floor((Date.parse(pix.expires) - Date.now()) / 1000);
+      if (left <= 0) {
+        clearInterval(pixTimer);
+        $('[data-pix-box]').hidden = true;
+        $('[data-pix-start]').hidden = false;
+        $('[data-pix-gen]').textContent = 'QR Code expirou — gerar outro';
+        return;
+      }
+      $('[data-pix-timer]').textContent = `Válido por ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} min`;
+    };
+    tick();
+    pixTimer = window.setInterval(tick, 1000);
+  }
+  $('[data-pix-gen]').addEventListener('click', async () => {
+    const b = $<HTMLButtonElement>('[data-pix-gen]');
+    b.disabled = true;
+    b.textContent = 'Gerando…';
+    $('[data-pix-error]').hidden = true;
+    try {
+      const data = (await post('pix')) as { pix?: { code: string; expires: string }; status?: string };
+      if (data.status === 'pago') return load();
+      if (data.pix) {
+        order.pix = data.pix;
+        showPix(data.pix);
+        // Começa a conferir sozinho (se já não estava conferindo).
+        if (order.status !== 'pendente' || polls >= 60) {
+          polls = 0;
+          order.status = 'pendente';
+          setTimeout(() => load().catch(() => {}), 5000);
+        }
+      }
+    } catch (e) {
+      $('[data-pix-error]').textContent = (e as Error).message;
+      $('[data-pix-error]').hidden = false;
+    } finally {
+      b.disabled = false;
+      if (b.textContent === 'Gerando…') b.textContent = 'Gerar QR Code Pix';
+    }
+  });
+  $('[data-pix-copy]').addEventListener('click', async () => {
+    const code = $<HTMLInputElement>('[data-pix-code]').value;
+    try { await navigator.clipboard.writeText(code); $('[data-pix-copy]').textContent = 'Copiado ✓'; }
+    catch { $<HTMLInputElement>('[data-pix-code]').select(); }
+    setTimeout(() => ($('[data-pix-copy]').textContent = 'Copiar'), 2500);
+  });
+  const goCheckout = async () => {
+    try { const d = (await post('checkout')) as { checkout_url?: string }; if (d.checkout_url) location.href = d.checkout_url; }
+    catch (e) { alert((e as Error).message); }
+  };
+  $('[data-pay-other]').addEventListener('click', goCheckout);
+  $('[data-card-fallback]').addEventListener('click', goCheckout);
+
+  // Cartão: formulário seguro do Mercado Pago (Card Payment Brick). O número do cartão vira um "token" no navegador.
+  type MPWindow = Window & { MercadoPago?: new (key: string, opts: { locale: string }) => { bricks(): { create(type: string, id: string, settings: unknown): Promise<unknown> } } };
+  let cardStarted = false;
+  function cardMsg(text: string, ok = false) {
+    const m = $('[data-card-msg]');
+    m.textContent = text;
+    m.className = `mt-3 rounded-xl border px-4 py-3 text-sm ${ok ? 'border-brand/40 text-brand' : 'border-red-400/50 text-red-200'}`;
+    m.hidden = false;
+  }
+  async function setupCard() {
+    if (cardStarted) return;
+    cardStarted = true;
+    if (!order.mp_public_key) {
+      $('[data-card-loading]').hidden = true;
+      $('[data-card-fallback]').hidden = false;
+      return;
+    }
+    try {
+      const w = window as MPWindow;
+      if (!w.MercadoPago) {
+        await new Promise<void>((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://sdk.mercadopago.com/js/v2';
+          s.onload = () => res();
+          s.onerror = () => rej(new Error('sdk'));
+          document.head.append(s);
+        });
+      }
+      const mp = new w.MercadoPago!(order.mp_public_key, { locale: 'pt-BR' });
+      await mp.bricks().create('cardPayment', 'card-brick', {
+        initialization: { amount: order.total },
+        customization: {
+          paymentMethods: { maxInstallments: store.maxInstallments, minInstallments: 1 },
+          visual: { style: { theme: 'dark', customVariables: { baseColor: '#8BE07A', formBackgroundColor: '#0f1a13', borderRadiusMedium: '12px' } } },
+        },
+        callbacks: {
+          onReady: () => ($('[data-card-loading]').hidden = true),
+          onError: (err: unknown) => {
+            console.error(err);
+            $('[data-card-loading]').hidden = true;
+          },
+          onSubmit: async (formData: unknown) => {
+            $('[data-card-msg]').hidden = true;
+            try {
+              const r = (await post('card', formData)) as { status?: string; message?: string; error?: string };
+              if (r.status === 'pago') {
+                cardMsg('Pagamento aprovado! Liberando suas fotos…', true);
+                await load();
+              } else {
+                cardMsg(r.message ?? r.error ?? 'Pagamento não aprovado.');
+                if (r.status === 'pendente') load().catch(() => {});
+              }
+            } catch (e) {
+              cardMsg((e as Error).message);
+            }
+          },
+        },
+      });
+    } catch {
+      $('[data-card-loading]').hidden = true;
+      cardMsg('Não foi possível carregar o formulário do cartão. Use o botão abaixo ou pague com Pix.');
+      $('[data-card-fallback]').hidden = false;
     }
   }
 

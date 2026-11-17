@@ -20,6 +20,7 @@
 import { photoKey, publicState, selectionPrice } from '../src/lib/events.ts';
 import {
   buildPreference, canDownload, checkPayment, downloadName, downloadUntil, effectiveStatus, orderCode, orderToken,
+  buildCardPayment, buildPixPayment, cardMessage, parseCardInput, PIX_MINUTES,
   parseCheckout, paymentFinancials, pickPayment, TOKEN_RE, verifyMpSignature, type MpPayment, type Order, type OrderStatus,
 } from '../src/lib/orders.ts';
 import { store } from '../src/config/store.ts';
@@ -35,7 +36,10 @@ type OrderRow = Omit<Order, 'use_pack'> & {
   download_days: number;
   checked_at: number;
   preference_id: string;
-  provider: string; // 'mercadopago' (pedidos antigos podem ser 'infinitepay')
+  provider: string;
+  pix_code: string;
+  pix_expires: string;
+  pay_attempts: number; // 'mercadopago' (pedidos antigos podem ser 'infinitepay')
   payment_ref: string;
 };
 
@@ -155,18 +159,90 @@ export async function createOrder(req: Request, env: OrdersEnv, url: URL, body: 
   }
   await db.batch(stmts);
 
+  // Checkout transparente: o pagamento acontece na página do pedido (Pix ou cartão), sem sair do site.
+  if ((body as { mode?: unknown }).mode === 'site') return json({ ok: true, id: order.id, token: order.token, checkout_url: '' }, 201);
+
   try {
-    const pref = await mp<{ id: string; init_point: string }>(env, '/checkout/preferences', {
-      method: 'POST',
-      headers: { 'X-Idempotency-Key': order.id },
-      body: JSON.stringify(buildPreference(order, ev, url.origin, store)),
-    });
-    await db.prepare('UPDATE orders SET checkout_url = ?, preference_id = ? WHERE id = ?').bind(pref.init_point, pref.id, order.id).run();
-    return json({ ok: true, id: order.id, token: order.token, checkout_url: pref.init_point }, 201);
+    const checkout_url = await createPreference(env, url, { ...order, event_name: ev.name });
+    return json({ ok: true, id: order.id, token: order.token, checkout_url }, 201);
   } catch (e) {
     await db.batch([db.prepare('DELETE FROM order_items WHERE order_id = ?').bind(order.id), db.prepare('DELETE FROM orders WHERE id = ?').bind(order.id)]);
     throw e;
   }
+}
+
+/** Página de pagamento do Mercado Pago (Checkout Pro) — plano B do checkout transparente. */
+async function createPreference(env: OrdersEnv, url: URL, order: Pick<Order, 'id' | 'token' | 'total' | 'photo_count' | 'buyer_name' | 'buyer_email' | 'created_at' | 'event_name'>) {
+  const pref = await mp<{ id: string; init_point: string }>(env, '/checkout/preferences', {
+    method: 'POST',
+    headers: { 'X-Idempotency-Key': order.id },
+    body: JSON.stringify(buildPreference(order, { name: order.event_name }, url.origin, store)),
+  });
+  await env.DB.prepare('UPDATE orders SET checkout_url = ?, preference_id = ? WHERE id = ?').bind(pref.init_point, pref.id, order.id).run();
+  return pref.init_point;
+}
+
+const MAX_PAY_ATTEMPTS = 8; // por pedido (Pix gerados + tentativas de cartão) — barra teste de cartões roubados
+
+/**
+ * Pagamento dentro do site:
+ *   POST /api/public/orders/:token/pix       → gera (ou reaproveita) o QR Code Pix
+ *   POST /api/public/orders/:token/card      → paga com o token do cartão (formulário seguro do Mercado Pago)
+ *   POST /api/public/orders/:token/checkout  → link da página do Mercado Pago (outras formas)
+ */
+export async function payOrder(req: Request, env: OrdersEnv, url: URL, token: string, kind: string, body: unknown, json: Json) {
+  if (!mpConfigured(env)) return json({ error: 'Pagamento online indisponível. Fale pelo WhatsApp.' }, 503);
+  if (!TOKEN_RE.test(token)) return json({ error: 'Pedido não encontrado.' }, 404);
+  const row = await byToken(env.DB, token);
+  if (!row) return json({ error: 'Pedido não encontrado.' }, 404);
+  const o = toOrder(row);
+  if (o.status === 'pago') return json({ error: 'Este pedido já está pago.', status: 'pago' }, 409);
+  if (!['pendente', 'recusado'].includes(o.status)) return json({ error: 'Este pedido expirou. Volte à galeria e faça um novo pedido.' }, 409);
+  const db = env.DB;
+
+  if (kind === 'checkout') {
+    const checkout_url = row.checkout_url || (await createPreference(env, url, row));
+    return json({ checkout_url });
+  }
+
+  if (kind === 'pix') {
+    // Reaproveita o QR Code ainda válido (mais de 1 min de folga).
+    if (row.pix_code && Date.parse(row.pix_expires) - Date.now() > 60_000) return json({ pix: { code: row.pix_code, expires: row.pix_expires } });
+    if (row.pay_attempts >= MAX_PAY_ATTEMPTS) return json({ error: 'Muitas tentativas neste pedido. Faça um novo pedido ou fale pelo WhatsApp.' }, 429);
+    await db.prepare('UPDATE orders SET pay_attempts = pay_attempts + 1 WHERE id = ?').bind(row.id).run();
+    const payment = await mp<MpPayment & { point_of_interaction?: { transaction_data?: { qr_code?: string } }; date_of_expiration?: string }>(env, '/v1/payments', {
+      method: 'POST',
+      headers: { 'X-Idempotency-Key': `${row.id}-pix-${row.pay_attempts + 1}` },
+      body: JSON.stringify(buildPixPayment(row, url.origin, Date.now())),
+    });
+    const code = payment.point_of_interaction?.transaction_data?.qr_code ?? '';
+    if (!code) return json({ error: 'O Mercado Pago não gerou o Pix agora. Tente de novo em instantes.' }, 502);
+    const expires = payment.date_of_expiration && !Number.isNaN(Date.parse(payment.date_of_expiration)) ? new Date(payment.date_of_expiration).toISOString() : new Date(Date.now() + PIX_MINUTES * 60_000).toISOString();
+    await db.prepare("UPDATE orders SET pix_code = ?, pix_expires = ?, status = 'pendente', updated_at = ? WHERE id = ?").bind(code, expires, now(), row.id).run();
+    return json({ pix: { code, expires } });
+  }
+
+  if (kind === 'card') {
+    const parsed = parseCardInput(body, store.maxInstallments);
+    if (!parsed.ok) return json({ error: parsed.error }, 400);
+    if (row.pay_attempts >= MAX_PAY_ATTEMPTS) return json({ error: 'Muitas tentativas neste pedido. Pague com Pix ou fale pelo WhatsApp.' }, 429);
+    await db.prepare('UPDATE orders SET pay_attempts = pay_attempts + 1 WHERE id = ?').bind(row.id).run();
+    let payment: MpPayment & { status_detail?: string };
+    try {
+      payment = await mp(env, '/v1/payments', {
+        method: 'POST',
+        headers: { 'X-Idempotency-Key': `${row.id}-card-${row.pay_attempts + 1}` },
+        body: JSON.stringify(buildCardPayment(row, parsed.value, url.origin, store.statementDescriptor)),
+      });
+    } catch {
+      return json({ error: 'Não foi possível processar o cartão. Confira os dados ou pague com Pix.' }, 402);
+    }
+    // Confere no Mercado Pago (pedido, moeda e valor) antes de liberar — mesma regra do aviso.
+    const synced = await syncOrder(env, row, String(payment.id));
+    return json({ status: synced.status, message: cardMessage(payment.status, payment.status_detail ?? '') }, synced.status === 'pago' ? 200 : 402);
+  }
+
+  return json({ error: 'Não encontrado.' }, 404);
 }
 
 export async function orderStatus(env: OrdersEnv, token: string, url: URL, json: Json) {
@@ -198,6 +274,10 @@ export async function orderStatus(env: OrdersEnv, token: string, url: URL, json:
       download_until: o.download_until,
       can_download: canDownload(o),
       checkout_url: ['pendente', 'recusado'].includes(o.status) ? o.checkout_url : '',
+      // Pagamento dentro do site
+      pay_online: mpConfigured(env) && ['pendente', 'recusado'].includes(o.status),
+      pix: o.status === 'pendente' && row.pix_code && Date.parse(row.pix_expires) > Date.now() ? { code: row.pix_code, expires: row.pix_expires } : null,
+      mp_public_key: env.MP_PUBLIC_KEY?.trim() || '',
       items,
     },
     200,
