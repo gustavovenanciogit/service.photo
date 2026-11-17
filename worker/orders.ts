@@ -211,7 +211,7 @@ export async function createOrder(req: Request, env: OrdersEnv, url: URL, body: 
 
   try {
     if (prov === 'infinitepay') {
-      const link = await ip<{ url?: unknown; checkout_url?: unknown }>(env, '/links', buildInfiniteLink(order, ev, url.origin, ipHandle(env)));
+      const link = await ip<{ url?: unknown; checkout_url?: unknown }>(env, '/links', buildInfiniteLink({ ...order, buyer_phone: c.phone }, ev, url.origin, ipHandle(env)));
       const checkout = linkUrl(link);
       if (!checkout) throw new MpError('A InfinitePay não devolveu o link de pagamento. Tente de novo.');
       await db.prepare('UPDATE orders SET checkout_url = ? WHERE id = ?').bind(checkout, order.id).run();
