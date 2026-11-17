@@ -151,6 +151,15 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [x] **M.5 🤖 Logotipo próprio** (PNG ou SVG, convertido em PNG no navegador; SVG nunca é guardado).
 - [ ] **M.6 Dependências não atendidas (documentadas):** processamento no servidor (Sharp/FFmpeg não rodam em Cloudflare Workers — exigiria Cloudflare Images ou Workers pago com WASM/filas); vídeos (a plataforma ainda não recebe vídeos); reprocessamento em segundo plano com a aba fechada (precisa do item anterior).
 
+## Galeria de vendas (nova interface)
+
+- [x] **G.1 🤖 Cabeçalho compacto** (nome, data, local, descrição, preços e disponibilidade) e **capa opcional por evento** (painel → evento → "Capa da página": adicionar, substituir, remover e enquadrar; não entra na venda).
+- [x] **G.2 🤖 Masonry** com a proporção real de cada arquivo (2:3, 3:2, 1:1, 4:5, 16:9…), sem cortes; 2 colunas no celular, 3 no tablet, 4 no computador; carregamento progressivo.
+- [x] **G.3 🤖 Filtros** por formato real (vertical, horizontal, quadrada), ordenação (nº crescente/decrescente, mais recentes/antigas) e busca pelo nº.
+- [x] **G.4 🤖 Seleção** com círculo verde + ✓ e borda; foto ampliada com navegação e seleção; **carrinho fixo** com miniaturas, total, economia do pacote e "Finalizar compra".
+- [x] **G.5 🤖 Selo "Economize"** só quando o pacote sai mais barato que as avulsas.
+- [ ] **G.6 👤 Validar no seu celular** com um evento real (velocidade na sua internet e aparência das fotos).
+
 ## Fase 4 — Lançamento
 
 - [ ] **4.1 👤 Trocar as credenciais** de teste pelas de **produção** (eu te guio).

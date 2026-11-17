@@ -181,6 +181,8 @@ const MIGRATIONS = [
   `ALTER TABLE events ADD COLUMN purged_at TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE events ADD COLUMN watermark_model INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE event_photos ADD COLUMN wm_sig TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN cover_image TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN cover_position TEXT NOT NULL DEFAULT '50% 50%'`,
 ];
 
 async function migrate(db: D1Database) {

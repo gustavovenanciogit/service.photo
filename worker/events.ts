@@ -22,6 +22,7 @@ import { newId } from '../src/lib/crm.ts';
 import { provider, PROVIDER_NAMES, type PaymentsEnv } from './payments.ts';
 import { getWatermarkSettings } from './settings.ts';
 import { jpegSize } from '../src/lib/jpeg.ts';
+import { ORDER_SQL, ORIENTATION_SQL, parseGalleryQuery } from '../src/lib/gallery.ts';
 import { imageKind } from '../src/lib/site-content.ts';
 
 export interface EventsEnv extends PaymentsEnv {
@@ -96,7 +97,7 @@ export async function purgeExpired(env: EventsEnv, now = new Date()) {
     const t = now.toISOString();
     await db.batch([
       db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(e.id),
-      db.prepare("UPDATE events SET purged_at = ?, photo_count = 0, cover_photo_id = '', status = 'encerrado', updated_at = ? WHERE id = ?").bind(t, t, e.id),
+      db.prepare("UPDATE events SET purged_at = ?, photo_count = 0, cover_photo_id = '', cover_image = '', status = 'encerrado', updated_at = ? WHERE id = ?").bind(t, t, e.id),
     ]);
     console.log('Limpeza: arquivos apagados do evento', e.id, e.name);
     done.push(e.id);
@@ -145,6 +146,31 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
     const id = newId('evt');
     await insertOrUpdate(db, id, { ...parsed.value, slug }, null);
     return json(await getEvent(db, id), 201);
+  }
+
+  // Capa opcional da página do evento (não entra na galeria de vendas).
+  const cov = /^\/api\/events\/(evt_[a-z0-9]{6,30})\/cover$/.exec(path);
+  if (cov) {
+    const ev = await getEvent(db, cov[1]!);
+    if (!ev) return json({ error: 'Evento não encontrado.' }, 404);
+    if (!env.PHOTOS) return json({ error: 'Armazenamento (R2) não configurado.' }, 503);
+    const key = `events/${ev.id}/cover.jpg`;
+    if (method === 'PUT') {
+      const bytes = new Uint8Array(await req.arrayBuffer());
+      if (!bytes.length || bytes.length > 3_000_000) return json({ error: 'Capa vazia ou grande demais (máx. 3 MB).' }, 413);
+      const dims = imageKind(bytes) === 'jpg' ? jpegSize(bytes) : null;
+      if (!dims) return json({ error: 'Envie a capa em JPG.' }, 415);
+      if (Math.max(dims.width, dims.height) > 2400) return json({ error: 'Capa grande demais (máx. 2400 px).' }, 422);
+      await env.PHOTOS.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+      await db.prepare('UPDATE events SET cover_image = ?, updated_at = ? WHERE id = ?').bind(now(), now(), ev.id).run();
+      return json(await getEvent(db, ev.id));
+    }
+    if (method === 'DELETE') {
+      await env.PHOTOS.delete(key);
+      await db.prepare("UPDATE events SET cover_image = '', updated_at = ? WHERE id = ?").bind(now(), ev.id).run();
+      return json(await getEvent(db, ev.id));
+    }
+    return json({ error: 'Não encontrado.' }, 404);
   }
 
   const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})(?:\/photos(?:\/(ph_[a-z0-9]{6,30})(?:\/(thumb|preview|sale|complete|original))?)?)?$/.exec(path);
@@ -280,13 +306,13 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
   const published_at = before?.published_at || (e.status === 'publicado' ? t : '');
   const values = [
     e.slug, e.name, e.date, e.location, e.category, e.description, e.cover_photo_id,
-    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, published_at, e.watermark_model, t,
+    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, published_at, e.watermark_model, e.cover_position, t,
   ];
   if (before) {
     await db
       .prepare(
         `UPDATE events SET slug=?, name=?, date=?, location=?, category=?, description=?, cover_photo_id=?, price_single=?, price_pack=?,
-         sale_days=?, download_days=?, status=?, listed=?, published_at=?, watermark_model=?, updated_at=? WHERE id=?`,
+         sale_days=?, download_days=?, status=?, listed=?, published_at=?, watermark_model=?, cover_position=?, updated_at=? WHERE id=?`,
       )
       .bind(...values, id)
       .run();
@@ -294,7 +320,7 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
     await db
       .prepare(
         `INSERT INTO events (slug, name, date, location, category, description, cover_photo_id, price_single, price_pack,
-         sale_days, download_days, status, listed, published_at, watermark_model, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         sale_days, download_days, status, listed, published_at, watermark_model, cover_position, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(...values, id, t)
       .run();
@@ -314,6 +340,8 @@ const publicEvent = (e: EventRecord, state: string, env: PaymentsEnv) => ({
   location: e.location,
   description: e.description,
   cover: e.cover_photo_id,
+  cover_image: e.cover_image ? `/f/${e.id}/cover.jpg?v=${encodeURIComponent(e.cover_image)}` : '',
+  cover_position: e.cover_position || '50% 50%',
   price_single: e.price_single,
   price_pack: e.price_pack,
   photo_count: e.photo_count,
@@ -325,22 +353,56 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
   const e = await getBySlug(env.DB, slug);
   const state = e ? publicState(e) : 'oculto';
   if (!e || (state === 'oculto' && !admin)) return json({ error: 'Evento não encontrado.' }, 404);
-  const cache: Record<string, string> = state === 'aberto' && !admin ? { 'Cache-Control': 'public, max-age=60' } : {};
+  const cache: Record<string, string> = state === 'aberto' && !admin ? { 'Cache-Control': 'no-cache' } : {};
   if (state === 'encerrado' && !admin) return json({ event: publicEvent(e, state, env), photos: [], next: null }, 200, cache);
-  const after = Math.max(0, Number.parseInt(url.searchParams.get('after') ?? '0', 10) || 0);
+  // Filtros (orientação real), ordenação, busca "a partir da foto nº" e paginação.
+  const q = parseGalleryQuery(url.searchParams);
+  const where = ['event_id = ?', 'ready = 1'];
+  const binds: (string | number)[] = [e.id];
+  if (q.orient !== 'all') where.push(ORIENTATION_SQL[q.orient]);
+  if (q.from) {
+    where.push('seq >= ?');
+    binds.push(q.from);
+  }
   const rows = (
     await env.DB
-      .prepare('SELECT id, seq, width, height FROM event_photos WHERE event_id = ? AND ready = 1 AND seq > ? ORDER BY seq LIMIT ?')
-      .bind(e.id, after, PAGE + 1)
+      .prepare(`SELECT id, seq, width, height FROM event_photos WHERE ${where.join(' AND ')} ORDER BY ${ORDER_SQL[q.from ? 'asc' : q.order]} LIMIT ? OFFSET ?`)
+      .bind(...binds, PAGE + 1, q.offset)
       .all<{ id: string; seq: number; width: number; height: number }>()
   ).results;
   const more = rows.length > PAGE;
   const photos = rows.slice(0, PAGE).map((r) => ({ id: r.id, n: r.seq, w: r.width, h: r.height }));
-  return json({ event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, env), photos, next: more ? photos.at(-1)!.n : null }, 200, cache);
+  // Contagens por orientação (só na primeira página).
+  const counts =
+    q.offset === 0
+      ? await env.DB
+          .prepare(
+            `SELECT COUNT(*) AS "all", SUM(CASE WHEN ${ORIENTATION_SQL.vertical} THEN 1 ELSE 0 END) AS vertical,
+             SUM(CASE WHEN ${ORIENTATION_SQL.horizontal} THEN 1 ELSE 0 END) AS horizontal,
+             SUM(CASE WHEN ${ORIENTATION_SQL.square} THEN 1 ELSE 0 END) AS square
+             FROM event_photos WHERE event_id = ? AND ready = 1`,
+          )
+          .bind(e.id)
+          .first<{ all: number; vertical: number; horizontal: number; square: number }>()
+      : null;
+  return json(
+    { event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, env), photos, next: more ? q.offset + PAGE : null, counts },
+    200,
+    cache,
+  );
 }
 
 /** /f/:eventId/:photoId/(thumb|preview).jpg — só de eventos publicados (ou para o fotógrafo logado). */
 export async function servePhoto(env: EventsEnv, path: string, admin: boolean) {
+  const cover = /^\/f\/(evt_[a-z0-9]{6,30})\/cover\.jpg$/.exec(path);
+  if (cover && env.PHOTOS) {
+    const e = await getEvent(env.DB, cover[1]!);
+    if (!e || !e.cover_image || (publicState(e) === 'oculto' && !admin)) return new Response('Não encontrado', { status: 404 });
+    const obj = await env.PHOTOS.get(`events/${e.id}/cover.jpg`);
+    if (!obj) return new Response('Não encontrado', { status: 404 });
+    // O endereço muda a cada nova capa (?v=), então pode ficar em cache.
+    return new Response(obj.body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': admin ? 'private, no-store' : 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' } });
+  }
   const m = /^\/f\/(evt_[a-z0-9]{6,30})\/(ph_[a-z0-9]{6,30})\/(thumb|preview)\.jpg$/.exec(path);
   if (!m || !env.PHOTOS) return new Response('Não encontrado', { status: 404 });
   const [, eventId, photoId, part] = m as unknown as [string, string, string, PhotoPart];
@@ -368,7 +430,11 @@ export async function serveEventPage(req: Request, env: EventsEnv, url: URL, slu
   if (!visible || !e) return res;
   const title = `${e.name} — Fotos | Venart`;
   const desc = `${e.photo_count} fotos de ${e.name}${e.location ? ` (${e.location})` : ''}. Encontre as suas e compre em alta resolução.`;
-  const image = e.cover_photo_id ? `${url.origin}/f/${e.id}/${e.cover_photo_id}/preview.jpg` : '';
+  const image = e.cover_image
+    ? `${url.origin}/f/${e.id}/cover.jpg?v=${encodeURIComponent(e.cover_image)}`
+    : e.cover_photo_id
+      ? `${url.origin}/f/${e.id}/${e.cover_photo_id}/preview.jpg`
+      : '';
   const out = new HTMLRewriter()
     .on('title', { element: (el) => void el.setInnerContent(title) })
     .on('meta[property="og:title"], meta[name="twitter:title"]', { element: (el) => void el.setAttribute('content', title) })

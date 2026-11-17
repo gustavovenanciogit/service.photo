@@ -1,19 +1,24 @@
 ---
 /**
- * GALERIA DO EVENTO — /e/<endereço-do-evento>
- * O servidor entrega esta mesma página para qualquer evento (com título e capa do evento);
- * o conteúdo é carregado de /api/public/events/<endereço>.
- * Só as prévias com marca d'água são exibidas. Fora do Google (noindex): quem tem o link encontra.
+ * GALERIA DE VENDAS DO EVENTO — /e/<endereço-do-evento>
+ * O servidor entrega esta mesma página para qualquer evento (com título e capa do evento para compartilhar);
+ * o conteúdo vem de /api/public/events/<endereço>?orient=&order=&offset=&from=.
+ * - Cabeçalho compacto; capa só se o evento tiver uma (opcional, configurada no painel).
+ * - Masonry: cada foto na proporção REAL do arquivo (sem cortes).
+ * - Filtros por orientação real, ordenação, busca pelo nº, carregamento progressivo.
+ * - Só prévias com marca d'água; originais só após pagamento (página do pedido).
  */
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import Icon from '@/components/Icon.astro';
 import { site } from '@/config/site';
 import { messages } from '@/lib/whatsapp';
 const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+const chip =
+  'inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-bg-2 px-2 py-1.5 text-[11px] font-semibold sm:gap-1.5 sm:px-3 sm:py-2 sm:text-xs text-ink transition-colors hover:border-brand/60 aria-pressed:border-brand aria-pressed:bg-brand aria-pressed:text-bg';
 ---
 
 <BaseLayout title="Fotos do evento" description="Encontre suas fotos do evento e compre em alta resolução." noindex waMessage={messages.general()}>
-  <section class="py-8 lg:py-12" data-gallery data-number={site.whatsappNumber}>
+  <section class="pt-5 pb-10 lg:pt-8" data-gallery data-number={site.whatsappNumber}>
     <div class="container-site">
       <p data-loading class="py-16 text-center text-muted">Carregando fotos…</p>
 
@@ -25,48 +30,111 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
       </div>
 
       <div data-content hidden>
-        <header class="max-w-3xl">
+        <!-- Capa opcional (só aparece se o evento tiver uma) -->
+        <div data-cover hidden class="mb-5 overflow-hidden rounded-2xl border border-line bg-bg-2">
+          <img data-cover-img alt="" class="aspect-[16/9] w-full object-cover sm:aspect-[21/9] lg:aspect-[3/1]" />
+        </div>
+
+        <!-- Cabeçalho compacto -->
+        <header>
           <p data-draft hidden class="mb-3 inline-block rounded-full bg-amber-400/15 px-3 py-1 text-xs font-semibold text-amber-200">Rascunho: só você está vendo (logado no painel)</p>
-          <p class="eyebrow" data-when></p>
-          <h1 data-name class="mt-1 text-4xl font-extrabold sm:text-6xl"></h1>
-          <p data-desc class="mt-3 text-muted"></p>
-          <p data-prices class="mt-4 text-sm"></p>
+          <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+            <span class="inline-flex items-center gap-1.5"><Icon name="calendar" size={14} class="text-brand" /> <span data-date></span></span>
+            <span data-loc-wrap class="inline-flex items-center gap-1.5"><Icon name="pin" size={14} class="text-brand" /> <span data-loc></span></span>
+          </p>
+          <h1 class="mt-2 flex items-baseline gap-2 text-4xl leading-none font-extrabold italic sm:text-5xl lg:text-6xl">
+            <span class="text-brand not-italic" aria-hidden="true">/</span><span data-name class="min-w-0 break-words"></span>
+          </h1>
+          <p data-desc class="mt-2 max-w-3xl text-sm text-muted"></p>
         </header>
 
-        <div data-closed hidden class="card mt-8 p-6">
+        <!-- Preços e disponibilidade -->
+        <div data-prices class="mt-5 grid grid-cols-3 divide-x divide-line overflow-hidden rounded-2xl border border-brand/30 bg-card/60">
+          <div class="p-3 sm:p-4">
+            <p class="flex items-center gap-1.5 text-[11px] text-muted sm:text-xs"><Icon name="camera" size={14} class="text-brand" /> Cada foto por</p>
+            <p data-p-single class="mt-1 font-display text-2xl leading-none font-extrabold text-brand sm:text-3xl"></p>
+          </div>
+          <div class="p-3 sm:p-4" data-pack>
+            <p class="flex items-center gap-1.5 text-[11px] text-muted sm:text-xs"><Icon name="tag" size={14} class="text-brand" /> Todas as suas fotos</p>
+            <p data-p-pack class="mt-1 font-display text-2xl leading-none font-extrabold text-brand sm:text-3xl"></p>
+            <p data-p-badge hidden class="mt-1.5 inline-block rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold text-brand sm:text-[11px]"></p>
+          </div>
+          <div class="p-3 sm:p-4">
+            <p class="flex items-center gap-1.5 text-[11px] text-muted sm:text-xs"><Icon name="clock" size={14} class="text-brand" /> Disponível até</p>
+            <p data-p-until class="mt-1 font-display text-xl leading-none font-extrabold sm:text-2xl"></p>
+          </div>
+        </div>
+
+        <ul class="mt-4 grid grid-cols-4 gap-2 text-center text-[10px] leading-tight text-muted sm:text-left sm:text-xs" aria-label="Vantagens">
+          <li class="flex flex-col items-center gap-1 sm:flex-row sm:gap-2"><Icon name="image" size={18} class="shrink-0 text-brand" /> Fotos em alta qualidade</li>
+          <li class="flex flex-col items-center gap-1 sm:flex-row sm:gap-2"><Icon name="check" size={18} class="shrink-0 text-brand" /> Compra segura e rápida</li>
+          <li class="flex flex-col items-center gap-1 sm:flex-row sm:gap-2"><Icon name="external" size={18} class="shrink-0 text-brand" /> Download imediato</li>
+          <li class="flex flex-col items-center gap-1 sm:flex-row sm:gap-2"><Icon name="chat" size={18} class="shrink-0 text-brand" /> No celular ou computador</li>
+        </ul>
+
+        <div data-closed hidden class="card mt-6 p-6">
           <h2 class="text-2xl font-bold">Venda encerrada</h2>
           <p class="mt-1 text-muted">O prazo de venda das fotos deste evento terminou. Se você precisa de alguma foto, me chame no WhatsApp.</p>
         </div>
 
         <div data-open-area>
-          <div class="mt-8 flex flex-wrap items-center justify-between gap-3">
-            <p class="text-sm text-muted"><span data-total></span> Toque nas fotos para ampliar e selecionar as suas.</p>
-            <form data-jump class="flex items-center gap-2">
-              <label for="jump-n" class="text-sm text-muted">Ir para foto nº</label>
-              <input id="jump-n" inputmode="numeric" maxlength="5" class="w-24 rounded-xl border border-line bg-bg px-3 py-2 text-ink focus:border-brand focus:outline-none" />
-              <button class="btn btn-outline min-h-10 px-3 text-sm">Ir</button>
+          <!-- Filtros, ordenação e busca -->
+          <div class="sticky top-[var(--header-h,64px)] z-20 -mx-4 mt-6 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border sm:px-3">
+            <div class="flex items-center gap-2">
+              <div class="flex min-w-0 flex-1 flex-wrap gap-1 sm:gap-2" role="group" aria-label="Filtrar por formato">
+                <button type="button" class={chip} data-orient="all" aria-pressed="true">Todas <span data-count="all" class="opacity-80"></span></button>
+                <button type="button" class={chip} data-orient="vertical" aria-pressed="false"><span class="hidden sm:inline-block h-3 w-2 rounded-[2px] border-2 border-current" aria-hidden="true"></span> Vertical <span data-count="vertical" class="opacity-80"></span></button>
+                <button type="button" class={chip} data-orient="horizontal" aria-pressed="false"><span class="hidden sm:inline-block h-2 w-3 rounded-[2px] border-2 border-current" aria-hidden="true"></span> Horizontal <span data-count="horizontal" class="opacity-80"></span></button>
+                <button type="button" class={chip} data-orient="square" aria-pressed="false"><span class="hidden sm:inline-block size-2.5 rounded-[2px] border-2 border-current" aria-hidden="true"></span> Quadrada <span data-count="square" class="opacity-80"></span></button>
+              </div>
+            </div>
+            <form data-jump class="mt-2 flex items-center gap-2">
+              <label for="jump-n" class="sr-only">Buscar foto pelo número</label>
+              <div class="relative min-w-0 flex-1 sm:max-w-xs">
+                <Icon name="search" size={16} class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
+                <input id="jump-n" inputmode="numeric" maxlength="6" placeholder="Nº da foto" class="w-full rounded-full border border-line bg-bg-2 py-2 pr-3 pl-9 text-sm text-ink placeholder:text-muted/70 focus:border-brand focus:outline-none" />
+              </div>
+              <button class="btn btn-outline min-h-9 px-3 text-xs sm:px-4">Buscar</button>
+              <label class="relative shrink-0 sm:ml-auto">
+                <span class="sr-only">Ordenar</span>
+                <select data-order-select class="appearance-none rounded-full border border-line bg-bg-2 py-2 pr-7 pl-3 text-xs font-semibold text-ink focus:border-brand focus:outline-none">
+                  <option value="asc">Nº crescente</option>
+                  <option value="desc">Nº decrescente</option>
+                  <option value="new">Mais recentes</option>
+                  <option value="old">Mais antigas</option>
+                </select>
+                <span class="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">▼</span>
+              </label>
+              <p data-total class="hidden text-xs text-muted lg:block"></p>
             </form>
           </div>
 
-          <ul data-grid class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></ul>
+          <p data-from-note hidden class="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-brand/30 bg-card/40 px-3 py-2 text-sm">
+            <span data-from-text></span>
+            <button type="button" data-from-clear class="font-semibold text-brand underline">Ver todas</button>
+          </p>
+
+          <!-- Galeria masonry: colunas preenchidas pela proporção real de cada foto -->
+          <div data-grid class="mt-4 flex items-start gap-2 sm:gap-3" aria-live="polite"></div>
+          <p data-empty hidden class="py-12 text-center text-muted">Nenhuma foto neste filtro.</p>
           <div data-sentinel class="h-10"></div>
           <p data-loading-more hidden class="py-6 text-center text-sm text-muted">Carregando mais fotos…</p>
-          <p class="mt-8 text-center text-xs text-muted">
-            As fotos exibidas são prévias com marca d'água. A versão comprada vem em alta resolução, sem marca.
-          </p>
+          <p class="mt-6 text-center text-xs text-muted">As fotos exibidas são prévias com marca d'água. A versão comprada vem em alta resolução, sem marca.</p>
         </div>
       </div>
     </div>
 
-    <!-- Barra da seleção -->
-    <div data-bar hidden class="fixed bottom-4 left-3 right-20 z-40 sm:right-24 sm:left-6">
-      <div class="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-2xl border border-line bg-bg-2/95 p-3 pl-4 shadow-2xl backdrop-blur">
-        <div class="min-w-0 text-sm leading-tight">
-          <p class="font-semibold"><span data-sel-count></span></p>
-          <p class="text-muted"><span data-sel-total></span> <button type="button" data-clear class="ml-1 underline hover:text-ink">limpar</button></p>
+    <!-- Carrinho fixo -->
+    <div data-bar hidden class="fixed inset-x-0 bottom-0 z-40 border-t border-brand/30 bg-bg/95 px-3 pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] shadow-[0_-12px_30px_-12px_rgb(0_0_0/0.8)] backdrop-blur sm:px-6">
+      <div class="mx-auto flex max-w-5xl items-center gap-3">
+        <div data-bar-thumbs class="hidden shrink-0 -space-x-3 sm:flex" aria-hidden="true"></div>
+        <div class="min-w-0 flex-1 leading-tight">
+          <p class="text-sm font-semibold"><span data-sel-count class="text-brand"></span></p>
+          <p class="text-xs text-muted">Total: <strong data-sel-total class="text-sm text-brand"></strong> <span data-sel-pack class="text-[11px]"></span></p>
+          <button type="button" data-clear class="text-[11px] text-muted underline hover:text-ink">limpar seleção</button>
         </div>
         <a data-order target="_blank" rel="noopener noreferrer" class="btn btn-primary min-h-11 shrink-0 px-4 text-sm">Pedir pelo WhatsApp</a>
-        <button type="button" data-buy hidden class="btn btn-primary min-h-11 shrink-0 px-5 text-sm">Comprar</button>
+        <button type="button" data-buy hidden class="btn btn-primary min-h-11 shrink-0 gap-2 px-4 text-sm sm:px-6">Finalizar compra <span aria-hidden="true">→</span></button>
       </div>
     </div>
 
@@ -104,7 +172,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     <dialog data-lightbox class="m-auto h-dvh max-h-none w-full max-w-none bg-black p-0 text-ink backdrop:bg-black/80">
       <div class="flex h-full flex-col">
         <div class="flex items-center justify-between gap-3 p-3">
-          <p data-lb-label class="font-semibold"></p>
+          <p class="font-semibold"><span data-lb-label></span> <span data-lb-pos class="ml-2 text-xs font-normal text-muted"></span></p>
           <button type="button" data-lb-close class="grid size-11 place-items-center rounded-full hover:bg-white/10" aria-label="Fechar"><Icon name="close" size={22} /></button>
         </div>
         <div class="relative flex min-h-0 flex-1 items-center justify-center px-2">
@@ -112,33 +180,48 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
           <button type="button" data-lb-prev class="absolute left-1 grid size-12 place-items-center rounded-full bg-black/50 text-2xl hover:bg-black/70" aria-label="Foto anterior">‹</button>
           <button type="button" data-lb-next class="absolute right-1 grid size-12 place-items-center rounded-full bg-black/50 text-2xl hover:bg-black/70" aria-label="Próxima foto">›</button>
         </div>
-        <div class="flex justify-center p-4">
+        <div class="flex items-center justify-center gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <button type="button" data-lb-select class="btn btn-primary min-h-12 px-6"></button>
+          <p data-lb-cart class="text-sm text-muted"></p>
         </div>
       </div>
     </dialog>
   </section>
 </BaseLayout>
 
+<style is:global>
+  /* Com o carrinho aberto, o botão flutuante do WhatsApp sai do caminho (o pedido já tem opção de WhatsApp). */
+  body[data-cart-open] #wa-float {
+    display: none;
+  }
+</style>
+
 <script>
-  import { orderMessage, photoLabel, selectionPrice } from '@/lib/events';
+  import { orderMessage, photoLabel } from '@/lib/events';
+  import { cartSummary, columnsFor, packOffer, relativeHeight, shortestColumn } from '@/lib/gallery';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
   import { formatDateBR } from '@/lib/proposal';
 
   type Photo = { id: string; n: number; w: number; h: number };
+  type Counts = { all: number; vertical: number; horizontal: number; square: number };
   type PublicEvent = {
-    id: string; slug: string; name: string; date: string; location: string; description: string;
+    id: string; slug: string; name: string; date: string; location: string; description: string; cover_image: string; cover_position: string;
     price_single: number; price_pack: number; photo_count: number; sale_ends_at: string; state: string; checkout: boolean; payment_name: string;
   };
 
   const root = document.querySelector<HTMLElement>('[data-gallery]')!;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   const slug = (location.pathname.split('/')[2] ?? '').toLowerCase();
+  const SVG_CHECK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+  const SVG_ZOOM = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M11 8v6M8 11h6"/></svg>';
+
   let ev: PublicEvent;
-  const photos: Photo[] = [];
+  let photos: Photo[] = []; // fotos carregadas na visão atual (filtro + ordem)
   let next: number | null = 0;
   let loading = false;
-  /** Fotos escolhidas: número → id. */
+  let generation = 0; // invalida respostas antigas ao trocar filtro
+  const view = { orient: 'all', order: 'asc', from: 0 };
+  /** Fotos escolhidas: número → id (fica salvo neste aparelho). */
   let selected = new Map<number, string>();
   const storeKey = () => `venart-sel-${ev.id}`;
 
@@ -150,82 +233,176 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     } catch { selected = new Map(); }
   };
 
+  // ───────── Masonry ─────────
+  const grid = $('[data-grid]');
+  let cols: HTMLElement[] = [];
+  let heights: number[] = [];
+  function setupColumns() {
+    const n = columnsFor(window.innerWidth);
+    cols = Array.from({ length: n }, () => {
+      const c = document.createElement('ul');
+      c.className = 'flex min-w-0 flex-1 flex-col gap-2 sm:gap-3';
+      return c;
+    });
+    heights = cols.map(() => 0);
+    grid.replaceChildren(...cols);
+  }
+  function place(li: HTMLElement, p: Photo) {
+    const c = shortestColumn(heights);
+    cols[c]!.append(li);
+    heights[c]! += relativeHeight(p.w, p.h) + 0.04;
+  }
+  function relayout() {
+    const tiles = new Map([...grid.querySelectorAll<HTMLElement>('li[data-n]')].map((li) => [li.dataset.n!, li]));
+    setupColumns();
+    for (const p of photos) {
+      const li = tiles.get(String(p.n));
+      if (li) place(li, p);
+    }
+  }
+  let lastCols = 0;
+  window.addEventListener('resize', () => {
+    const n = columnsFor(window.innerWidth);
+    if (n !== lastCols) { lastCols = n; relayout(); }
+  });
+
+  // ───────── Carregamento ─────────
+  const apiUrl = (offset: number) => {
+    const q = new URLSearchParams({ orient: view.orient, order: view.order, offset: String(offset) });
+    if (view.from) q.set('from', String(view.from));
+    return `/api/public/events/${encodeURIComponent(slug)}?${q}`;
+  };
+
   async function loadMore() {
     if (loading || next === null) return;
     loading = true;
+    const gen = generation;
     $('[data-loading-more]').hidden = false;
     try {
-      const res = await fetch(`/api/public/events/${encodeURIComponent(slug)}?after=${next}`, { credentials: 'same-origin' });
+      const res = await fetch(apiUrl(next), { credentials: 'same-origin' });
       if (!res.ok) throw new Error(String(res.status));
-      const data = (await res.json()) as { event: PublicEvent; photos: Photo[]; next: number | null };
+      const data = (await res.json()) as { event: PublicEvent; photos: Photo[]; next: number | null; counts: Counts | null };
+      if (gen !== generation) return; // filtro mudou durante o carregamento
       if (!ev) { ev = data.event; restore(); renderHeader(); }
+      if (data.counts) renderCounts(data.counts);
       const start = photos.length;
       photos.push(...data.photos);
       next = data.next;
-      appendTiles(start);
+      photos.slice(start).forEach((p, i) => place(tile(p, start + i), p));
+      $('[data-empty]').hidden = photos.length > 0;
     } finally {
-      loading = false;
-      $('[data-loading-more]').hidden = true;
+      if (gen === generation) {
+        loading = false;
+        $('[data-loading-more]').hidden = true;
+      }
     }
     // Tela grande: continua carregando até encher.
-    if (next !== null && $('[data-sentinel]').getBoundingClientRect().top < innerHeight + 600) loadMore();
+    if (next !== null && $('[data-sentinel]').getBoundingClientRect().top < innerHeight + 800) loadMore();
   }
 
+  function resetView() {
+    // Ao trocar filtro/ordem/busca, volta ao início da galeria (evita carregar páginas à toa).
+    if (ev) {
+      const top = $('[data-grid]').getBoundingClientRect().top + window.scrollY - 180;
+      if (window.scrollY > top) window.scrollTo({ top: Math.max(0, top) });
+    }
+    generation++;
+    loading = false;
+    photos = [];
+    next = 0;
+    setupColumns();
+    $('[data-empty]').hidden = true;
+    root.querySelectorAll<HTMLElement>('[data-orient]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.orient === view.orient)));
+    $<HTMLSelectElement>('[data-order-select]').value = view.order;
+    const note = $('[data-from-note]');
+    note.hidden = !view.from;
+    // Guarda filtro/ordem no endereço (sem recarregar a página).
+    const q = new URLSearchParams();
+    if (view.orient !== 'all') q.set('formato', view.orient);
+    if (view.order !== 'asc') q.set('ordem', view.order);
+    history.replaceState(null, '', `${location.pathname}${q.size ? `?${q}` : ''}`);
+    return loadMore();
+  }
+
+  // ───────── Cabeçalho ─────────
   function renderHeader() {
     document.title = `${ev.name} — Fotos | Venart Fotógrafo`;
     $('[data-name]').textContent = ev.name;
-    $('[data-when]').textContent = [formatDateBR(ev.date), ev.location].filter(Boolean).join(' · ');
-    $('[data-desc]').textContent = ev.description;
-    $('[data-desc]').hidden = !ev.description;
+    $('[data-date]').textContent = formatDateBR(ev.date);
+    $('[data-loc]').textContent = ev.location;
+    $('[data-loc-wrap]').hidden = !ev.location;
+    $('[data-desc]').textContent = ev.description || 'Cobertura fotográfica do evento';
     $('[data-draft]').hidden = ev.state !== 'rascunho';
+    if (ev.cover_image) {
+      const img = $<HTMLImageElement>('[data-cover-img]');
+      img.src = ev.cover_image;
+      img.alt = `Capa do evento ${ev.name}`;
+      img.style.objectPosition = ev.cover_position;
+      $('[data-cover]').hidden = false;
+    }
     const closed = ev.state === 'encerrado';
     $('[data-closed]').hidden = !closed;
     $('[data-open-area]').hidden = closed;
-    const prices = $('[data-prices]');
-    prices.replaceChildren();
-    if (!closed) {
-      const strong = document.createElement('strong');
-      strong.className = 'text-brand';
-      strong.textContent = formatBRL(ev.price_single);
-      prices.append('Cada foto ', strong);
-      if (ev.price_pack > 0) {
-        const pack = document.createElement('strong');
-        pack.className = 'text-brand';
-        pack.textContent = formatBRL(ev.price_pack);
-        prices.append(' · Todas as suas fotos por ', pack);
-      }
-      if (ev.sale_ends_at) prices.append(` · Disponível até ${formatDateBR(ev.sale_ends_at.slice(0, 10))}`);
-    }
-    $('[data-total]').textContent = `${ev.photo_count} fotos.`;
+    $('[data-prices]').hidden = closed;
+    $('[data-p-single]').textContent = formatBRL(ev.price_single);
+    const offer = packOffer(ev, ev.photo_count);
+    $('[data-pack]').hidden = !offer.show;
+    if (!offer.show) $('[data-prices]').classList.replace('grid-cols-3', 'grid-cols-2');
+    $('[data-p-pack]').textContent = formatBRL(ev.price_pack);
+    // Selo só quando o pacote realmente sai mais barato do que as avulsas.
+    $('[data-p-badge]').hidden = !offer.badge;
+    $('[data-p-badge]').textContent = `Economize a partir de ${offer.worthFrom} fotos`;
+    $('[data-p-until]').textContent = ev.sale_ends_at ? formatDateBR(ev.sale_ends_at.slice(0, 10)) : '—';
     $('[data-content]').hidden = false;
     $('[data-loading]').hidden = true;
     renderBar();
   }
+  function renderCounts(c: Counts) {
+    for (const k of ['all', 'vertical', 'horizontal', 'square'] as const) {
+      const el = root.querySelector<HTMLElement>(`[data-count="${k}"]`)!;
+      el.textContent = `(${c[k] ?? 0})`;
+      // Esconde formatos que não existem no evento.
+      if (k !== 'all') el.closest('button')!.hidden = !c[k];
+    }
+    $('[data-total]').textContent = `${c.all} fotos`;
+  }
 
+  // ───────── Cartões das fotos ─────────
   function tile(p: Photo, index: number) {
     const li = document.createElement('li');
-    li.className = 'relative';
     li.dataset.n = String(p.n);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'block aspect-[4/3] w-full overflow-hidden rounded-lg bg-bg-2 ring-brand focus-visible:ring-2';
-    btn.setAttribute('aria-label', `Ampliar foto ${photoLabel(p.n)}`);
+    li.className = 'group relative overflow-hidden rounded-xl bg-bg-2 ring-brand transition-shadow [content-visibility:auto]';
+    // Proporção real do arquivo: sem cortes e sem "pulos" ao carregar.
+    li.style.aspectRatio = p.w > 0 && p.h > 0 ? `${p.w} / ${p.h}` : '3 / 2';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'block size-full focus-visible:outline-none';
+    open.setAttribute('aria-label', `Ampliar foto ${photoLabel(p.n)}`);
     const img = document.createElement('img');
     img.src = `/f/${ev.id}/${p.id}/thumb.jpg`;
     img.alt = `Foto ${photoLabel(p.n)}`;
     img.loading = 'lazy';
     img.decoding = 'async';
-    img.className = 'size-full object-cover';
-    btn.append(img);
-    btn.addEventListener('click', () => openLightbox(index));
+    img.width = p.w || 600;
+    img.height = p.h || 400;
+    img.className = 'size-full object-contain opacity-0 transition-opacity duration-300';
+    img.addEventListener('load', () => img.classList.remove('opacity-0'), { once: true });
+    open.append(img);
+    open.addEventListener('click', () => openLightbox(index));
     const check = document.createElement('button');
     check.type = 'button';
-    check.className = 'absolute top-1.5 right-1.5 grid size-9 place-items-center rounded-full border-2 border-white/80 bg-black/40 text-sm font-bold';
-    check.addEventListener('click', () => toggle(p));
+    check.dataset.check = '';
+    check.addEventListener('click', (e) => { e.stopPropagation(); toggle(p); });
+    const zoom = document.createElement('button');
+    zoom.type = 'button';
+    zoom.className = 'absolute right-2 bottom-2 grid size-8 place-items-center rounded-full bg-black/55 text-white backdrop-blur hover:bg-black/75';
+    zoom.setAttribute('aria-label', `Ver foto ${photoLabel(p.n)} ampliada`);
+    zoom.innerHTML = SVG_ZOOM;
+    zoom.addEventListener('click', (e) => { e.stopPropagation(); openLightbox(index); });
     const label = document.createElement('span');
-    label.className = 'pointer-events-none absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 text-[11px] font-semibold';
+    label.className = 'pointer-events-none absolute bottom-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold text-white';
     label.textContent = photoLabel(p.n);
-    li.append(btn, check, label);
+    li.append(open, check, zoom, label);
     paintTile(li);
     return li;
   }
@@ -233,36 +410,47 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   function paintTile(li: HTMLElement) {
     const n = Number(li.dataset.n);
     const on = selected.has(n);
-    const check = li.querySelectorAll('button')[1]!;
-    check.textContent = on ? '✓' : '';
-    check.className = `absolute top-1.5 right-1.5 grid size-9 place-items-center rounded-full border-2 text-sm font-bold ${on ? 'border-brand bg-brand text-bg' : 'border-white/80 bg-black/40'}`;
+    const check = li.querySelector<HTMLElement>('[data-check]')!;
+    check.innerHTML = on ? SVG_CHECK : '';
+    check.className = `absolute top-2 right-2 grid size-9 place-items-center rounded-full border-2 transition-colors ${on ? 'border-brand bg-brand text-bg' : 'border-white/90 bg-black/30 hover:bg-black/50'}`;
     check.setAttribute('aria-pressed', String(on));
     check.setAttribute('aria-label', `${on ? 'Remover' : 'Selecionar'} foto ${photoLabel(n)}`);
-    li.querySelector('img')!.classList.toggle('opacity-80', on);
-  }
-
-  function appendTiles(start: number) {
-    const grid = $('[data-grid]');
-    photos.slice(start).forEach((p, i) => grid.append(tile(p, start + i)));
+    li.classList.toggle('ring-2', on);
   }
 
   function toggle(p: Photo) {
-    const n = p.n;
-    if (selected.has(n)) selected.delete(n); else selected.set(n, p.id);
+    if (selected.has(p.n)) selected.delete(p.n); else selected.set(p.n, p.id);
     save();
-    const li = root.querySelector<HTMLElement>(`[data-grid] li[data-n="${n}"]`);
+    const li = root.querySelector<HTMLElement>(`[data-grid] li[data-n="${p.n}"]`);
     if (li) paintTile(li);
     renderBar();
     if (lb.open) paintLightbox();
   }
 
+  // ───────── Carrinho ─────────
   function renderBar() {
     const count = selected.size;
-    $('[data-bar]').hidden = count === 0 || ev.state === 'encerrado';
-    if (!count) return;
-    const p = selectionPrice(count, ev);
+    const open = count > 0 && ev.state !== 'encerrado';
+    $('[data-bar]').hidden = !open;
+    document.body.toggleAttribute('data-cart-open', open);
+    // Espaço extra no fim da página para a barra não cobrir as últimas fotos.
+    root.style.paddingBottom = open ? '7rem' : '';
+    if (!open) return;
+    const s = cartSummary(count, ev);
     $('[data-sel-count]').textContent = `${count} foto${count === 1 ? '' : 's'} selecionada${count === 1 ? '' : 's'}`;
-    $('[data-sel-total]').textContent = `${formatBRL(p.total)}${p.usePack ? ' (pacote)' : ''}`;
+    $('[data-sel-total]').textContent = formatBRL(s.total);
+    $('[data-sel-pack]').textContent = s.usePack ? `· pacote aplicado, economia de ${formatBRL(s.savings)}` : '';
+    $('[data-sel-pack]').className = s.usePack ? 'text-[11px] text-brand' : 'text-[11px]';
+    $('[data-bar-thumbs]').replaceChildren(
+      ...[...selected.entries()].slice(-3).map(([n, id]) => {
+        const im = document.createElement('img');
+        im.src = `/f/${ev.id}/${id}/thumb.jpg`;
+        im.alt = '';
+        im.className = 'size-11 rounded-lg border-2 border-bg object-cover';
+        im.title = photoLabel(n);
+        return im;
+      }),
+    );
     const wa = whatsappLink(root.dataset.number!, orderMessage(ev, [...selected.keys()], `${location.origin}/e/${ev.slug}`));
     $<HTMLAnchorElement>('[data-order]').href = wa;
     $<HTMLAnchorElement>('[data-buy-wa]').href = wa;
@@ -272,16 +460,51 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   $('[data-clear]').addEventListener('click', () => {
     if (!confirm('Limpar a seleção?')) return;
     selected.clear(); save(); renderBar();
-    root.querySelectorAll<HTMLElement>('[data-grid] li').forEach(paintTile);
+    root.querySelectorAll<HTMLElement>('[data-grid] li[data-n]').forEach(paintTile);
   });
 
-  // ── Compra (InfinitePay ou Mercado Pago) ──
+  // ───────── Filtros, ordenação e busca ─────────
+  root.querySelectorAll<HTMLElement>('[data-orient]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (view.orient === b.dataset.orient && !view.from) return;
+      view.orient = b.dataset.orient!;
+      view.from = 0;
+      resetView();
+    }),
+  );
+  $<HTMLSelectElement>('[data-order-select]').addEventListener('change', (e) => {
+    view.order = (e.target as HTMLSelectElement).value;
+    view.from = 0;
+    resetView();
+  });
+  $('[data-jump]').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const n = Number.parseInt($<HTMLInputElement>('#jump-n').value.replace(/\D/g, ''), 10);
+    if (!n) return;
+    Object.assign(view, { orient: 'all', order: 'asc', from: n });
+    await resetView();
+    const first = photos[0];
+    $('[data-from-text]').textContent = !first
+      ? `Nenhuma foto a partir da ${photoLabel(n)}.`
+      : first.n === n
+        ? `Mostrando a partir da foto ${photoLabel(n)}.`
+        : `A foto ${photoLabel(n)} não existe; mostrando a partir da ${photoLabel(first.n)}.`;
+    const li = root.querySelector<HTMLElement>(`[data-grid] li[data-n="${first?.n}"]`);
+    if (li) {
+      li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      li.classList.add('ring-4');
+      setTimeout(() => li.classList.remove('ring-4'), 2000);
+    }
+  });
+  $('[data-from-clear]').addEventListener('click', () => { view.from = 0; $<HTMLInputElement>('#jump-n').value = ''; resetView(); });
+
+  // ───────── Compra (InfinitePay ou Mercado Pago) ─────────
   const co = $<HTMLDialogElement>('[data-checkout]');
   const coForm = $<HTMLFormElement>('[data-checkout-form]');
   const BUYER_KEY = 'venart-comprador';
   $('[data-buy]').addEventListener('click', () => {
-    const p = selectionPrice(selected.size, ev);
-    $('[data-co-summary]').textContent = `${selected.size} foto${selected.size === 1 ? '' : 's'} · ${formatBRL(p.total)}${p.usePack ? ' (pacote)' : ''}`;
+    const s = cartSummary(selected.size, ev);
+    $('[data-co-summary]').textContent = `${selected.size} foto${selected.size === 1 ? '' : 's'} · ${formatBRL(s.total)}${s.usePack ? ' (pacote)' : ''}`;
     try {
       const saved = JSON.parse(localStorage.getItem(BUYER_KEY) ?? '{}') as Record<string, string>;
       for (const k of ['name', 'email', 'phone']) {
@@ -326,29 +549,32 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     }
   });
 
-  // ── Foto ampliada ──
+  // ───────── Foto ampliada ─────────
   const lb = $<HTMLDialogElement>('[data-lightbox]');
   let current = 0;
   function paintLightbox() {
     const p = photos[current]!;
     const on = selected.has(p.n);
     $('[data-lb-label]').textContent = `Foto ${photoLabel(p.n)}`;
+    $('[data-lb-pos]').textContent = `${current + 1} de ${photos.length}${next !== null ? '+' : ''}`;
     const sel = $('[data-lb-select]');
-    sel.textContent = on ? '✓ Selecionada — remover' : 'Selecionar esta foto';
-    sel.className = `btn min-h-12 px-6 ${on ? 'btn-outline' : 'btn-primary'}`;
+    sel.innerHTML = on ? `${SVG_CHECK} Selecionada — remover` : 'Selecionar esta foto';
+    sel.className = `btn min-h-12 gap-2 px-6 ${on ? 'btn-outline' : 'btn-primary'}`;
+    sel.setAttribute('aria-pressed', String(on));
+    $('[data-lb-cart]').textContent = selected.size ? `${selected.size} no carrinho · ${formatBRL(cartSummary(selected.size, ev).total)}` : '';
     $<HTMLButtonElement>('[data-lb-prev]').hidden = current === 0;
     $<HTMLButtonElement>('[data-lb-next]').hidden = current >= photos.length - 1 && next === null;
   }
   function showPhoto(i: number) {
+    if (!photos.length) return;
     current = Math.max(0, Math.min(i, photos.length - 1));
     const p = photos[current]!;
     const img = $<HTMLImageElement>('[data-lb-img]');
     img.src = `/f/${ev.id}/${p.id}/preview.jpg`;
     img.alt = `Foto ${photoLabel(p.n)} (prévia com marca d'água)`;
     paintLightbox();
-    // Pré-carrega a próxima.
     const nx = photos[current + 1];
-    if (nx) new Image().src = `/f/${ev.id}/${nx.id}/preview.jpg`;
+    if (nx) new Image().src = `/f/${ev.id}/${nx.id}/preview.jpg`; // pré-carrega a próxima
     if (current >= photos.length - 3) loadMore();
   }
   function openLightbox(i: number) { showPhoto(i); lb.showModal(); }
@@ -359,8 +585,8 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   lb.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') showPhoto(current - 1);
     if (e.key === 'ArrowRight') showPhoto(current + 1);
+    if (e.key === ' ' && document.activeElement === lb) { e.preventDefault(); toggle(photos[current]!); }
   });
-  // Deslizar para os lados no celular.
   let touchX = 0;
   lb.addEventListener('touchstart', (e) => { touchX = e.touches[0]!.clientX; }, { passive: true });
   lb.addEventListener('touchend', (e) => {
@@ -368,20 +594,16 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     if (Math.abs(dx) > 50) showPhoto(current + (dx < 0 ? 1 : -1));
   });
 
-  // ── Ir para número ──
-  $('[data-jump]').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const n = Number.parseInt($<HTMLInputElement>('#jump-n').value, 10);
-    if (!n) return;
-    while (!photos.some((p) => p.n >= n) && next !== null) await loadMore();
-    const li = root.querySelector<HTMLElement>(`[data-grid] li[data-n="${n}"]`);
-    if (li) { li.scrollIntoView({ behavior: 'smooth', block: 'center' }); li.querySelector('button')!.focus({ preventScroll: true }); }
-    else alert(`Foto ${photoLabel(n)} não encontrada.`);
-  });
-
-  // ── Início ──
-  new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting) && ev) loadMore(); }, { rootMargin: '800px' }).observe($('[data-sentinel]'));
-  loadMore().catch(() => {
+  // ───────── Início ─────────
+  const params = new URLSearchParams(location.search);
+  if (['vertical', 'horizontal', 'square'].includes(params.get('formato') ?? '')) view.orient = params.get('formato')!;
+  if (['desc', 'new', 'old'].includes(params.get('ordem') ?? '')) view.order = params.get('ordem')!;
+  lastCols = columnsFor(window.innerWidth);
+  // Cabeçalho do site fixo: a barra de filtros gruda logo abaixo dele.
+  const header = document.querySelector<HTMLElement>('#site-header');
+  if (header) document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
+  new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting) && ev) loadMore(); }, { rootMargin: '1000px' }).observe($('[data-sentinel]'));
+  resetView().catch(() => {
     $('[data-loading]').hidden = true;
     $('[data-error]').hidden = false;
   });
