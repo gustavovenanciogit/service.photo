@@ -8,7 +8,7 @@
  */
 export const store = {
   /** Versão dos Termos de compra aceitos (fica gravada em cada pedido). Mude ao alterar os termos. */
-  termsVersion: '2026-11-v3',
+  termsVersion: '2026-11-v4',
   /** Parcelas no cartão. 1 = só à vista. (Decisão 0.3 do checklist: pendente.) */
   maxInstallments: 1,
   /** Tempo para pagar antes de o pedido expirar (horas). */

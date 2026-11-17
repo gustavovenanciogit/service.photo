@@ -68,8 +68,7 @@ export const api = {
   orders: () =>
     request<{
       configured: boolean;
-      provider: string;
-      payments?: { active: string | null; infinitepay: boolean; mercadopago: boolean; mercadopagoTest: boolean; webhookSecret: boolean; preferred: string | null; preferredRaw: boolean };
+      payments?: { active: string | null; mercadopagoTest: boolean; webhookSecret: boolean };
       orders: Order[];
     }>('GET', '/api/orders'),
   orderAction: (id: string, body: { action?: 'sync' | 'release' | 'block' | 'extend' | 'test'; notes?: string }) =>
