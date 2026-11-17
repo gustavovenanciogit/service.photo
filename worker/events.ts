@@ -19,7 +19,7 @@ import {
   type EventInput, type EventPhoto, type EventRecord, type PhotoPart,
 } from '../src/lib/events.ts';
 import { newId } from '../src/lib/crm.ts';
-import { provider, PROVIDER_NAMES, type PaymentsEnv } from './payments.ts';
+import { mpConfigured, type PaymentsEnv } from './payments.ts';
 import { getWatermarkSettings } from './settings.ts';
 import { jpegSize } from '../src/lib/jpeg.ts';
 import { ORDER_SQL, ORIENTATION_SQL, parseGalleryQuery } from '../src/lib/gallery.ts';
@@ -331,8 +331,7 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
 
 /** Dados que o público pode ver (sem datas internas). */
 const publicEvent = (e: EventRecord, state: string, env: PaymentsEnv) => ({
-  checkout: !!provider(env),
-  payment_name: provider(env) ? PROVIDER_NAMES[provider(env)!] : '',
+  checkout: mpConfigured(env),
   id: e.id,
   slug: e.slug,
   name: e.name,

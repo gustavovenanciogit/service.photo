@@ -10,14 +10,14 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
 <PanelLayout title="Vendas">
   <p class="eyebrow">Loja de fotos</p>
   <h1 class="mt-1 text-5xl font-extrabold">Vendas</h1>
-  <p class="mt-2 max-w-2xl text-muted">Pedidos feitos nas galerias. O download é liberado sozinho quando o pagamento é confirmado (InfinitePay ou Mercado Pago).</p>
+  <p class="mt-2 max-w-2xl text-muted">Pedidos feitos nas galerias. O download é liberado sozinho quando o Mercado Pago confirma o pagamento.</p>
 
   <p data-pay-status class="mt-4 text-sm text-muted"></p>
 
   <div data-setup hidden class="card mt-6 border-amber-300/50 p-5">
     <p class="font-semibold text-amber-200">Venda online ainda desativada</p>
     <p class="mt-1 text-sm text-muted">
-      Falta configurar o meio de pagamento na Cloudflare: InfinitePay (<code>INFINITEPAY_HANDLE</code>) ou Mercado Pago (<code>MP_ACCESS_TOKEN</code> e <code>MP_WEBHOOK_SECRET</code>).
+      Falta colocar as credenciais do Mercado Pago na Cloudflare (segredos <code>MP_ACCESS_TOKEN</code> e <code>MP_WEBHOOK_SECRET</code>).
       Enquanto isso, as galerias continuam com o pedido pelo WhatsApp. O passo a passo está no checklist da loja (itens 0.10, 0.11 e 2.8).
     </p>
   </div>
@@ -87,7 +87,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     li.append(top);
 
     const info: string[] = [];
-    info.push(o.provider === 'infinitepay' ? 'InfinitePay' : 'Mercado Pago');
+    info.push(o.provider === 'infinitepay' ? 'InfinitePay (antigo)' : 'Mercado Pago');
     if (o.payment_method) info.push(methods[o.payment_method] ?? o.payment_method);
     if (o.paid_at) info.push(`pago em ${dt(o.paid_at)}`);
     if (o.download_until) info.push(`download até ${dt(o.download_until).slice(0, 10)}`);
@@ -179,12 +179,9 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
       $('[data-setup]').hidden = data.configured;
       const ps = data.payments;
       if (ps) {
-        const names: Record<string, string> = { infinitepay: 'InfinitePay', mercadopago: 'Mercado Pago' };
-        const parts = [`Pagamento online ativo: <strong class="text-brand">${ps.active ? names[ps.active] : 'nenhum (pedido pelo WhatsApp)'}</strong>`];
-        if (ps.mercadopago) parts.push(`Mercado Pago ${ps.mercadopagoTest ? '<span class="text-amber-200">em modo TESTE</span>' : 'em produção'}${ps.webhookSecret ? '' : ' · <span class="text-amber-200">falta MP_WEBHOOK_SECRET</span>'}`);
-        if (ps.preferredRaw && !ps.preferred) parts.push('<span class="text-amber-200">PAYMENT_PROVIDER com valor não reconhecido (use mercadopago ou infinitepay)</span>');
-        if (ps.preferred === 'mercadopago' && !ps.mercadopago) parts.push('<span class="text-amber-200">PAYMENT_PROVIDER pede Mercado Pago, mas falta MP_ACCESS_TOKEN</span>');
-        $('[data-pay-status]').innerHTML = parts.join(' · ');
+        $('[data-pay-status]').innerHTML = ps.active
+          ? `Pagamento online: <strong class="text-brand">Mercado Pago</strong> ${ps.mercadopagoTest ? '<span class="text-amber-200">em modo TESTE</span>' : 'em produção'}${ps.webhookSecret ? '' : ' · <span class="text-amber-200">falta MP_WEBHOOK_SECRET</span>'}`
+          : 'Pagamento online desligado: as galerias usam o pedido pelo WhatsApp.';
       }
       const events = new Map(orders.map((o) => [o.event_id, o.event_name]));
       events.forEach((name, id) => $('[data-f-event]').append(new Option(name, id)));
