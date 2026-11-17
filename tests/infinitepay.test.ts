@@ -53,3 +53,14 @@ test('checkInfinite exige pago E valor certo', () => {
   assert.equal(checkInfinite(o, { success: false }), 'pendente');
   assert.equal(infiniteMethod('pix'), 'pix');
 });
+
+test('PAYMENT_PROVIDER aceita variações de escrita', async () => {
+  const { preferred, provider } = await import('../worker/payments.ts');
+  for (const v of ['mercadopago', ' mercadopago ', 'Mercado Pago', '"mercadopago"', 'MP', 'mercadopago\n']) assert.equal(preferred(v), 'mercadopago', JSON.stringify(v));
+  assert.equal(preferred('InfinitePay'), 'infinitepay');
+  assert.equal(preferred('outro'), null);
+  const env = { INFINITEPAY_HANDLE: 'venart', MP_ACCESS_TOKEN: 'APP_USR-x' };
+  assert.equal(provider(env), 'infinitepay');
+  assert.equal(provider({ ...env, PAYMENT_PROVIDER: 'Mercado Pago ' }), 'mercadopago');
+  assert.equal(provider({ ...env, PAYMENT_PROVIDER: 'mercadopago', MP_ACCESS_TOKEN: ' ' }), 'infinitepay');
+});

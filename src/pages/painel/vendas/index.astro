@@ -12,6 +12,8 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
   <h1 class="mt-1 text-5xl font-extrabold">Vendas</h1>
   <p class="mt-2 max-w-2xl text-muted">Pedidos feitos nas galerias. O download é liberado sozinho quando o pagamento é confirmado (InfinitePay ou Mercado Pago).</p>
 
+  <p data-pay-status class="mt-4 text-sm text-muted"></p>
+
   <div data-setup hidden class="card mt-6 border-amber-300/50 p-5">
     <p class="font-semibold text-amber-200">Venda online ainda desativada</p>
     <p class="mt-1 text-sm text-muted">
@@ -175,6 +177,15 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
       const data = await api.orders();
       orders = data.orders;
       $('[data-setup]').hidden = data.configured;
+      const ps = data.payments;
+      if (ps) {
+        const names: Record<string, string> = { infinitepay: 'InfinitePay', mercadopago: 'Mercado Pago' };
+        const parts = [`Pagamento online ativo: <strong class="text-brand">${ps.active ? names[ps.active] : 'nenhum (pedido pelo WhatsApp)'}</strong>`];
+        if (ps.mercadopago) parts.push(`Mercado Pago ${ps.mercadopagoTest ? '<span class="text-amber-200">em modo TESTE</span>' : 'em produção'}${ps.webhookSecret ? '' : ' · <span class="text-amber-200">falta MP_WEBHOOK_SECRET</span>'}`);
+        if (ps.preferredRaw && !ps.preferred) parts.push('<span class="text-amber-200">PAYMENT_PROVIDER com valor não reconhecido (use mercadopago ou infinitepay)</span>');
+        if (ps.preferred === 'mercadopago' && !ps.mercadopago) parts.push('<span class="text-amber-200">PAYMENT_PROVIDER pede Mercado Pago, mas falta MP_ACCESS_TOKEN</span>');
+        $('[data-pay-status]').innerHTML = parts.join(' · ');
+      }
       const events = new Map(orders.map((o) => [o.event_id, o.event_name]));
       events.forEach((name, id) => $('[data-f-event]').append(new Option(name, id)));
       render();
