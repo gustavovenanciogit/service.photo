@@ -191,14 +191,39 @@ const MIGRATIONS = [
   `ALTER TABLE orders ADD COLUMN pay_attempts INTEGER NOT NULL DEFAULT 0`,
 ];
 
+/**
+ * Versão da estrutura do banco. Muda sozinha quando entra uma tabela ou coluna nova
+ * (as listas acima só crescem). Assim a conferência roda UMA vez por versão, e não a cada
+ * vez que o servidor acorda (o plano gratuito limita as consultas por acesso).
+ */
+const SCHEMA_VERSION = `${SCHEMA.length}.${MIGRATIONS.length}`;
+
 async function migrate(db: D1Database) {
+  // Já está na versão atual? Uma consulta só.
+  try {
+    const row = await db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").first<{ value: string }>();
+    if (row?.value === SCHEMA_VERSION) return;
+  } catch {
+    // tabela settings ainda não existe (banco novo): segue para criar tudo
+  }
   await db.batch(SCHEMA.map((s) => db.prepare(s)));
+  let allOk = true;
   for (const m of MIGRATIONS) {
     try {
       await db.prepare(m).run();
     } catch (e) {
-      if (!/duplicate column/i.test(String((e as Error).message))) throw e;
+      const msg = String((e as Error).message);
+      if (/duplicate column/i.test(msg)) continue; // já aplicada
+      // Não derruba o site por causa de uma coluna: registra no log e tenta de novo no próximo acesso.
+      allOk = false;
+      console.error('Migração falhou:', m, msg);
     }
+  }
+  if (allOk) {
+    await db
+      .prepare("INSERT INTO settings (key, value, updated_at) VALUES ('schema_version', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
+      .bind(SCHEMA_VERSION, new Date().toISOString())
+      .run();
   }
 }
 
