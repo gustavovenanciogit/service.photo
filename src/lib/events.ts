@@ -40,6 +40,8 @@ export interface EventRecord {
   status: EventStatus;
   listed: boolean; // aparecer no site público (Fase 4)
   watermark_model: number; // 0 = modelo padrão; 1–8 = modelo próprio desta galeria
+  cover_image: string; // capa da página (vazio = sem capa); guarda a data do envio (versão)
+  cover_position: string; // enquadramento da capa, ex.: "50% 40%"
   photo_count: number;
   published_at: string; // ISO
   purged_at: string; // quando os arquivos foram apagados automaticamente (vazio = ainda guardados)
@@ -60,7 +62,7 @@ export interface EventPhoto {
 
 export type EventInput = Pick<
   EventRecord,
-  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'cover_photo_id' | 'watermark_model'
+  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'cover_photo_id' | 'watermark_model' | 'cover_position'
 > & { slug: string };
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -75,6 +77,12 @@ const num = (v: unknown, min: number, max: number, fallback: number) => {
 export const eventSlug = (name: string, date = '') => {
   const d = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
   return slugify(`${name}${d ? ` ${d[2]}-${d[1]}` : ''}`).slice(0, 60);
+};
+
+/** Enquadramento da capa: "X% Y%" (0–100). */
+export const coverPosition = (v: unknown) => {
+  const m = /^(\d{1,3})% (\d{1,3})%$/.exec(String(v ?? ''));
+  return m && Number(m[1]) <= 100 && Number(m[2]) <= 100 ? `${Number(m[1])}% ${Number(m[2])}%` : '50% 50%';
 };
 
 export function parseEvent(input: unknown): Result<EventInput> {
@@ -103,6 +111,7 @@ export function parseEvent(input: unknown): Result<EventInput> {
       status,
       listed: o.listed === true,
       watermark_model: [1, 2, 3, 4, 5, 6, 7, 8].includes(Number(o.watermark_model)) ? Number(o.watermark_model) : 0,
+      cover_position: coverPosition(o.cover_position),
     },
   };
 }

@@ -89,6 +89,14 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, res.status === 404 ? 'Original não encontrado.' : 'Falha ao baixar o original.');
     return res.blob();
   },
+  /** Capa opcional da página do evento (JPG). */
+  async uploadCover(id: string, jpg: Blob) {
+    const res = await fetch(`/api/events/${encodeURIComponent(id)}/cover`, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'image/jpeg' }, body: jpg });
+    const data = (await res.json().catch(() => ({}))) as EventRecord & { error?: string };
+    if (!res.ok) throw new ApiError(res.status, data.error ?? 'Falha ao enviar a capa.');
+    return data;
+  },
+  deleteCover: (id: string) => request<EventRecord>('DELETE', `/api/events/${encodeURIComponent(id)}/cover`),
   watermarkSettings: () => request<WatermarkSettings>('GET', '/api/settings/watermark'),
   saveWatermarkSettings: (s: WatermarkSettings) => request<WatermarkSettings>('PUT', '/api/settings/watermark', s),
   async uploadWatermarkLogo(png: Blob) {
