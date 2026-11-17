@@ -22,7 +22,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     </p>
   </div>
 
-  <div data-summary class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+  <div data-summary class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"></div>
 
   <div class="mt-6 grid gap-3 sm:grid-cols-[1fr_1fr_2fr]">
     <select data-f-status class={field} aria-label="Filtrar por situação">
@@ -40,6 +40,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
   import { api, h, toast, waNumber } from '@/lib/panel-api';
   import { deliveryMessage, ORDER_STATUSES, type Order } from '@/lib/orders';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
+  import { isSale, manausMonth, netOf, pendingRelease } from '@/lib/reports';
 
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   let orders: Order[] = [];
@@ -92,9 +93,17 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     if (o.paid_at) info.push(`pago em ${dt(o.paid_at)}`);
     if (o.download_until) info.push(`download até ${dt(o.download_until).slice(0, 10)}`);
     if (info.length) li.append(h('p', 'mt-2 text-xs text-muted', info.join(' · ')));
+    // Tarifa, líquido e liberação informados pelo Mercado Pago.
+    if (o.status === 'pago' && o.fee_amount > 0) {
+      const rel = o.release_date ? (Date.parse(o.release_date) > Date.now() ? `disponível em ${dt(o.release_date).slice(0, 10)}` : 'já disponível na conta') : '';
+      li.append(h('p', 'mt-1 text-xs text-brand', [`tarifa ${formatBRL(o.fee_amount)}`, `você recebe ${formatBRL(netOf(o))}`, rel].filter(Boolean).join(' · ')));
+    }
     if (o.status === 'divergente') li.append(h('p', 'mt-2 text-sm text-red-200', 'O pagamento recebido não bate com o pedido (valor, moeda ou referência). Confira no Mercado Pago antes de liberar.'));
 
     const actions = h('div', 'mt-3 flex flex-wrap gap-2');
+    if (o.status === 'pago' && o.provider !== 'infinitepay' && o.payment_method !== 'manual' && !o.fee_amount) {
+      actions.append(button('Buscar tarifa', 'btn-outline', () => act(o, { action: 'sync' }, 'Dados do Mercado Pago atualizados.')));
+    }
     if (o.status === 'pago') {
       const wa = h('a', 'btn btn-primary min-h-9 px-3 text-xs', 'Enviar link pelo WhatsApp') as HTMLAnchorElement;
       wa.href = whatsappLink(waNumber(o.buyer_phone), deliveryMessage(o, linkOf(o)));
@@ -137,9 +146,12 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
 
   function render() {
     // Resumo do mês (pedidos pagos).
-    const month = new Date().toISOString().slice(0, 7);
-    const paidMonth = orders.filter((o) => o.status === 'pago' && o.paid_at.slice(0, 7) === month);
+    const month = manausMonth(new Date().toISOString());
+    const paidMonth = orders.filter((o) => isSale(o) && manausMonth(o.paid_at) === month);
     const sum = paidMonth.reduce((s, o) => s + o.total, 0);
+    const fees = paidMonth.reduce((s, o) => s + (o.fee_amount || 0), 0);
+    const net = paidMonth.reduce((s, o) => s + netOf(o), 0);
+    const toRelease = pendingRelease(orders);
     const stat = (label: string, value: string, cls = '') => {
       const d = h('div', `card p-4 ${cls}`);
       d.append(h('p', 'text-xs tracking-widest text-muted uppercase', label), h('p', 'mt-1 font-display text-3xl font-extrabold', value));
@@ -147,9 +159,11 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     };
     const divergent = orders.filter((o) => o.status === 'divergente').length;
     $('[data-summary]').replaceChildren(
-      stat('Vendido no mês', formatBRL(sum)),
-      stat('Pedidos pagos no mês', String(paidMonth.length)),
-      stat('Aguardando pagamento', String(orders.filter((o) => o.status === 'pendente').length)),
+      stat('Vendido no mês (bruto)', formatBRL(sum)),
+      stat('Líquido no mês', formatBRL(net), fees ? '' : ''),
+      stat('Tarifas no mês', formatBRL(fees)),
+      stat('A liberar (cartão)', `${formatBRL(toRelease.amount)}${toRelease.next ? ` · ${new Date(toRelease.next).toLocaleDateString('pt-BR', { timeZone: 'America/Manaus' })}` : ''}`),
+      stat('Pedidos pagos / aguardando', `${paidMonth.length} / ${orders.filter((o) => o.status === 'pendente').length}`),
       stat('Para conferir', String(divergent), divergent ? 'border-red-400/60' : ''),
     );
 

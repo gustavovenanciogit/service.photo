@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import {
   buildPreference, canDownload, checkPayment, deliveryMessage, downloadName, downloadUntil, effectiveStatus,
-  mapPaymentStatus, orderCode, orderToken, parseCheckout, pickPayment, TOKEN_RE, verifyMpSignature,
+  mapPaymentStatus, orderCode, orderToken, parseCheckout, paymentFinancials, pickPayment, TOKEN_RE, verifyMpSignature,
 } from '../src/lib/orders.ts';
 
 const valid = { slug: 'treino-kohe', photo_ids: ['ph_abc1234', 'ph_abc1234', 'ph_def5678'], name: 'Ana Souza', email: 'Ana@Mail.com ', phone: '(92) 99999-0000', accept: true };
@@ -84,6 +84,17 @@ test('buildPreference: valor do servidor, referência e retorno', () => {
   assert.equal(pref.notification_url, 'https://site/api/webhooks/mercadopago');
   assert.equal(pref.payer.surname, 'Maria Souza');
   assert.equal(pref.expiration_date_to, '2026-11-16T00:00:00.000Z');
+  assert.deepEqual(pref.payment_methods.excluded_payment_types, [{ id: 'ticket' }]); // sem boleto
+});
+
+test('paymentFinancials: tarifa, líquido e liberação informados pelo Mercado Pago', () => {
+  const pix = paymentFinancials({ id: 1, status: 'approved', transaction_amount: 12.9, fee_details: [{ type: 'mercadopago_fee', amount: 0.13, fee_payer: 'collector' }], transaction_details: { net_received_amount: 12.77 }, money_release_date: '2026-11-17T10:00:00.000-04:00' });
+  assert.deepEqual(pix, { fee: 0.13, net: 12.77, release: '2026-11-17T14:00:00.000Z' });
+  // cartão com liberação em 30 dias; juros pagos pelo cliente não entram na sua tarifa
+  const card = paymentFinancials({ id: 2, status: 'approved', transaction_amount: 119.9, fee_details: [{ type: 'mercadopago_fee', amount: 3.95, fee_payer: 'collector' }, { type: 'financing_fee', amount: 9.1, fee_payer: 'payer' }], money_release_date: '2026-12-17T10:00:00Z' });
+  assert.deepEqual(card, { fee: 3.95, net: 115.95, release: '2026-12-17T10:00:00.000Z' });
+  // pendente: ainda sem dados
+  assert.deepEqual(paymentFinancials({ id: 3, status: 'pending', transaction_amount: 12.9 }), { fee: 0, net: 0, release: '' });
 });
 
 test('verifyMpSignature confere a assinatura do Mercado Pago', async () => {

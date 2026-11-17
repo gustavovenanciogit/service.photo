@@ -13,7 +13,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     <div>
       <p class="eyebrow">Loja de fotos</p>
       <h1 class="mt-1 text-5xl font-extrabold">Relatórios</h1>
-      <p class="mt-2 max-w-2xl text-muted">Valores brutos dos pedidos pagos (antes das taxas do Mercado Pago). Testes e reembolsos ficam de fora.</p>
+      <p class="mt-2 max-w-2xl text-muted">Vendas pagas com tarifa e valor líquido informados pelo Mercado Pago. O limite do MEI usa o valor bruto. Testes e reembolsos ficam de fora.</p>
     </div>
     <label class="text-sm">
       <span class="sr-only">Ano</span>
@@ -45,6 +45,9 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
       </p>
     </section>
 
+    <!-- Bruto, tarifas, líquido e a liberar -->
+    <div data-fin class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+
     <!-- Por mês -->
     <section class="card mt-6 p-5 sm:p-6" aria-labelledby="month-title">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -55,9 +58,9 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
         </div>
       </div>
       <div class="mt-4 overflow-x-auto">
-        <table class="w-full min-w-[720px] text-sm">
+        <table class="w-full min-w-[900px] text-sm">
           <thead class="text-left text-xs tracking-wider text-muted uppercase">
-            <tr><th class="py-2 pr-3">Mês</th><th class="px-3 text-right">Pedidos</th><th class="px-3 text-right">Fotos</th><th class="px-3 text-right">Loja</th><th class="px-3 text-right">Ticket médio</th><th class="px-3 text-right">Pix</th><th class="px-3 text-right">Cartão / outros</th><th class="px-3 text-right">Outros lançamentos</th><th class="pl-3 text-right">Total MEI</th></tr>
+            <tr><th class="py-2 pr-3">Mês</th><th class="px-3 text-right">Pedidos</th><th class="px-3 text-right">Fotos</th><th class="px-3 text-right">Loja (bruto)</th><th class="px-3 text-right">Tarifas</th><th class="px-3 text-right">Líquido</th><th class="px-3 text-right">Ticket médio</th><th class="px-3 text-right">Pix</th><th class="px-3 text-right">Cartão / outros</th><th class="px-3 text-right">Outros lançamentos</th><th class="pl-3 text-right">Total MEI</th></tr>
           </thead>
           <tbody data-months class="divide-y divide-line"></tbody>
         </table>
@@ -90,7 +93,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
 <script>
   import { api, h, toast, todayISO } from '@/lib/panel-api';
   import { store } from '@/config/store';
-  import { byEvent, isSale, manausMonth, meiLimit, meiStatus, monthlySummary, ordersCsv, type RevenueEntry } from '@/lib/reports';
+  import { byEvent, isSale, manausMonth, meiLimit, meiStatus, monthlySummary, ordersCsv, pendingRelease, type RevenueEntry } from '@/lib/reports';
   import { formatBRL } from '@/lib/whatsapp';
   import type { Order } from '@/lib/orders';
 
@@ -131,16 +134,33 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     $('[data-months]').replaceChildren(
       ...rows.map((r, i) => {
         const tr = h('tr', r.orders || r.other ? '' : 'text-muted/60');
-        tr.append(cell(`${MONTHS[i]}/${year}`, 'pr-3'), cell(r.orders ? String(r.orders) : '—'), cell(r.photos ? String(r.photos) : '—'), cell(money(r.total)), cell(money(r.ticket)), cell(money(r.pix)), cell(money(r.cartao + r.manual)), cell(money(r.other)), cell(money(r.total + r.other), 'pl-3 text-right font-semibold'));
+        tr.append(cell(`${MONTHS[i]}/${year}`, 'pr-3'), cell(r.orders ? String(r.orders) : '—'), cell(r.photos ? String(r.photos) : '—'), cell(money(r.total)), cell(money(r.fees)), cell(money(r.net)), cell(money(r.ticket)), cell(money(r.pix)), cell(money(r.cartao + r.manual)), cell(money(r.other)), cell(money(r.total + r.other), 'pl-3 text-right font-semibold'));
         return tr;
       }),
       (() => {
         const tr = h('tr', 'font-bold');
-        const tot = (k: 'orders' | 'photos' | 'total' | 'pix' | 'cartao' | 'manual' | 'other') => rows.reduce((s, r) => s + r[k], 0);
+        const tot = (k: 'orders' | 'photos' | 'total' | 'fees' | 'net' | 'pix' | 'cartao' | 'manual' | 'other') => rows.reduce((s, r) => s + r[k], 0);
         const n = tot('orders');
-        tr.append(cell('Total', 'pr-3'), cell(String(n)), cell(String(tot('photos'))), cell(money(tot('total'))), cell(money(n ? tot('total') / n : 0)), cell(money(tot('pix'))), cell(money(tot('cartao') + tot('manual'))), cell(money(tot('other'))), cell(money(revenue), 'pl-3 text-right'));
+        tr.append(cell('Total', 'pr-3'), cell(String(n)), cell(String(tot('photos'))), cell(money(tot('total'))), cell(money(tot('fees'))), cell(money(tot('net'))), cell(money(n ? tot('total') / n : 0)), cell(money(tot('pix'))), cell(money(tot('cartao') + tot('manual'))), cell(money(tot('other'))), cell(money(revenue), 'pl-3 text-right'));
         return tr;
       })(),
+    );
+
+    // Resumo financeiro do ano
+    const fin = (label: string, value: string, sub = '') => {
+      const d = h('div', 'card p-4');
+      d.append(h('p', 'text-xs tracking-widest text-muted uppercase', label), h('p', 'mt-1 font-display text-3xl font-extrabold', value));
+      if (sub) d.append(h('p', 'text-xs text-muted', sub));
+      return d;
+    };
+    const yFees = rows.reduce((s, r) => s + r.fees, 0);
+    const yNet = rows.reduce((s, r) => s + r.net, 0);
+    const pr = pendingRelease(orders);
+    $('[data-fin]').replaceChildren(
+      fin('Loja — bruto', formatBRL(store_), `em ${year}`),
+      fin('Tarifas do Mercado Pago', formatBRL(yFees), store_ ? `${((yFees / store_) * 100).toFixed(2).replace('.', ',')}% das vendas` : ''),
+      fin('Loja — líquido', formatBRL(yNet), 'o que entra de fato na conta'),
+      fin('A liberar', formatBRL(pr.amount), pr.count ? `${pr.count} venda(s) no cartão · próxima em ${new Date(pr.next).toLocaleDateString('pt-BR', { timeZone: 'America/Manaus' })}` : 'nada pendente'),
     );
 
     // Por evento
@@ -150,7 +170,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
         ? evs.map((e) => {
             const li = h('li', 'flex items-center justify-between gap-3 rounded-xl border border-line bg-bg p-3');
             const left = h('div', 'min-w-0');
-            left.append(h('p', 'truncate font-semibold', e.event_name), h('p', 'text-xs text-muted', `${e.orders} pedido${e.orders === 1 ? '' : 's'} · ${e.photos} foto${e.photos === 1 ? '' : 's'}`));
+            left.append(h('p', 'truncate font-semibold', e.event_name), h('p', 'text-xs text-muted', `${e.orders} pedido${e.orders === 1 ? '' : 's'} · ${e.photos} foto${e.photos === 1 ? '' : 's'} · líquido ${formatBRL(e.net)}`));
             li.append(left, h('span', 'font-display text-xl font-bold text-brand', formatBRL(e.total)));
             return li;
           })

@@ -35,6 +35,9 @@ export interface Order {
   payment_method: string;
   paid_at: string;
   download_until: string;
+  fee_amount: number; // tarifa do Mercado Pago (R$); 0 = ainda não informada
+  net_amount: number; // valor líquido recebido (R$); 0 = ainda não informado
+  release_date: string; // quando o dinheiro fica disponível na conta (ISO); vazio = não informado
   terms_version: string;
   provider: string; // 'mercadopago' (pedidos antigos podem ser 'infinitepay')
   notes: string;
@@ -109,6 +112,24 @@ export interface MpPayment {
   currency_id?: string;
   payment_type_id?: string;
   date_approved?: string | null;
+  fee_details?: { type?: string; amount?: number; fee_payer?: string }[];
+  transaction_details?: { net_received_amount?: number | null } | null;
+  money_release_date?: string | null;
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Tarifa, líquido e data de liberação informados pelo Mercado Pago no pagamento.
+ * Só conta a tarifa paga por você (fee_payer "collector"); juros de parcelamento pagos pelo cliente ficam de fora.
+ */
+export function paymentFinancials(p: MpPayment) {
+  const fees = (p.fee_details ?? []).filter((f) => (f.fee_payer ?? 'collector') === 'collector' && typeof f.amount === 'number');
+  const fee = r2(fees.reduce((s, f) => s + (f.amount ?? 0), 0));
+  const informedNet = p.transaction_details?.net_received_amount;
+  const net = typeof informedNet === 'number' && informedNet > 0 ? r2(informedNet) : fees.length && p.transaction_amount ? r2(p.transaction_amount - fee) : 0;
+  const release = p.money_release_date && !Number.isNaN(Date.parse(p.money_release_date)) ? new Date(p.money_release_date).toISOString() : '';
+  return { fee, net, release };
 }
 
 /**
@@ -174,7 +195,8 @@ export function buildPreference(
     back_urls: { success: back, pending: back, failure: back },
     auto_return: 'approved',
     statement_descriptor: cfg.statementDescriptor,
-    payment_methods: { installments: cfg.maxInstallments },
+    // Sem boleto: demora até 3 dias úteis e muitos não pagam (decisão de 17/11/2026). Pix e cartão continuam.
+    payment_methods: { installments: cfg.maxInstallments, excluded_payment_types: [{ id: 'ticket' }] },
     expires: true,
     expiration_date_to: expires,
     binary_mode: false,

@@ -15,7 +15,18 @@ export interface RevenueEntry {
   created_at: string;
 }
 
-type O = Pick<Order, 'status' | 'paid_at' | 'total' | 'photo_count' | 'payment_method' | 'provider' | 'event_id' | 'event_name'>;
+type O = Pick<Order, 'status' | 'paid_at' | 'total' | 'photo_count' | 'payment_method' | 'provider' | 'event_id' | 'event_name'> &
+  Partial<Pick<Order, 'fee_amount' | 'net_amount' | 'release_date'>>;
+
+/** Líquido de uma venda: o informado pelo Mercado Pago; sem informação, o total menos a tarifa conhecida. */
+export const netOf = (o: Pick<O, 'total' | 'fee_amount' | 'net_amount'>) => (o.net_amount && o.net_amount > 0 ? o.net_amount : o.total - (o.fee_amount ?? 0));
+
+/** Vendas pagas cujo dinheiro ainda não foi liberado na conta (ex.: cartão com prazo de 30 dias). */
+export function pendingRelease(orders: O[], now = new Date()) {
+  const list = orders.filter((o) => isSale(o) && o.release_date && Date.parse(o.release_date) > now.getTime());
+  const next = list.map((o) => o.release_date!).sort()[0] ?? '';
+  return { amount: Math.round(list.reduce((s, o) => s + netOf(o), 0) * 100) / 100, count: list.length, next };
+}
 
 /** AAAA-MM em Manaus (UTC−4, sem horário de verão). */
 export const manausMonth = (iso: string) => (iso ? new Date(Date.parse(iso) - 4 * 3_600_000).toISOString().slice(0, 7) : '');
@@ -34,12 +45,14 @@ export interface MonthRow {
   pix: number;
   cartao: number;
   manual: number;
+  fees: number; // tarifas do Mercado Pago
+  net: number; // líquido da loja
   other: number; // lançamentos manuais (serviços etc.)
 }
 
 /** Resumo mês a mês de um ano (12 linhas). */
 export function monthlySummary(orders: O[], entries: Pick<RevenueEntry, 'month' | 'amount'>[], year: number): MonthRow[] {
-  const rows = Array.from({ length: 12 }, (_, i) => ({ month: `${year}-${String(i + 1).padStart(2, '0')}`, orders: 0, photos: 0, total: 0, ticket: 0, pix: 0, cartao: 0, manual: 0, other: 0 }));
+  const rows = Array.from({ length: 12 }, (_, i) => ({ month: `${year}-${String(i + 1).padStart(2, '0')}`, orders: 0, photos: 0, total: 0, ticket: 0, pix: 0, cartao: 0, manual: 0, fees: 0, net: 0, other: 0 }));
   for (const o of orders) {
     if (!isSale(o)) continue;
     const m = manausMonth(o.paid_at);
@@ -49,6 +62,8 @@ export function monthlySummary(orders: O[], entries: Pick<RevenueEntry, 'month' 
     row.photos += o.photo_count;
     row.total += o.total;
     row[methodGroup(o.payment_method)] += o.total;
+    row.fees += o.fee_amount ?? 0;
+    row.net += netOf(o);
   }
   for (const e of entries) {
     const row = rows.find((r) => r.month === e.month);
@@ -60,6 +75,8 @@ export function monthlySummary(orders: O[], entries: Pick<RevenueEntry, 'month' 
     pix: round2(r.pix),
     cartao: round2(r.cartao),
     manual: round2(r.manual),
+    fees: round2(r.fees),
+    net: round2(r.net),
     other: round2(r.other),
     ticket: r.orders ? round2(r.total / r.orders) : 0,
   }));
@@ -67,13 +84,14 @@ export function monthlySummary(orders: O[], entries: Pick<RevenueEntry, 'month' 
 
 /** Vendas por evento (pedidos pagos), do maior para o menor. */
 export function byEvent(orders: O[], year?: number) {
-  const map = new Map<string, { event_id: string; event_name: string; orders: number; photos: number; total: number }>();
+  const map = new Map<string, { event_id: string; event_name: string; orders: number; photos: number; total: number; net: number }>();
   for (const o of orders) {
     if (!isSale(o) || (year && !manausMonth(o.paid_at).startsWith(String(year)))) continue;
-    const r = map.get(o.event_id) ?? { event_id: o.event_id, event_name: o.event_name, orders: 0, photos: 0, total: 0 };
+    const r = map.get(o.event_id) ?? { event_id: o.event_id, event_name: o.event_name, orders: 0, photos: 0, total: 0, net: 0 };
     r.orders++;
     r.photos += o.photo_count;
     r.total = round2(r.total + o.total);
+    r.net = round2(r.net + netOf(o));
     map.set(o.event_id, r);
   }
   return [...map.values()].sort((a, b) => b.total - a.total);
@@ -103,7 +121,8 @@ export function ordersCsv(orders: (O & Pick<Order, 'id' | 'created_at' | 'buyer_
     return /[";\n\r]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"` : s;
   };
   const brDate = (iso: string) => (iso ? new Date(Date.parse(iso) - 4 * 3_600_000).toISOString().slice(0, 16).replace('T', ' ') : '');
-  const head = ['Pedido', 'Data do pedido', 'Data do pagamento', 'Situação', 'Evento', 'Fotos', 'Valor (R$)', 'Forma de pagamento', 'Meio', 'Comprador', 'E-mail', 'WhatsApp'];
+  const head = ['Pedido', 'Data do pedido', 'Data do pagamento', 'Situação', 'Evento', 'Fotos', 'Valor (R$)', 'Tarifa (R$)', 'Líquido (R$)', 'Liberação do dinheiro', 'Forma de pagamento', 'Meio', 'Comprador', 'E-mail', 'WhatsApp'];
+  const money = (n: number) => n.toFixed(2).replace('.', ',');
   const lines = orders.map((o) =>
     [
       o.id,
@@ -112,7 +131,10 @@ export function ordersCsv(orders: (O & Pick<Order, 'id' | 'created_at' | 'buyer_
       o.status,
       o.event_name,
       o.photo_count,
-      o.total.toFixed(2).replace('.', ','),
+      money(o.total),
+      money(o.fee_amount ?? 0),
+      money(netOf(o)),
+      brDate(o.release_date ?? '').slice(0, 10),
       methodLabel(o.payment_method),
       o.provider === 'infinitepay' ? 'InfinitePay' : 'Mercado Pago',
       o.buyer_name,
