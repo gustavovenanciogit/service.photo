@@ -154,6 +154,12 @@ const SCHEMA = [
     description TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
   )`,
+  // Configurações do painel (ex.: marca d'água), em JSON.
+  `CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
     count INTEGER NOT NULL,
@@ -173,6 +179,8 @@ const MIGRATIONS = [
   `ALTER TABLE orders ADD COLUMN provider TEXT NOT NULL DEFAULT 'mercadopago'`,
   `ALTER TABLE orders ADD COLUMN payment_ref TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE events ADD COLUMN purged_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN watermark_model INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE event_photos ADD COLUMN wm_sig TEXT NOT NULL DEFAULT ''`,
 ];
 
 async function migrate(db: D1Database) {

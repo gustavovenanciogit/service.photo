@@ -16,6 +16,7 @@ import {
 } from './auth.ts';
 import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
+import { settingsApi } from './settings.ts';
 import { eventsApi, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
 import { createOrder, MpError, orderStatus, ordersAdminApi, serveDownload, serveOrderPage, webhook, webhookInfinite, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
@@ -298,6 +299,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     return r.meta.changes ? json({ ok: true }) : json({ error: 'Lançamento não encontrado.' }, 404);
   }
 
+  if (path.startsWith('/api/settings/')) return settingsApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/orders' || path.startsWith('/api/orders/')) return ordersAdminApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/events' || path.startsWith('/api/events/')) return eventsApi(req, env, path, json, (r) => readJson(r));
 

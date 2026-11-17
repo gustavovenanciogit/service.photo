@@ -6,6 +6,7 @@ import type { Client, Job, Lead, ProposalRecord } from './crm';
 import type { EventPhoto, EventRecord, PhotoPart } from './events';
 import type { Order } from './orders';
 import type { RevenueEntry } from './reports';
+import type { WatermarkSettings } from './watermark-models';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -80,8 +81,23 @@ export const api = {
   deleteEvent: (id: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}`),
   eventPhotos: (id: string) => request<EventPhoto[]>('GET', `/api/events/${encodeURIComponent(id)}/photos`),
   registerPhotos: (id: string, names: string[]) => request<EventPhoto[]>('POST', `/api/events/${encodeURIComponent(id)}/photos`, { names }),
-  completePhoto: (id: string, pid: string, width: number, height: number) =>
-    request<EventPhoto>('POST', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/complete`, { width, height }),
+  completePhoto: (id: string, pid: string, width: number, height: number, sig = '') =>
+    request<EventPhoto>('POST', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/complete`, { width, height, sig }),
+  /** Original (só para o fotógrafo logado), para refazer as prévias. */
+  async originalPhoto(id: string, pid: string, signal?: AbortSignal) {
+    const res = await fetch(`/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/original`, { credentials: 'same-origin', signal, cache: 'no-store' });
+    if (!res.ok) throw new ApiError(res.status, res.status === 404 ? 'Original não encontrado.' : 'Falha ao baixar o original.');
+    return res.blob();
+  },
+  watermarkSettings: () => request<WatermarkSettings>('GET', '/api/settings/watermark'),
+  saveWatermarkSettings: (s: WatermarkSettings) => request<WatermarkSettings>('PUT', '/api/settings/watermark', s),
+  async uploadWatermarkLogo(png: Blob) {
+    const res = await fetch('/api/settings/watermark/logo', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'image/png' }, body: png });
+    const data = (await res.json().catch(() => ({}))) as WatermarkSettings & { error?: string };
+    if (!res.ok) throw new ApiError(res.status, data.error ?? 'Falha ao enviar o logotipo.');
+    return data;
+  },
+  deleteWatermarkLogo: () => request<WatermarkSettings>('DELETE', '/api/settings/watermark/logo'),
   deletePhoto: (id: string, pid: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}`),
   /** Envia um arquivo da foto (binário, sem JSON). */
   async uploadPart(id: string, pid: string, part: PhotoPart, blob: Blob, signal?: AbortSignal) {

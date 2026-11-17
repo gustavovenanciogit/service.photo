@@ -142,6 +142,15 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 
 ---
 
+## Marca d'água e proteção (avançado)
+
+- [x] **M.1 🤖 8 modelos** (logotipos grandes, central + repetições, grade, diagonal, distribuídas, logotipos e textos, faixas cruzadas, proteção intensa), com ajustes individuais (opacidade, tamanho, densidade, espaçamento, rotação, posição, espessura das faixas, cor, texto, logotipo, intensidade leve/moderado/forte/máximo). Painel → Loja → Marca d'água e proteção.
+- [x] **M.2 🤖 Marca gravada nos pixels** da prévia e da miniatura (canvas, no processamento do envio); o editor usa o mesmo motor (o que se vê é o que é publicado). Original intacto e privado.
+- [x] **M.3 🤖 Proteção:** prévia reduzida (800/1200/1600 px, conferida pelo servidor), desfoque leve/moderado/forte (foto inteira ou só bordas), download só com pagamento + link secreto com prazo + limite de downloads por pedido.
+- [x] **M.4 🤖 Modelo por galeria** + modelo padrão; "Reaplicar marca d'água" refaz as prévias a partir dos originais (no navegador, com fila, pausa e progresso).
+- [x] **M.5 🤖 Logotipo próprio** (PNG ou SVG, convertido em PNG no navegador; SVG nunca é guardado).
+- [ ] **M.6 Dependências não atendidas (documentadas):** processamento no servidor (Sharp/FFmpeg não rodam em Cloudflare Workers — exigiria Cloudflare Images ou Workers pago com WASM/filas); vídeos (a plataforma ainda não recebe vídeos); reprocessamento em segundo plano com a aba fechada (precisa do item anterior).
+
 ## Fase 4 — Lançamento
 
 - [ ] **4.1 👤 Trocar as credenciais** de teste pelas de **produção** (eu te guio).
