@@ -183,6 +183,9 @@ const MIGRATIONS = [
   `ALTER TABLE event_photos ADD COLUMN wm_sig TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE events ADD COLUMN cover_image TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE events ADD COLUMN cover_position TEXT NOT NULL DEFAULT '50% 50%'`,
+  `ALTER TABLE orders ADD COLUMN fee_amount REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE orders ADD COLUMN net_amount REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE orders ADD COLUMN release_date TEXT NOT NULL DEFAULT ''`,
 ];
 
 async function migrate(db: D1Database) {

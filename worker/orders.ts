@@ -20,7 +20,7 @@
 import { photoKey, publicState, selectionPrice } from '../src/lib/events.ts';
 import {
   buildPreference, canDownload, checkPayment, downloadName, downloadUntil, effectiveStatus, orderCode, orderToken,
-  parseCheckout, pickPayment, TOKEN_RE, verifyMpSignature, type MpPayment, type Order, type OrderStatus,
+  parseCheckout, paymentFinancials, pickPayment, TOKEN_RE, verifyMpSignature, type MpPayment, type Order, type OrderStatus,
 } from '../src/lib/orders.ts';
 import { store } from '../src/config/store.ts';
 import { getBySlug, type EventsEnv } from './events.ts';
@@ -93,11 +93,16 @@ async function syncOrder(env: OrdersEnv, order: OrderRow, extraPaymentId = ''): 
   }
   if (status === 'divergente') console.error('Pagamento divergente', order.id, payment.id, payment.transaction_amount, payment.currency_id);
   const method = payment.payment_type_id ?? '';
+  // Tarifa, líquido e data de liberação (cartão pode levar até 30 dias, conforme a configuração da conta).
+  const fin = paymentFinancials(payment);
+  const fee_amount = fin.fee || order.fee_amount;
+  const net_amount = fin.net || order.net_amount;
+  const release_date = fin.release || order.release_date;
   await env.DB
-    .prepare('UPDATE orders SET status=?, payment_id=?, payment_method=?, paid_at=?, download_until=?, checked_at=?, updated_at=? WHERE id=?')
-    .bind(status, String(payment.id), method, paid_at, download_until, t, now(), order.id)
+    .prepare('UPDATE orders SET status=?, payment_id=?, payment_method=?, paid_at=?, download_until=?, fee_amount=?, net_amount=?, release_date=?, checked_at=?, updated_at=? WHERE id=?')
+    .bind(status, String(payment.id), method, paid_at, download_until, fee_amount, net_amount, release_date, t, now(), order.id)
     .run();
-  return { ...order, status, payment_id: String(payment.id), payment_method: method, paid_at, download_until, checked_at: t };
+  return { ...order, status, payment_id: String(payment.id), payment_method: method, paid_at, download_until, fee_amount, net_amount, release_date, checked_at: t };
 }
 
 // ───────── Público ─────────

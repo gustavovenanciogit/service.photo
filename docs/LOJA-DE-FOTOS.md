@@ -131,7 +131,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 
 - [x] **3.1 🤖 Painel → Vendas:** lista de pedidos (status, valor, fotos, comprador), busca e filtros.
 - [x] **3.2 🤖 Ações:** reenviar link, liberar manualmente, bloquear download (reembolso), +30 dias, anotações e **marcar como teste** (sai dos relatórios).
-- [x] **3.3 🤖 Relatórios** (Loja → Relatórios e MEI): mês a mês (pedidos, fotos, total, ticket médio, Pix × cartão) e por evento. Valores brutos — as taxas da InfinitePay/Mercado Pago não vêm pela API; confira no extrato.
+- [x] **3.3 🤖 Relatórios** (Loja → Relatórios e MEI): mês a mês (pedidos, fotos, bruto, **tarifas, líquido**, ticket médio, Pix × cartão), por evento (bruto e líquido) e **a liberar** (cartão). Tarifa, líquido e data de liberação vêm do Mercado Pago em cada pagamento; o limite do MEI usa o bruto.
 - [x] **3.4 🤖 Alerta do limite do MEI:** loja + faturamento lançado à mão (serviços), com aviso no início do painel a partir de 70% e 90% de R$ 81.000/ano (proporcional no ano de abertura, se a data de abertura for preenchida em `store.mei.openedAt`).
 - [ ] **3.5 🤖 Pré-venda** "todas as minhas fotos" antes do evento — aguardando decisão.
 - [x] **3.6 🤖 Planilha para o contador** (CSV que abre no Excel), por mês ou ano.
@@ -234,6 +234,7 @@ Confirme sempre as taxas vigentes no painel de cada empresa.
 | 15/11/2026 | Até o pagamento automático (Fase 2), a galeria envia o pedido pelo WhatsApp com os números das fotos | Claude (sugestão) |
 | 15/11/2026 | Termos: uso pessoal + redes (comercial só com licença); crédito @venart_mid pedido, não obrigatório; arrependimento em 7 dias com reembolso total; reenvio gratuito após o prazo enquanto os arquivos existirem; portfólio com remoção a pedido; ajustes extras não incluídos; arquivos apagados após venda + download | Gustavo |
 | 16/11/2026 | Adicionada a InfinitePay (conta PJ já ativa) como meio de pagamento principal; Mercado Pago fica como alternativa | Gustavo |
+| 17/11/2026 | Boleto retirado do pagamento; relatórios com tarifa e líquido; cartão com recebimento em 30 dias (configurado na conta do Mercado Pago) | Gustavo |
 | 17/11/2026 | InfinitePay removida da plataforma; só Mercado Pago (conta PJ aprovada, primeira venda real por Pix concluída) | Gustavo |
 | 15/11/2026 | Gateway: Mercado Pago (Checkout Pro), cartão só à vista até decidir 0.3 | Gustavo ("vamos para a próxima fase") |
 | | | |
