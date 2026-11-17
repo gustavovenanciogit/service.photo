@@ -18,7 +18,7 @@ import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
 import { settingsApi } from './settings.ts';
 import { eventsApi, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
-import { createOrder, MpError, orderStatus, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
+import { createOrder, MpError, orderStatus, payOrder, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
 interface Env extends AuthEnv, GitHubEnv, OrdersEnv {
@@ -121,6 +121,13 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
     if (!(await db.allowLead(env.DB, await sha256Hex(`venart-orders:${ip}`), 10))) return json({ error: 'Muitos pedidos seguidos. Tente mais tarde.' }, 429);
     return createOrder(req, env, url, await readJson(req), json);
+  }
+  const payMatch = /^\/api\/public\/orders\/([A-Za-z0-9_-]{1,64})\/(pix|card|checkout)$/.exec(path);
+  if (payMatch && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+    if (!(await db.allowLead(env.DB, await sha256Hex(`venart-pay:${ip}`), 30))) return json({ error: 'Muitas tentativas seguidas. Aguarde alguns minutos.' }, 429);
+    return payOrder(req, env, url, payMatch[1]!, payMatch[2]!, await readJson(req), json);
   }
   const pubOrder = /^\/api\/public\/orders\/([A-Za-z0-9_-]{1,64})$/.exec(path);
   if (pubOrder && method === 'GET') {

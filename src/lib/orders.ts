@@ -243,3 +243,104 @@ export function deliveryMessage(o: Pick<Order, 'buyer_name' | 'event_name' | 'do
     'Obrigado pela compra!',
   ].join('\n');
 }
+
+// ───────── Checkout transparente (pagamento dentro do site) ─────────
+
+/** Data no formato que o Mercado Pago aceita, no horário de Manaus: 2026-11-17T15:30:00.000-04:00 */
+export function mpDate(ms: number) {
+  const d = new Date(ms - 4 * 3_600_000);
+  return `${d.toISOString().slice(0, 19)}.000-04:00`;
+}
+
+/** Validade do QR Code Pix (minutos). */
+export const PIX_MINUTES = 30;
+
+type PayOrder = Pick<Order, 'id' | 'total' | 'photo_count' | 'buyer_name' | 'buyer_email' | 'event_name'>;
+const payerName = (name: string) => {
+  const [first, ...rest] = name.trim().split(/\s+/);
+  return { first_name: first ?? '', last_name: rest.join(' ') };
+};
+
+/** Pagamento Pix (QR Code na página). Valor sempre do pedido no servidor. */
+export function buildPixPayment(order: PayOrder, origin: string, nowMs: number) {
+  return {
+    transaction_amount: order.total,
+    description: `Fotos digitais — ${order.event_name} (${order.photo_count} foto${order.photo_count === 1 ? '' : 's'})`.slice(0, 120),
+    payment_method_id: 'pix',
+    external_reference: order.id,
+    notification_url: `${origin}/api/webhooks/mercadopago`,
+    date_of_expiration: mpDate(nowMs + PIX_MINUTES * 60_000),
+    payer: { email: order.buyer_email, ...payerName(order.buyer_name) },
+  };
+}
+
+export interface CardInput {
+  token: string;
+  payment_method_id: string;
+  issuer_id: string;
+  installments: number;
+  email: string;
+  doc_type: string;
+  doc_number: string;
+}
+
+/** Dados que o formulário seguro do Mercado Pago (Card Payment Brick) devolve. Nada de número de cartão. */
+export function parseCardInput(input: unknown, maxInstallments: number): { ok: true; value: CardInput } | { ok: false; error: string } {
+  const o = (input ?? {}) as Record<string, unknown>;
+  const payer = (o.payer ?? {}) as Record<string, unknown>;
+  const ident = (payer.identification ?? {}) as Record<string, unknown>;
+  const token = typeof o.token === 'string' ? o.token.trim() : '';
+  if (!/^[A-Za-z0-9-]{8,200}$/.test(token)) return { ok: false, error: 'Dados do cartão inválidos. Tente de novo.' };
+  const pm = typeof o.payment_method_id === 'string' ? o.payment_method_id : '';
+  if (!/^[a-z_]{2,30}$/.test(pm)) return { ok: false, error: 'Bandeira do cartão não reconhecida.' };
+  const installments = Number(o.installments ?? 1);
+  if (!Number.isInteger(installments) || installments < 1 || installments > maxInstallments) return { ok: false, error: 'Parcelamento não disponível.' };
+  const issuer = o.issuer_id === undefined || o.issuer_id === null ? '' : String(o.issuer_id);
+  if (issuer && !/^\d{1,12}$/.test(issuer)) return { ok: false, error: 'Banco emissor inválido.' };
+  const email = typeof payer.email === 'string' ? payer.email.trim().toLowerCase().slice(0, 120) : '';
+  const docType = typeof ident.type === 'string' ? ident.type.toUpperCase() : '';
+  const docNumber = typeof ident.number === 'string' ? ident.number.replace(/\D/g, '') : '';
+  if (!['CPF', 'CNPJ'].includes(docType) || !(docNumber.length === 11 || docNumber.length === 14)) return { ok: false, error: 'Informe o CPF do titular do cartão.' };
+  return { ok: true, value: { token, payment_method_id: pm, issuer_id: issuer, installments, email, doc_type: docType, doc_number: docNumber } };
+}
+
+/** Pagamento com cartão (token gerado pelo Mercado Pago no navegador). binary_mode: aprova ou recusa na hora. */
+export function buildCardPayment(order: PayOrder, c: CardInput, origin: string, statementDescriptor: string) {
+  return {
+    transaction_amount: order.total,
+    token: c.token,
+    description: `Fotos digitais — ${order.event_name}`.slice(0, 120),
+    installments: c.installments,
+    payment_method_id: c.payment_method_id,
+    ...(c.issuer_id ? { issuer_id: Number(c.issuer_id) } : {}),
+    payer: {
+      email: c.email || order.buyer_email,
+      ...payerName(order.buyer_name),
+      identification: { type: c.doc_type, number: c.doc_number },
+    },
+    external_reference: order.id,
+    notification_url: `${origin}/api/webhooks/mercadopago`,
+    statement_descriptor: statementDescriptor,
+    binary_mode: true,
+  };
+}
+
+/** Motivo da recusa do cartão em português (status_detail do Mercado Pago). */
+export function cardMessage(status: string, detail: string) {
+  if (status === 'approved') return 'Pagamento aprovado!';
+  if (status === 'in_process' || status === 'pending') return 'Pagamento em análise. Avisamos aqui assim que for aprovado.';
+  const m: Record<string, string> = {
+    cc_rejected_insufficient_amount: 'Limite insuficiente. Tente outro cartão ou pague com Pix.',
+    cc_rejected_bad_filled_security_code: 'Código de segurança (CVV) inválido. Confira e tente de novo.',
+    cc_rejected_bad_filled_date: 'Data de validade inválida. Confira e tente de novo.',
+    cc_rejected_bad_filled_card_number: 'Número do cartão inválido. Confira e tente de novo.',
+    cc_rejected_bad_filled_other: 'Algum dado do cartão está incorreto. Confira e tente de novo.',
+    cc_rejected_call_for_authorize: 'O banco pediu autorização. Ligue para o seu banco, autorize e tente de novo.',
+    cc_rejected_card_disabled: 'Cartão bloqueado ou não ativado. Fale com o seu banco ou use outro cartão.',
+    cc_rejected_duplicated_payment: 'Pagamento duplicado. Confira se ele já não foi aprovado.',
+    cc_rejected_high_risk: 'Pagamento recusado por segurança. Tente pagar com Pix.',
+    cc_rejected_max_attempts: 'Muitas tentativas com este cartão. Use outro cartão ou pague com Pix.',
+    cc_rejected_blacklist: 'Não foi possível usar este cartão. Pague com Pix ou outro cartão.',
+  };
+  return m[detail] ?? 'Pagamento recusado pelo banco. Tente outro cartão ou pague com Pix.';
+}

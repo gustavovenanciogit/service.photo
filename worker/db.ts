@@ -186,6 +186,9 @@ const MIGRATIONS = [
   `ALTER TABLE orders ADD COLUMN fee_amount REAL NOT NULL DEFAULT 0`,
   `ALTER TABLE orders ADD COLUMN net_amount REAL NOT NULL DEFAULT 0`,
   `ALTER TABLE orders ADD COLUMN release_date TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE orders ADD COLUMN pix_code TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE orders ADD COLUMN pix_expires TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE orders ADD COLUMN pay_attempts INTEGER NOT NULL DEFAULT 0`,
 ];
 
 async function migrate(db: D1Database) {

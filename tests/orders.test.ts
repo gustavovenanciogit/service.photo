@@ -112,3 +112,43 @@ test('deliveryMessage', () => {
   assert.match(m, /Oi, Ana!/);
   assert.match(m, /até 15\/12\/2026/);
 });
+
+import { buildCardPayment, buildPixPayment, cardMessage, mpDate, parseCardInput, PIX_MINUTES } from '../src/lib/orders.ts';
+
+const ord = { id: 'VNA-AAAAAA', total: 38.7, photo_count: 3, buyer_name: 'Ana Maria Souza', buyer_email: 'ana@b.com', event_name: 'Treino' };
+
+test('mpDate no horário de Manaus', () => {
+  assert.equal(mpDate(Date.parse('2026-11-17T19:30:00Z')), '2026-11-17T15:30:00.000-04:00');
+});
+
+test('Pix transparente: valor do pedido, referência e validade', () => {
+  const p = buildPixPayment(ord, 'https://site', Date.parse('2026-11-17T19:00:00Z'));
+  assert.equal(p.transaction_amount, 38.7);
+  assert.equal(p.payment_method_id, 'pix');
+  assert.equal(p.external_reference, 'VNA-AAAAAA');
+  assert.equal(p.notification_url, 'https://site/api/webhooks/mercadopago');
+  assert.equal(p.date_of_expiration, '2026-11-17T15:30:00.000-04:00');
+  assert.equal(PIX_MINUTES, 30);
+  assert.deepEqual(p.payer, { email: 'ana@b.com', first_name: 'Ana', last_name: 'Maria Souza' });
+});
+
+test('cartão: valida o que vem do formulário seguro e monta o pagamento', () => {
+  const body = { token: 'ff8080814c11e237014c1ff593b57b4d', payment_method_id: 'master', issuer_id: '24', installments: 1, payer: { email: 'Ana@B.com', identification: { type: 'CPF', number: '123.456.789-09' } }, transaction_amount: 0.01 };
+  const c = parseCardInput(body, 1);
+  assert.ok(c.ok);
+  const pay = buildCardPayment(ord, c.value, 'https://site', 'VENART');
+  assert.equal(pay.transaction_amount, 38.7); // ignora o valor enviado pelo navegador
+  assert.equal(pay.binary_mode, true);
+  assert.equal(pay.issuer_id, 24);
+  assert.deepEqual(pay.payer.identification, { type: 'CPF', number: '12345678909' });
+  assert.equal(parseCardInput({ ...body, installments: 3 }, 1).ok, false);
+  assert.equal(parseCardInput({ ...body, token: '<script>' }, 1).ok, false);
+  assert.equal(parseCardInput({ ...body, payer: { email: 'a@b.com', identification: { type: 'CPF', number: '123' } } }, 1).ok, false);
+  assert.equal(parseCardInput({ ...body, cardNumber: '4111111111111111' }, 1).ok, true); // campos extras são ignorados (nunca usados)
+});
+
+test('mensagens de recusa do cartão', () => {
+  assert.match(cardMessage('rejected', 'cc_rejected_insufficient_amount'), /Limite insuficiente/);
+  assert.match(cardMessage('rejected', 'xyz'), /recusado/);
+  assert.match(cardMessage('approved', 'accredited'), /aprovado/);
+});

@@ -104,6 +104,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [x] **2.1 🤖 Seleção de fotos** na galeria e total com a regra do pacote (o preço é recalculado no servidor; o navegador não manda valor).
 - [x] **2.2 🤖 Dados do comprador:** nome, e-mail e WhatsApp + aceite obrigatório dos Termos (a versão aceita fica gravada no pedido).
 - [x] **2.3 🤖 Tabelas no banco:** `orders` (código VNA-XXXXXX, link secreto, comprador, total, status, pagamento, prazos) e `order_items`.
+- [x] **2.4b 🤖 Checkout transparente:** Pix com QR Code e cartão (Card Payment Brick) na página do pedido, sem sair do site; valor sempre do servidor; até 8 tentativas por pedido (anti-teste de cartões); plano B na página do Mercado Pago. Precisa do segredo `MP_PUBLIC_KEY` para o cartão.
 - [x] **2.4 🤖 Checkout Pro do Mercado Pago** (página de pagamento deles: Pix e cartão; parcelas conforme 0.3 — hoje só à vista). Pedido não pago expira em 24 h.
 
 ### Confirmação do pagamento
@@ -234,6 +235,7 @@ Confirme sempre as taxas vigentes no painel de cada empresa.
 | 15/11/2026 | Até o pagamento automático (Fase 2), a galeria envia o pedido pelo WhatsApp com os números das fotos | Claude (sugestão) |
 | 15/11/2026 | Termos: uso pessoal + redes (comercial só com licença); crédito @venart_mid pedido, não obrigatório; arrependimento em 7 dias com reembolso total; reenvio gratuito após o prazo enquanto os arquivos existirem; portfólio com remoção a pedido; ajustes extras não incluídos; arquivos apagados após venda + download | Gustavo |
 | 16/11/2026 | Adicionada a InfinitePay (conta PJ já ativa) como meio de pagamento principal; Mercado Pago fica como alternativa | Gustavo |
+| 17/11/2026 | Checkout transparente: Pix (QR Code) e cartão (formulário seguro do Mercado Pago) na página do pedido; página do Mercado Pago como plano B | Gustavo |
 | 17/11/2026 | Boleto retirado do pagamento; relatórios com tarifa e líquido; cartão com recebimento em 30 dias (configurado na conta do Mercado Pago) | Gustavo |
 | 17/11/2026 | InfinitePay removida da plataforma; só Mercado Pago (conta PJ aprovada, primeira venda real por Pix concluída) | Gustavo |
 | 15/11/2026 | Gateway: Mercado Pago (Checkout Pro), cartão só à vista até decidir 0.3 | Gustavo ("vamos para a próxima fase") |

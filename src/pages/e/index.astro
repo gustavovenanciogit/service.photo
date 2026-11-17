@@ -162,7 +162,7 @@ const chip =
         <p data-co-error role="alert" class="text-sm text-red-300" hidden></p>
         <button class="btn btn-primary min-h-12 w-full">Ir para o pagamento</button>
         <p class="text-center text-xs text-muted">
-          Pix ou cartão, na página segura do Mercado Pago. Depois do pagamento, você volta para cá e baixa as fotos em alta resolução.
+          Pix ou cartão aqui mesmo, com a segurança do Mercado Pago. Depois do pagamento, você volta para cá e baixa as fotos em alta resolução.
         </p>
         <p class="text-center text-xs text-muted">Prefere falar comigo? <a data-buy-wa target="_blank" rel="noopener noreferrer" class="underline hover:text-ink">Pedir pelo WhatsApp</a></p>
       </form>
@@ -529,17 +529,18 @@ const chip =
       const res = await fetch('/api/public/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: ev.slug, photo_ids: [...selected.values()], name: d.name, email: d.email, phone: d.phone, accept: d.accept === 'on' }),
+        // mode "site": o pagamento (Pix ou cartão) acontece na página do pedido, sem sair da Venart.
+        body: JSON.stringify({ mode: 'site', slug: ev.slug, photo_ids: [...selected.values()], name: d.name, email: d.email, phone: d.phone, accept: d.accept === 'on' }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; checkout_url?: string; token?: string };
-      if (!res.ok || !data.checkout_url) throw new Error(data.error ?? 'Não foi possível iniciar o pagamento. Tente de novo.');
+      if (!res.ok || !data.token) throw new Error(data.error ?? 'Não foi possível iniciar o pagamento. Tente de novo.');
       // Guarda o link do pedido neste aparelho (para voltar depois, mesmo sem o e-mail).
       try {
         const list = JSON.parse(localStorage.getItem('venart-pedidos') ?? '[]') as unknown[];
         localStorage.setItem('venart-pedidos', JSON.stringify([{ token: data.token, event: ev.name, at: Date.now() }, ...list].slice(0, 20)));
       } catch { /* ok */ }
       selected.clear(); save();
-      location.href = data.checkout_url;
+      location.href = data.checkout_url || `/pedido/${data.token}`;
     } catch (ex) {
       err.textContent = (ex as Error).message;
       err.hidden = false;
