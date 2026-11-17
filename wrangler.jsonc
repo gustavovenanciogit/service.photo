@@ -40,7 +40,10 @@
   // O token fica no segredo GITHUB_TOKEN (definido no painel da Cloudflare).
   "vars": {
     "GITHUB_REPO": "gustavovenanciogit/service.photo",
-    "GITHUB_BRANCH": "main"
+    "GITHUB_BRANCH": "main",
+    // Meio de pagamento da loja quando houver mais de um configurado: "mercadopago" ou "infinitepay".
+    // (Fica aqui, e não no painel da Cloudflare, para não se perder a cada publicação.)
+    "PAYMENT_PROVIDER": "mercadopago"
   },
   // Tarefa diária (03:17 em Manaus = 07:17 UTC): apaga as fotos de eventos com prazo de download encerrado.
   "triggers": { "crons": ["17 7 * * *"] },
