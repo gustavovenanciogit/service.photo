@@ -23,9 +23,9 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 |---|---|---|---|
 | 0 | Decisões e preparação | — | 🟡 em andamento |
 | 1 | Eventos no painel: criar, configurar, subir fotos e gerar o link | Fase 0 (itens 0.5 e 0.12) | ✅ no ar (falta o teste real 1.12) |
-| 2 | Loja: carrinho, pagamento e download automático | Fases 0 e 1 | 🟡 pronto; falta ativar o Mercado Pago (0.10, 0.11, 2.8) |
-| 3 | Pós-venda e gestão (pedidos, relatórios, limite do MEI) | Fase 2 | ⚪ |
-| 4 | Lançamento (teste real e divulgação) | Fases 2 e 3 | ⚪ |
+| 2 | Loja: carrinho, pagamento e download automático | Fases 0 e 1 | ✅ no ar (Mercado Pago PJ, checkout transparente) |
+| 3 | Pós-venda e gestão (pedidos, relatórios, limite do MEI) | Fase 2 | ✅ no ar (falta 3.10) |
+| 4 | Lançamento (teste real e divulgação) | Fases 2 e 3 | 🟡 em andamento |
 | 5 | Busca por número de peito | Fase 4 | ⚪ |
 | 6 | Reconhecimento facial (piloto, validação, jurídico) | Fase 4 | ⚪ |
 
@@ -41,7 +41,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
   - [ ] Pacote "todas as minhas fotos": R$ 119,90? (valor da Tabela 2026)
   - [ ] Regra do pacote sem reconhecimento facial: o cliente seleciona as fotos dele e paga **o menor valor** entre "quantidade × R$ 12,90" e R$ 119,90? (sugestão)
   - [ ] Pré-venda R$ 100: entra agora ou depois? (sugestão: depois, na Fase 3)
-- [ ] **0.3 👤 Formas de pagamento:** Pix e cartão à vista? Aceitar parcelamento no pacote? Receber o cartão na hora ou em 14/30 dias (taxa menor)?
+- [x] **0.3 👤 Formas de pagamento:** Pix e cartão à vista? Aceitar parcelamento no pacote? Receber o cartão na hora ou em 14/30 dias (taxa menor)? *(Pix e cartão à vista; cartão com recebimento em 30 dias; sem boleto — 17/11)*
 - [ ] **0.4 👤 Prazos padrão:** quanto tempo as fotos ficam à venda (sugestão: 6 meses) e por quanto tempo o comprador pode baixar de novo (sugestão: 30 dias). *Serão só o padrão: cada evento poderá ter o seu prazo no painel.*
 - [ ] **0.5 👤 Padrão de exportação do Lightroom** — agora é **uma exportação só**:
   - [ ] Versão de venda: JPEG, lado maior ~3000 px, qualidade ~85, **sem** marca d'água.
@@ -54,8 +54,8 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [ ] **0.9 👤 Revisar e aprovar** os Termos de compra (idealmente com advogado ou contador).
 
 ### Contas e acessos
-- [ ] **0.10 👤 Criar/acessar a conta do gateway** escolhido como **pessoa jurídica (CNPJ do MEI)** e validar os dados bancários.
-- [ ] **0.11 👤 Gerar as credenciais de API** do gateway (primeiro as de **teste**; as de produção na Fase 4) — eu te guio na hora.
+- [x] **0.10 👤 Criar/acessar a conta do gateway** escolhido como **pessoa jurídica (CNPJ do MEI)** e validar os dados bancários. *(conta PJ do Mercado Pago aprovada — 17/11)*
+- [x] **0.11 👤 Gerar as credenciais de API** do gateway (primeiro as de **teste**; as de produção na Fase 4) — eu te guio na hora. *(credenciais de produção da conta PJ — 17/11)*
 - [x] **0.12 👤 Cloudflare:** ativar o **R2** *(R2 ativado em 15/11; falta só o alerta de orçamento de US$ 5)* na conta (pode pedir cartão mesmo dentro do gratuito) e, se preferir, o plano **Workers Paid (US$ 5/mês)**.
 
 **✅ Pronto quando:** gateway escolhido, preços e prazos definidos, R2 ativo e termos em revisão.
@@ -70,7 +70,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [x] **1.3 🤖 Regras de acesso:** prévias e miniaturas só de eventos publicados (rascunho: só você logado); a versão de venda **não tem nenhum endereço público** (a entrega após compra vem na Fase 2, com link temporário).
 
 ### Envio pelo painel
-- [ ] **1.4 🤖 Tela "Eventos" no painel** (tudo configurado por você, no painel):
+- [x] **1.4 🤖 Tela "Eventos" no painel** (tudo configurado por você, no painel): *(duplicar evento entregue na Fase 3)*
   - [x] dados do evento: nome, data, local, modalidade, descrição curta, capa (escolhida entre as fotos);
   - [x] preços **do evento** (foto avulsa e pacote; já vêm com R$ 12,90 e R$ 119,90, ajustáveis);
   - [x] prazo de venda e de download **do evento** (padrão 180 e 30 dias, ajustáveis);
@@ -91,7 +91,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [x] **1.9 🤖 Gerar link do evento** no painel: **Copiar link**, **Enviar pelo WhatsApp**, **Copiar mensagem pronta**, **Baixar QR Code** e **Ver galeria**.
 - [x] **1.10 🤖 Proteção básica das prévias:** marca d'água "VENART" repetida em diagonal + número da foto, tamanho reduzido (1200 px), original sem endereço público.
 - [x] **1.11a 🤖 Encerramento automático** da venda ao fim do prazo (a galeria passa a mostrar "venda encerrada").
-- [ ] **1.11b 🤖 Limpeza automática** dos arquivos no R2 depois do prazo de download — fica para a Fase 2 (precisa saber dos pedidos); por enquanto use "Excluir evento".
+- [x] **1.11b 🤖 Limpeza automática** dos arquivos no R2 depois do prazo de download — fica para a Fase 2 (precisa saber dos pedidos); por enquanto use "Excluir evento". *(limpeza automática diária entregue na Fase 3)*
 - [ ] **1.12 👤 Teste real:** crie um evento de teste no painel publicado, envie ~200 fotos de um treino, abra o link no celular e me conte o tempo de envio e o que achou.
 
 **✅ Pronto quando:** pelo painel, você cria o evento, envia 2 mil fotos sem travar, gera o link e a página do evento abre rápido no celular.
@@ -111,7 +111,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [x] **2.5 🤖 Aviso automático (webhook)** em `/api/webhooks/mercadopago` com **verificação de assinatura** (`MP_WEBHOOK_SECRET`).
 - [x] **2.6 🤖 Conferência dupla:** o servidor sempre consulta o pagamento no Mercado Pago (pedido, moeda e valor exato) antes de liberar. A página do pedido também confere sozinha (Pix confirmado aparece em segundos).
 - [x] **2.7 🤖 Todos os casos:** pago, pendente, recusado (pode tentar de novo), expirado, reembolsado (bloqueia o download) e **divergente** (valor diferente → fica "para conferir" no painel).
-- [ ] **2.8 👤 Salvar as credenciais** como segredos na Cloudflare: `MP_ACCESS_TOKEN` (Access Token) e `MP_WEBHOOK_SECRET` (assinatura secreta do webhook). Enquanto não estiverem lá, a galeria continua com o pedido pelo WhatsApp.
+- [x] **2.8 👤 Salvar as credenciais** como segredos na Cloudflare: `MP_ACCESS_TOKEN` (Access Token) e `MP_WEBHOOK_SECRET` (assinatura secreta do webhook). Enquanto não estiverem lá, a galeria continua com o pedido pelo WhatsApp. *(segredos de produção configurados — 17/11)*
 
 ### Entrega
 - [x] **2.9 🤖 Página "Minhas fotos"** `/pedido/<link secreto>`: botão Baixar em cada foto (arquivo original, nome `venart-<evento>-0001.jpg`) e **Baixar todas (ZIP)** montado no aparelho do comprador.
@@ -120,7 +120,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [x] **2.12 🤖 Testes** com um simulador do Mercado Pago: Pix pendente → pago, cartão aprovado, recusado → nova tentativa aprovada, valor divergente, reembolso, assinatura falsa (recusada), download sem pagar (bloqueado), link inventado, foto inexistente, outra origem, ZIP idêntico ao original.
 - [x] **2.8b 👤 Teste no modo teste do Mercado Pago (conta PF):** compra com cartão `APRO` aprovada e download liberado em 15/11/2026.
 - [x] **2.14 InfinitePay — removida (17/11/2026).** A loja usa só o Mercado Pago (conta PJ, produção). Pedidos antigos da InfinitePay continuam no histórico.
-- [ ] **2.13 👤🤖 Teste no ambiente de testes do Mercado Pago** (com as credenciais de teste e os cartões de teste deles) depois de 2.8.
+- [x] **2.13 👤🤖 Teste no ambiente de testes do Mercado Pago** (com as credenciais de teste e os cartões de teste deles) depois de 2.8. *(teste com cartão APRO no modo teste — 15/11)*
 - [x] **Extra 🤖 Painel → Loja → Vendas:** lista com filtros e busca, resumo do mês, conferir pagamento, liberar manualmente (pagou por fora), bloquear download, +30 dias, anotações.
 - [x] **Extra 🤖 Segurança:** evento/foto com download ainda válido não pode ser excluído; o link do pedido não é repassado a outros sites.
 
@@ -163,8 +163,8 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 
 ## Fase 4 — Lançamento
 
-- [ ] **4.1 👤 Trocar as credenciais** de teste pelas de **produção** (eu te guio).
-- [ ] **4.2 👤🤖 Compra real de ponta a ponta** com valor baixo (você mesmo compra uma foto por Pix e outra por cartão).
+- [x] **4.1 👤 Trocar as credenciais** de teste pelas de **produção** (eu te guio). *(produção ativa na conta PJ — 17/11)*
+- [ ] **4.2 👤🤖 Compra real de ponta a ponta** com valor baixo — **Pix real concluído (17/11)**; falta o **cartão no formulário da página** (precisa do segredo `MP_PUBLIC_KEY`).
 - [ ] **4.3 👤 Evento piloto:** uma galeria de treino de assessoria ou academia parceira.
 - [ ] **4.4 👤 Divulgação:** QR Code no local, stories, mensagem no grupo da assessoria/academia (modelos no Kit de mensagens).
 - [ ] **4.5 🤖 Ajustes** com base no piloto (velocidade, textos, dúvidas dos compradores).
@@ -193,14 +193,14 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [ ] **6.3 👤 Aviso nos eventos:** cláusula no regulamento/inscrição (organizadores) ou aviso combinado (academias/assessorias).
 
 ### Tecnologia
-- [ ] **6.4 🤖 Tela de consentimento** antes da busca: caixa de seleção não marcada, texto versionado, **registro guardado** (data/hora, evento, versão, identificador anônimo) e opção de revogar.
-- [ ] **6.5 🤖 Selfie descartada** após a busca (nunca armazenada).
-- [ ] **6.6 🤖 Índice de rostos** por galeria, **apagado** quando a galeria encerra (0.4).
-- [ ] **6.7 🤖 Duas opções lado a lado no piloto:** AWS Rekognition × modelo aberto com licença comercial.
+- [x] **6.4 🤖 Tela de consentimento** _(piloto: /painel/rostos/, texto `piloto-2026-11-v1`, registro com data, evento, versão e iniciais; "Revogar e apagar" nas medições)_ antes da busca: caixa de seleção não marcada, texto versionado, **registro guardado** (data/hora, evento, versão, identificador anônimo) e opção de revogar.
+- [x] **6.5 🤖 Selfie descartada** após a busca (nunca armazenada). _(processada só no navegador; nem a foto nem a assinatura da selfie vão ao servidor)_
+- [x] **6.6 🤖 Índice de rostos** por galeria, **apagado** quando a galeria encerra (0.4). _(só assinaturas de 128 números em `face_index`; apagado na limpeza diária, ao excluir evento/foto e pelo botão "Apagar índice")_
+- [ ] **6.7 🤖 Duas opções lado a lado no piloto:** AWS Rekognition × modelo aberto com licença comercial. _(modelo aberto pronto: YuNet (MIT) + SFace (Apache 2.0), rodando no navegador. Rekognition só se o acerto do aberto não for suficiente.)_
 
 ### Validação
 - [ ] **6.8 👤 Voluntários** que autorizam o teste (você, amigos, atletas parceiros) num evento seu.
-- [ ] **6.9 🤖 Ferramenta de medição** no painel: % das fotos da pessoa encontradas e % de fotos erradas, por nível de exigência.
+- [x] **6.9 🤖 Ferramenta de medição** no painel: % das fotos da pessoa encontradas e % de fotos erradas, por nível de exigência. _(marcação ✓/✗, "faltou a foto nº", tabela por limite 0,30–0,50 e medições salvas)_
 - [ ] **6.10 👤🤖 Escolha da tecnologia e do nível de exigência** pelos números reais.
 - [ ] **6.11 👤 Liberar ao público** somente após 6.2, 6.3 e 6.10.
 

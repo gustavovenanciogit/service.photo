@@ -111,6 +111,16 @@ export const api = {
     return data;
   },
   deleteWatermarkLogo: () => request<WatermarkSettings>('DELETE', '/api/settings/watermark/logo'),
+  // Reconhecimento facial (piloto)
+  faceStatus: (id: string) => request<{ total: number; indexed: number; faces: number; pending: { id: string; seq: number }[] }>('GET', `/api/events/${encodeURIComponent(id)}/faces`),
+  saveFaces: (id: string, pid: string, faces: { vec: string; score: number; box: number[] }[]) =>
+    request<{ ok: true; faces: number }>('POST', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/faces`, { faces }),
+  faceVectors: (id: string) => request<{ p: string; n: number; v: string }[]>('GET', `/api/events/${encodeURIComponent(id)}/faces/vectors`),
+  deleteFaces: (id: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}/faces`),
+  faceConsent: (id: string, version: string, label: string) => request<{ id: string }>('POST', `/api/events/${encodeURIComponent(id)}/faces/consent`, { version, label, accept: true }),
+  revokeFaceConsent: (cid: string) => request<{ ok: true }>('POST', `/api/faces/consent/${encodeURIComponent(cid)}/revoke`, {}),
+  pilotRuns: (id: string) => request<{ id: string; consent_id: string; data: unknown; created_at: string; label: string | null; version: string | null }[]>('GET', `/api/events/${encodeURIComponent(id)}/faces/pilot`),
+  savePilotRun: (id: string, consent_id: string, data: unknown) => request<{ ok: true }>('POST', `/api/events/${encodeURIComponent(id)}/faces/pilot`, { consent_id, data }),
   deletePhoto: (id: string, pid: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}`),
   /** Envia um arquivo da foto (binário, sem JSON). */
   async uploadPart(id: string, pid: string, part: PhotoPart, blob: Blob, signal?: AbortSignal) {
