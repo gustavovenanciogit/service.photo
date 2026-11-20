@@ -396,7 +396,7 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
       : null;
   return json(
     // O fotógrafo logado vê a galeria inteira mesmo quando ela é privada.
-    { event: { ...publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, env), face_only: e.face_only && !admin }, photos, next: more ? q.offset + PAGE : null, counts },
+    { event: { ...publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, env), face_only: e.face_only && !admin, private_admin: e.face_only && admin }, photos, next: more ? q.offset + PAGE : null, counts },
     200,
     cache,
   );
