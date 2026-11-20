@@ -34,44 +34,55 @@ const chip =
       </div>
 
       <div data-content hidden>
-        <!-- Capa opcional (só aparece se o evento tiver uma) -->
-        <div data-cover hidden class="mb-5 overflow-hidden rounded-2xl border border-line bg-bg-2">
-          <img data-cover-img alt="" class="aspect-[16/9] w-full object-cover sm:aspect-[21/9] lg:aspect-[3/1]" />
-        </div>
+        <p data-private-admin hidden class="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200">
+          Galeria privada: você está vendo todas as fotos porque está logado no painel. O público não vê a lista, só as fotos que a própria selfie encontrar.
+          Para ver como o cliente, abra este link numa aba anônima.
+        </p>
+        <p data-draft hidden class="mb-3 inline-block rounded-full bg-amber-400/15 px-3 py-1 text-xs font-semibold text-amber-200">Rascunho: só você está vendo (logado no painel)</p>
 
-        <!-- Cabeçalho compacto -->
-        <header>
-          <p data-private-admin hidden class="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200">
-            Galeria privada: você está vendo todas as fotos porque está logado no painel. O público não vê a lista, só as fotos que a própria selfie encontrar.
-            Para ver como o cliente, abra este link numa aba anônima.
-          </p>
-          <p data-draft hidden class="mb-3 inline-block rounded-full bg-amber-400/15 px-3 py-1 text-xs font-semibold text-amber-200">Rascunho: só você está vendo (logado no painel)</p>
-          <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-            <span class="inline-flex items-center gap-1.5"><Icon name="calendar" size={14} class="text-brand" /> <span data-date></span></span>
-            <span data-loc-wrap class="inline-flex items-center gap-1.5"><Icon name="pin" size={14} class="text-brand" /> <span data-loc></span></span>
-          </p>
-          <h1 class="mt-2 flex items-baseline gap-2 text-4xl leading-none font-extrabold italic sm:text-5xl lg:text-6xl">
-            <span class="text-brand not-italic" aria-hidden="true">/</span><span data-name class="min-w-0 break-words"></span>
-          </h1>
-          <p data-desc class="mt-2 max-w-3xl text-sm text-muted"></p>
-        </header>
+        <!--
+          HERO do evento. Com capa (data-has-cover): foto ocupando o bloco, degradê escuro, título e
+          preços sobrepostos. Sem capa: layout compacto em fundo preto, sem reservar altura.
+        -->
+        <section data-hero class="group/hero relative isolate overflow-hidden data-has-cover:rounded-2xl data-has-cover:border data-has-cover:border-line" aria-labelledby="event-title">
+          <img data-cover-img alt="" hidden class="absolute inset-0 -z-10 size-full object-cover" />
+          <!-- Degradês: lateral (esquerda) e inferior, para o texto ficar legível sobre qualquer foto -->
+          <div aria-hidden="true" class="absolute inset-0 -z-10 hidden bg-[linear-gradient(90deg,rgba(0,0,0,0.88)_0%,rgba(0,0,0,0.55)_45%,rgba(0,0,0,0.08)_100%)] group-data-has-cover/hero:block"></div>
+          <div aria-hidden="true" class="absolute inset-0 -z-10 hidden bg-[linear-gradient(0deg,rgba(0,0,0,0.85)_0%,rgba(0,0,0,0.35)_45%,rgba(0,0,0,0)_75%)] group-data-has-cover/hero:block"></div>
 
-        <!-- Preços e disponibilidade -->
-        <div data-prices class="mt-5 grid grid-cols-3 divide-x divide-line overflow-hidden rounded-2xl border border-brand/30 bg-card/60">
-          <div class="p-3 sm:p-4">
-            <p class="flex items-center gap-1.5 text-[11px] text-muted sm:text-xs"><Icon name="camera" size={14} class="text-brand" /> Cada foto por</p>
-            <p data-p-single class="mt-1 font-display text-2xl leading-none font-extrabold text-brand sm:text-3xl"></p>
+          <div class="flex flex-col group-data-has-cover/hero:min-h-[340px] group-data-has-cover/hero:justify-end group-data-has-cover/hero:px-3 group-data-has-cover/hero:pt-28 group-data-has-cover/hero:pb-4 sm:group-data-has-cover/hero:min-h-[380px] sm:group-data-has-cover/hero:px-8 sm:group-data-has-cover/hero:pt-24 sm:group-data-has-cover/hero:pb-6 lg:group-data-has-cover/hero:min-h-[440px]">
+            <header class="max-w-2xl">
+              <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted group-data-has-cover/hero:text-white/85 sm:text-sm">
+                <span class="inline-flex items-center gap-1.5"><Icon name="calendar" size={16} class="text-brand" /> <span data-date></span></span>
+                <span data-loc-wrap class="inline-flex items-center gap-1.5"><span aria-hidden="true" class="text-white/40">·</span><Icon name="pin" size={16} class="text-brand" /> <span data-loc></span></span>
+              </p>
+              <div class="mt-2 flex gap-3 sm:gap-4">
+                <span aria-hidden="true" class="ml-1 w-1.5 shrink-0 -skew-x-12 rounded-sm bg-brand sm:w-2"></span>
+                <div class="min-w-0">
+                  <h1 id="event-title" data-name class="font-display text-4xl leading-[0.95] font-extrabold break-words uppercase italic sm:text-6xl lg:text-7xl"></h1>
+                  <p data-desc class="mt-1.5 max-w-xl text-sm text-muted group-data-has-cover/hero:text-white/85 sm:text-base"></p>
+                </div>
+              </div>
+            </header>
+
+            <!-- Preços e disponibilidade (valores reais do evento) -->
+            <div data-prices class="mt-5 grid grid-cols-3 divide-x divide-brand/20 overflow-hidden rounded-2xl border border-brand/40 bg-[rgb(10_32_18/0.72)] backdrop-blur-md group-data-has-cover/hero:mt-6 sm:group-data-has-cover/hero:mt-8">
+              <div class="min-w-0 px-2.5 py-3 sm:px-6 sm:py-4">
+                <p class="flex items-center gap-1.5 text-[11px] text-white/80 sm:gap-2 sm:text-sm"><Icon name="camera" size={18} class="shrink-0 text-brand" /> Cada foto por</p>
+                <p data-p-single class="mt-1 font-display text-2xl leading-none font-extrabold whitespace-nowrap text-brand sm:text-4xl"></p>
+              </div>
+              <div class="min-w-0 px-2.5 py-3 sm:px-6 sm:py-4" data-pack>
+                <p class="flex items-center gap-1.5 text-[11px] text-white/80 sm:gap-2 sm:text-sm"><Icon name="tag" size={18} class="shrink-0 text-brand" /> Todas as suas fotos</p>
+                <p data-p-pack class="mt-1 font-display text-2xl leading-none font-extrabold whitespace-nowrap text-brand sm:text-4xl"></p>
+                <p data-p-badge hidden class="mt-1.5 inline-block rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold text-brand sm:text-[11px]"></p>
+              </div>
+              <div class="min-w-0 px-2.5 py-3 sm:px-6 sm:py-4">
+                <p class="flex items-center gap-1.5 text-[11px] text-white/80 sm:gap-2 sm:text-sm"><Icon name="clock" size={18} class="shrink-0 text-brand" /> Disponível até</p>
+                <p data-p-until class="mt-1 font-display text-lg leading-none min-[400px]:text-xl font-extrabold whitespace-nowrap sm:text-3xl"></p>
+              </div>
+            </div>
           </div>
-          <div class="p-3 sm:p-4" data-pack>
-            <p class="flex items-center gap-1.5 text-[11px] text-muted sm:text-xs"><Icon name="tag" size={14} class="text-brand" /> Todas as suas fotos</p>
-            <p data-p-pack class="mt-1 font-display text-2xl leading-none font-extrabold text-brand sm:text-3xl"></p>
-            <p data-p-badge hidden class="mt-1.5 inline-block rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold text-brand sm:text-[11px]"></p>
-          </div>
-          <div class="p-3 sm:p-4">
-            <p class="flex items-center gap-1.5 text-[11px] text-muted sm:text-xs"><Icon name="clock" size={14} class="text-brand" /> Disponível até</p>
-            <p data-p-until class="mt-1 font-display text-xl leading-none font-extrabold sm:text-2xl"></p>
-          </div>
-        </div>
+        </section>
 
         <ul class="mt-4 grid grid-cols-4 gap-2 text-center text-[10px] leading-tight text-muted sm:text-left sm:text-xs" aria-label="Vantagens">
           <li class="flex flex-col items-center gap-1 sm:flex-row sm:gap-2"><Icon name="image" size={18} class="shrink-0 text-brand" /> Fotos em alta qualidade</li>
@@ -430,11 +441,13 @@ const chip =
     $('[data-draft]').hidden = ev.state !== 'rascunho';
     $('[data-private-admin]').hidden = !(ev as PublicEvent & { private_admin?: boolean }).private_admin;
     if (ev.cover_image) {
+      // Capa: o cabeçalho e os preços passam a ficar sobre a foto.
       const img = $<HTMLImageElement>('[data-cover-img]');
       img.src = ev.cover_image;
       img.alt = `Capa do evento ${ev.name}`;
       img.style.objectPosition = ev.cover_position;
-      $('[data-cover]').hidden = false;
+      img.hidden = false;
+      $('[data-hero]').toggleAttribute('data-has-cover', true);
     }
     const closed = ev.state === 'encerrado';
     $('[data-closed]').hidden = !closed;
