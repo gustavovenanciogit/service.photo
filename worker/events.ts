@@ -24,6 +24,7 @@ import { getWatermarkSettings } from './settings.ts';
 import { jpegSize } from '../src/lib/jpeg.ts';
 import { ORDER_SQL, ORIENTATION_SQL, parseGalleryQuery } from '../src/lib/gallery.ts';
 import { imageKind } from '../src/lib/site-content.ts';
+import { purgeFaces } from './faces.ts';
 
 export interface EventsEnv extends PaymentsEnv {
   DB: D1Database;
@@ -97,6 +98,7 @@ export async function purgeExpired(env: EventsEnv, now = new Date()) {
     const t = now.toISOString();
     await db.batch([
       db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(e.id),
+      ...purgeFaces(db, e.id),
       db.prepare("UPDATE events SET purged_at = ?, photo_count = 0, cover_photo_id = '', cover_image = '', status = 'encerrado', updated_at = ? WHERE id = ?").bind(t, t, e.id),
     ]);
     console.log('Limpeza: arquivos apagados do evento', e.id, e.name);
@@ -198,7 +200,7 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
         return json({ error: 'Há compradores com download ainda válido neste evento. Exclua depois que o prazo de download terminar.' }, 409);
       }
       if (env.PHOTOS) await purgePrefix(env.PHOTOS, `events/${eventId}/`);
-      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
+      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), ...purgeFaces(db, eventId), db.prepare('DELETE FROM face_consents WHERE event_id = ?').bind(eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
       return json({ ok: true });
     }
     return json({ error: 'Não encontrado.' }, 404);
@@ -247,7 +249,7 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
       return json({ error: 'Esta foto foi comprada e o download ainda está válido. Não dá para excluir agora.' }, 409);
     }
     if (env.PHOTOS) await env.PHOTOS.delete(PHOTO_PARTS.map((p) => photoKey(eventId, p, photoId)));
-    await db.prepare('DELETE FROM event_photos WHERE id = ?').bind(photoId).run();
+    await db.batch([db.prepare('DELETE FROM event_photos WHERE id = ?').bind(photoId), db.prepare('DELETE FROM face_index WHERE photo_id = ?').bind(photoId)]);
     if (event.cover_photo_id === photoId) await db.prepare("UPDATE events SET cover_photo_id = '' WHERE id = ?").bind(eventId).run();
     await recount(db, eventId);
     return json({ ok: true });

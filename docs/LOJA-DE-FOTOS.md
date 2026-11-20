@@ -193,14 +193,14 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [ ] **6.3 👤 Aviso nos eventos:** cláusula no regulamento/inscrição (organizadores) ou aviso combinado (academias/assessorias).
 
 ### Tecnologia
-- [ ] **6.4 🤖 Tela de consentimento** antes da busca: caixa de seleção não marcada, texto versionado, **registro guardado** (data/hora, evento, versão, identificador anônimo) e opção de revogar.
-- [ ] **6.5 🤖 Selfie descartada** após a busca (nunca armazenada).
-- [ ] **6.6 🤖 Índice de rostos** por galeria, **apagado** quando a galeria encerra (0.4).
-- [ ] **6.7 🤖 Duas opções lado a lado no piloto:** AWS Rekognition × modelo aberto com licença comercial.
+- [x] **6.4 🤖 Tela de consentimento** _(piloto: /painel/rostos/, texto `piloto-2026-11-v1`, registro com data, evento, versão e iniciais; "Revogar e apagar" nas medições)_ antes da busca: caixa de seleção não marcada, texto versionado, **registro guardado** (data/hora, evento, versão, identificador anônimo) e opção de revogar.
+- [x] **6.5 🤖 Selfie descartada** após a busca (nunca armazenada). _(processada só no navegador; nem a foto nem a assinatura da selfie vão ao servidor)_
+- [x] **6.6 🤖 Índice de rostos** por galeria, **apagado** quando a galeria encerra (0.4). _(só assinaturas de 128 números em `face_index`; apagado na limpeza diária, ao excluir evento/foto e pelo botão "Apagar índice")_
+- [ ] **6.7 🤖 Duas opções lado a lado no piloto:** AWS Rekognition × modelo aberto com licença comercial. _(modelo aberto pronto: YuNet (MIT) + SFace (Apache 2.0), rodando no navegador. Rekognition só se o acerto do aberto não for suficiente.)_
 
 ### Validação
 - [ ] **6.8 👤 Voluntários** que autorizam o teste (você, amigos, atletas parceiros) num evento seu.
-- [ ] **6.9 🤖 Ferramenta de medição** no painel: % das fotos da pessoa encontradas e % de fotos erradas, por nível de exigência.
+- [x] **6.9 🤖 Ferramenta de medição** no painel: % das fotos da pessoa encontradas e % de fotos erradas, por nível de exigência. _(marcação ✓/✗, "faltou a foto nº", tabela por limite 0,30–0,50 e medições salvas)_
 - [ ] **6.10 👤🤖 Escolha da tecnologia e do nível de exigência** pelos números reais.
 - [ ] **6.11 👤 Liberar ao público** somente após 6.2, 6.3 e 6.10.
 

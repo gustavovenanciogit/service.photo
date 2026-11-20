@@ -160,6 +160,32 @@ const SCHEMA = [
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  // Reconhecimento facial (piloto): só assinaturas numéricas, nunca imagens de rosto.
+  `CREATE TABLE IF NOT EXISTS face_index (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    photo_id TEXT NOT NULL,
+    vec TEXT NOT NULL,
+    score REAL NOT NULL DEFAULT 0,
+    box TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS face_index_event ON face_index (event_id)`,
+  `CREATE TABLE IF NOT EXISTS face_consents (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    version TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    revoked_at TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS face_pilot_runs (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    consent_id TEXT NOT NULL DEFAULT '',
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS login_attempts (
     ip TEXT PRIMARY KEY,
     count INTEGER NOT NULL,
@@ -189,6 +215,7 @@ const MIGRATIONS = [
   `ALTER TABLE orders ADD COLUMN pix_code TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE orders ADD COLUMN pix_expires TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE orders ADD COLUMN pay_attempts INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE event_photos ADD COLUMN faces INTEGER NOT NULL DEFAULT -1`,
 ];
 
 /**
