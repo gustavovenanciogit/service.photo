@@ -163,6 +163,18 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         <span>Mostrar este evento na área de eventos do site <span class="text-muted">(quando ela estiver pronta). Sem marcar, só quem tem o link encontra.</span></span>
       </label>
 
+      <label class="flex items-start gap-3 rounded-xl border border-brand/30 bg-brand/5 p-4 text-sm">
+        <input name="face_only" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
+        <span>
+          <strong>Galeria privada (só com busca por selfie)</strong>
+          <span class="mt-1 block text-muted">
+            Ninguém vê a galeria completa: cada pessoa faz a busca por selfie e vê só as fotos em que aparece. A busca pelo número da foto também fica
+            desligada. Ligue a busca por selfie deste evento em <a href="/painel/rostos/" class="text-brand underline">Reconhecimento facial</a> — enquanto
+            ela não estiver ligada, o público não vê nenhuma foto. A foto de capa escolhida continua visível (para o link compartilhado).
+          </span>
+        </span>
+      </label>
+
       <div class="flex flex-wrap justify-between gap-3 border-t border-line pt-5">
         <div class="flex flex-wrap gap-2">
           <button type="button" data-delete class="btn min-h-11 px-4 text-sm text-red-300 hover:bg-red-500/10">Excluir evento</button>
@@ -263,6 +275,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     set('price_pack', String(ev.price_pack).replace('.', ','));
     set('sale_days', String(ev.sale_days)); set('download_days', String(ev.download_days));
     (form.elements.namedItem('listed') as HTMLInputElement).checked = ev.listed;
+    (form.elements.namedItem('face_only') as HTMLInputElement).checked = ev.face_only;
   };
 
   async function save(data: Partial<EventRecord>, msg = 'Dados salvos.') {
@@ -276,7 +289,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     e.preventDefault();
     const d = Object.fromEntries(new FormData(form)) as Record<string, string>;
     if (d.slug !== ev.slug && ev.published_at && !confirm('Mudar o endereço faz o link já divulgado parar de funcionar. Continuar?')) return;
-    await save({ ...ev, ...d, listed: d.listed === 'on' } as unknown as Partial<EventRecord>);
+    await save({ ...ev, ...d, listed: d.listed === 'on', face_only: d.face_only === 'on' } as unknown as Partial<EventRecord>);
   });
 
   $('[data-duplicate]').addEventListener('click', async () => {

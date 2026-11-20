@@ -423,7 +423,7 @@ export default {
       // Loja de fotos: imagens com marca d'água e página do evento.
       if (path.startsWith('/f/') && (req.method === 'GET' || req.method === 'HEAD')) {
         await db.ensureSchema(env.DB);
-        return await servePhoto(env, path, await isLoggedIn(req, env));
+        return await servePhoto(env, path, await isLoggedIn(req, env), url);
       }
       if (path.startsWith('/d/') && (req.method === 'GET' || req.method === 'HEAD')) {
         await db.ensureSchema(env.DB);

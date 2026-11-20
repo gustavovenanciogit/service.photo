@@ -19,13 +19,14 @@
  */
 import { COSINE_MATCH, decodeVec, packCount, searchPack, validThreshold } from '../src/lib/faces.ts';
 import { store } from '../src/config/store.ts';
+import { signPhotoAccess } from './auth.ts';
 import { newId } from '../src/lib/crm.ts';
 
 type Json = (data: unknown, status?: number, headers?: Record<string, string>) => Response;
 const now = () => new Date().toISOString();
 const MAX_FACES_PER_PHOTO = 60;
 
-type Env = { DB: D1Database; PHOTOS?: R2Bucket };
+type Env = { DB: D1Database; PHOTOS?: R2Bucket; ADMIN_PASSWORD?: string };
 const packKey = (eventId: string) => `events/${eventId}/faces.bin`;
 const MAX_PACK = 26_000_000;
 
@@ -200,7 +201,7 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
  * e o aceite do termo. Registra o aceite (sem dados pessoais), compara com o pacote do evento e
  * devolve as fotos parecidas. A assinatura não é guardada.
  */
-export async function publicFaceSearch(env: Env, event: { id: string; face_search: boolean }, body: unknown, json: Json) {
+export async function publicFaceSearch(env: Env, event: { id: string; face_search: boolean; face_only?: boolean }, body: unknown, json: Json) {
   const b = (body ?? {}) as { vec?: unknown; accept?: unknown; version?: unknown };
   if (!event.face_search) return json({ error: 'A busca por selfie não está disponível neste evento.' }, 404);
   if (b.accept !== true || b.version !== store.faceSearch.termsVersion) return json({ error: 'É preciso aceitar o termo para buscar por selfie.' }, 400);
@@ -230,5 +231,11 @@ export async function publicFaceSearch(env: Env, event: { id: string; face_searc
     const r = byN.get(f.n);
     return r ? [{ id: r.id, n: r.seq, w: r.width, h: r.height }] : [];
   });
+  // Galeria privada: cada foto encontrada vem com uma chave de acesso temporária (só quem fez a busca recebe).
+  if (event.face_only) {
+    if (!env.ADMIN_PASSWORD) return json({ error: 'Busca indisponível no momento.' }, 503);
+    const keys = await Promise.all(photos.map((p) => signPhotoAccess(env.ADMIN_PASSWORD!, p.id)));
+    return json({ consent: consentId, photos: photos.map((p, i) => ({ ...p, q: keys[i] })) });
+  }
   return json({ consent: consentId, photos });
 }
