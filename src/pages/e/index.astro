@@ -220,12 +220,29 @@ const chip =
             <input type="checkbox" data-face-accept class="mt-1 size-4 shrink-0 accent-[var(--color-brand)]" />
             <span>{term.checkbox}</span>
           </label>
-          <div class="flex flex-col gap-2 sm:flex-row-reverse">
-            <button type="button" data-face-go class="btn btn-primary min-h-12 flex-1" disabled>Concordo, tirar selfie</button>
-            <button type="button" data-face-cancel class="btn btn-outline min-h-12 flex-1">Não concordo</button>
+          <div class="grid gap-2 sm:grid-cols-2" role="group" aria-label="Como enviar a selfie">
+            <button type="button" data-face-cam class="btn btn-primary min-h-12 gap-2" disabled><Icon name="camera" size={18} /> Tirar foto agora</button>
+            <button type="button" data-face-pick class="btn btn-outline min-h-12 gap-2 border-brand/60 text-brand" disabled><Icon name="image" size={18} /> Escolher da galeria</button>
           </div>
+          <button type="button" data-face-cancel class="w-full py-1 text-sm text-muted underline hover:text-ink">Não concordo</button>
+          <!-- Câmera frontal (alternativa quando o navegador não abre a câmera ao vivo) e galeria -->
           <input type="file" accept="image/*" capture="user" data-face-file class="sr-only" tabindex="-1" aria-hidden="true" />
+          <input type="file" accept="image/*" data-face-gallery class="sr-only" tabindex="-1" aria-hidden="true" />
           <p class="text-xs text-muted">Dica: rosto de frente, sem óculos escuros e com boa luz. Na primeira vez o site baixa o reconhecimento (~20 MB); prefira o Wi-Fi.</p>
+        </div>
+        <div data-face-step="camera" hidden class="space-y-3">
+          <div class="relative overflow-hidden rounded-xl bg-black">
+            <!-- Prévia espelhada (como um espelho); a imagem usada não sai do aparelho -->
+            <video data-face-video playsinline muted autoplay class="aspect-[3/4] max-h-[48dvh] w-full -scale-x-100 object-cover sm:aspect-[4/3]"></video>
+            <div aria-hidden="true" class="pointer-events-none absolute inset-0 grid place-items-center">
+              <div class="aspect-[3/4] h-[70%] rounded-[50%] border-2 border-dashed border-white/70"></div>
+            </div>
+          </div>
+          <p class="text-center text-xs text-muted">Centralize o rosto no contorno, de frente e com boa luz.</p>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <button type="button" data-face-shot class="btn btn-primary min-h-12 gap-2"><Icon name="camera" size={18} /> Capturar</button>
+            <button type="button" data-face-cam-back class="btn btn-outline min-h-12">Voltar</button>
+          </div>
         </div>
         <div data-face-step="work" hidden class="space-y-3 py-4 text-center">
           <p data-face-status class="text-sm" aria-live="polite"></p>
@@ -625,7 +642,15 @@ const chip =
   const fd = $<HTMLDialogElement>('[data-face]');
   const faceAccept = $<HTMLInputElement>('[data-face-accept]');
   const faceFile = $<HTMLInputElement>('[data-face-file]');
-  const faceStep = (s: 'term' | 'work') => root.querySelectorAll<HTMLElement>('[data-face-step]').forEach((el) => (el.hidden = el.dataset.faceStep !== s));
+  const faceGallery = $<HTMLInputElement>('[data-face-gallery]');
+  const faceVideo = $<HTMLVideoElement>('[data-face-video]');
+  let camStream: MediaStream | null = null;
+  const stopCam = () => {
+    camStream?.getTracks().forEach((t) => t.stop());
+    camStream = null;
+    faceVideo.srcObject = null;
+  };
+  const faceStep = (s: 'term' | 'camera' | 'work') => root.querySelectorAll<HTMLElement>('[data-face-step]').forEach((el) => (el.hidden = el.dataset.faceStep !== s));
   const faceStatus = (t: string, pct?: number) => {
     $('[data-face-status]').textContent = t;
     if (pct !== undefined) $('[data-face-bar]').style.width = `${pct}%`;
@@ -633,7 +658,7 @@ const chip =
   function openFace() {
     // O termo é aceito de novo a cada busca.
     faceAccept.checked = false;
-    $<HTMLButtonElement>('[data-face-go]').disabled = true;
+    setChoices();
     faceStep('term');
     fd.showModal();
   }
@@ -641,7 +666,8 @@ const chip =
     faceStatus(msg);
     $('[data-face-retry]').hidden = false;
   }
-  async function runFaceSearch(file: File) {
+  async function runFaceSearch(file: Blob) {
+    stopCam();
     faceStep('work');
     $('[data-face-retry]').hidden = true;
     faceStatus('Preparando o reconhecimento…', 2);
@@ -700,17 +726,54 @@ const chip =
   $('[data-face-open]').addEventListener('click', openFace);
   $('[data-face-again]').addEventListener('click', openFace);
   $('[data-face-again2]').addEventListener('click', openFace);
-  faceAccept.addEventListener('change', () => ($<HTMLButtonElement>('[data-face-go]').disabled = !faceAccept.checked));
-  $('[data-face-go]').addEventListener('click', () => {
+  // Duas opções, liberadas só depois do aceite: câmera agora ou foto da galeria.
+  function setChoices() {
+    for (const s of ['[data-face-cam]', '[data-face-pick]']) $<HTMLButtonElement>(s).disabled = !faceAccept.checked;
+  }
+  faceAccept.addEventListener('change', setChoices);
+  $('[data-face-cam]').addEventListener('click', async () => {
     if (!faceAccept.checked) return;
-    faceFile.value = '';
-    faceFile.click();
+    // Câmera ao vivo no próprio site (celular e computador). Sem suporte ou sem permissão: câmera do sistema.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      faceFile.value = '';
+      return faceFile.click();
+    }
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false });
+      faceVideo.srcObject = camStream;
+      faceStep('camera');
+      await faceVideo.play().catch(() => undefined);
+    } catch {
+      stopCam();
+      faceFile.value = '';
+      faceFile.click();
+    }
   });
-  faceFile.addEventListener('change', () => {
-    const f = faceFile.files?.[0];
-    if (f && faceAccept.checked) void runFaceSearch(f);
+  $('[data-face-shot]').addEventListener('click', () => {
+    const w = faceVideo.videoWidth;
+    const h = faceVideo.videoHeight;
+    if (!w || !h || !faceAccept.checked) return;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    c.getContext('2d')!.drawImage(faceVideo, 0, 0, w, h);
+    stopCam();
+    c.toBlob((blob) => blob && void runFaceSearch(blob), 'image/jpeg', 0.92);
   });
+  $('[data-face-cam-back]').addEventListener('click', () => { stopCam(); faceStep('term'); });
+  $('[data-face-pick]').addEventListener('click', () => {
+    if (!faceAccept.checked) return;
+    faceGallery.value = '';
+    faceGallery.click();
+  });
+  for (const input of [faceFile, faceGallery])
+    input.addEventListener('change', () => {
+      const f = input.files?.[0];
+      if (f && faceAccept.checked) void runFaceSearch(f);
+    });
   for (const s of ['[data-face-close]', '[data-face-cancel]', '[data-face-cancel2]']) $(s).addEventListener('click', () => fd.close());
+  // Fechar o diálogo (inclusive com Esc) sempre desliga a câmera.
+  fd.addEventListener('close', stopCam);
   $('[data-face-clear]').addEventListener('click', () => { faceResults = null; resetView(); });
 
   // ───────── Compra (Mercado Pago) ─────────
