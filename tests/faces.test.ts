@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  alignCrop, COSINE_MATCH, cosine, decodeVec, decodeYunet, detectorTensor, encodeVec, mainFace, nms, normalize,
-  pilotMetrics, recognizerTensor, REF_POINTS, scaleFace, similarityTransform, usableFace, type Face,
+  alignCrop, COSINE_MATCH, cosine, decodeVec, decodeYunet, detectorTensor, encodeVec, mainFace, nms, normalize, packCount, packIndex,
+  pilotMetrics, recognizerTensor, REF_POINTS, scaleFace, searchPack, similarityTransform, usableFace, validThreshold, type Face,
 } from '../src/lib/faces.ts';
 
 const face = (x: number, y: number, w: number, h: number, score: number): Face => ({ x, y, w, h, score, landmarks: Array(10).fill(0) });
@@ -117,6 +117,36 @@ test('medição do piloto: precisão e cobertura por limite', () => {
   assert.deepEqual(pilotMetrics([], new Set(), new Set(), new Set(), 0.3), { found: 0, precision: null, recall: null });
 });
 
+test('pacote de busca: formato, quantização e melhor pontuação por foto', () => {
+  const rnd = (seed: number) => normalize(Array.from({ length: 128 }, (_, i) => Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453 % 1));
+  const a = rnd(1);
+  const b = rnd(2);
+  const pack = packIndex([{ n: 5, vec: a }, { n: 5, vec: b }, { n: 9, vec: b }]);
+  assert.equal(pack.byteLength, 8 + 3 * 8 + 3 * 128);
+  assert.equal(packCount(pack.buffer), 3);
+  assert.equal(packCount(new ArrayBuffer(10)), null);
+  assert.equal(packCount(pack.slice(0, pack.byteLength - 1).buffer), null);
+  // Busca pela assinatura "a": a foto 5 aparece uma vez, com a pontuação quase 1 (erro da quantização pequeno).
+  const r = searchPack(pack.buffer, a, 0.9);
+  assert.equal(r.length, 1);
+  assert.equal(r[0]!.n, 5);
+  assert.ok(Math.abs(r[0]!.score - 1) < 0.01, String(r[0]!.score));
+  // Pontuação quantizada ≈ cosseno real.
+  const all = searchPack(pack.buffer, a, -1);
+  const s9 = all.find((x) => x.n === 9)!.score;
+  assert.ok(Math.abs(s9 - cosine(a, b)) < 0.01);
+  assert.deepEqual(searchPack(new ArrayBuffer(4), a, 0), []);
+  assert.equal(searchPack(pack.buffer, a, -1, 1).length, 1);
+});
+
+test('nível de exigência só dentro da faixa', () => {
+  assert.equal(validThreshold(0.4), 0.4);
+  assert.equal(validThreshold(0.3634), 0.363);
+  assert.equal(validThreshold(0.1), null);
+  assert.equal(validThreshold(0.9), null);
+  assert.equal(validThreshold('0.4'), null);
+});
+
 // ───────── Modelos reais (mesmo caminho do navegador, com sharp no lugar do canvas) ─────────
 
 test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', async () => {
@@ -125,12 +155,13 @@ test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', a
   ort.env.wasm.numThreads = 1;
   ort.env.logLevel = 'error';
   const det = await ort.InferenceSession.create(readFileSync('public/models/face/yunet-2023mar.onnx'), { logSeverityLevel: 3 });
-  const rec = await ort.InferenceSession.create(
+  const full = await ort.InferenceSession.create(
     Buffer.concat([readFileSync('public/models/face/sface-2021dec.onnx.part0'), readFileSync('public/models/face/sface-2021dec.onnx.part1')]),
     { logSeverityLevel: 3 },
   );
+  const lite = await ort.InferenceSession.create(readFileSync('public/models/face/sface-2021dec-int8.onnx'), { logSeverityLevel: 3 });
 
-  async function faces(file: string) {
+  async function faces(file: string, rec = full) {
     const { data, info } = await sharp(`src/assets/portfolio/${file}`).rotate().resize(2000, 2000, { fit: 'inside', withoutEnlargement: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const k = 640 / Math.max(info.width, info.height);
     const small = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
@@ -162,4 +193,14 @@ test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', a
     assert.ok(s < COSINE_MATCH, `pessoa diferente deu ${s}`);
   }
   assert.equal((await faces('eventos-sociais/cha-revelacao-vela.jpg')).length, 0);
+
+  // Produção: índice com o modelo completo (painel) e selfie com o modelo leve (celular), pelo pacote.
+  const index = [
+    ...(await faces('ensaios/ensaio-estudio-perfil.jpg')).map((f) => ({ n: 2, vec: f.vec })),
+    ...crowd.map((f) => ({ n: 3, vec: f.vec })),
+    ...(await faces('esportes/corredora-arco.jpg')).map((f) => ({ n: 5, vec: f.vec })),
+  ];
+  const selfie = mainFace(await faces('ensaios/ensaio-estudio-retrato.jpg', lite)) as Face & { vec: Float32Array };
+  const found = searchPack(packIndex(index).buffer, selfie.vec, COSINE_MATCH);
+  assert.deepEqual(found.map((f) => f.n), [2], JSON.stringify(searchPack(packIndex(index).buffer, selfie.vec, -1)));
 });

@@ -7,11 +7,15 @@
  * - Masonry: cada foto na proporção REAL do arquivo (sem cortes).
  * - Filtros por orientação real, ordenação, busca pelo nº, carregamento progressivo.
  * - Só prévias com marca d'água; originais só após pagamento (página do pedido).
+ * - Busca por selfie (se ligada no evento): termo de consentimento SEMPRE antes; a selfie é analisada
+ *   no aparelho e só a assinatura numérica vai para a busca (não é guardada).
  */
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import Icon from '@/components/Icon.astro';
 import { site } from '@/config/site';
 import { messages } from '@/lib/whatsapp';
+import { store } from '@/config/store';
+const term = store.faceSearch;
 const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
 const chip =
   'inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-bg-2 px-2 py-1.5 text-[11px] font-semibold sm:gap-1.5 sm:px-3 sm:py-2 sm:text-xs text-ink transition-colors hover:border-brand/60 aria-pressed:border-brand aria-pressed:bg-brand aria-pressed:text-bg';
@@ -78,6 +82,14 @@ const chip =
         </div>
 
         <div data-open-area>
+          <!-- Busca por selfie (opcional, só em eventos com o recurso ligado) -->
+          <div data-face-cta hidden class="mt-6 flex flex-col gap-3 rounded-2xl border border-brand/40 bg-brand/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="flex items-center gap-2 font-bold"><Icon name="search" size={18} class="text-brand" /> Encontre suas fotos com uma selfie</p>
+              <p class="mt-0.5 text-sm text-muted">Mostramos só as fotos parecidas com você. É opcional e só funciona depois que você aceita o termo.</p>
+            </div>
+            <button type="button" data-face-open class="btn btn-primary min-h-11 shrink-0 text-sm">Buscar por selfie</button>
+          </div>
           <!-- Filtros, ordenação e busca -->
           <div class="sticky top-[var(--header-h,64px)] z-20 -mx-4 mt-6 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border sm:px-3">
             <div class="flex items-center gap-2">
@@ -113,6 +125,15 @@ const chip =
             <span data-from-text></span>
             <button type="button" data-from-clear class="font-semibold text-brand underline">Ver todas</button>
           </p>
+
+          <div data-face-note hidden class="mt-4 rounded-xl border border-brand/40 bg-card/40 px-3 py-2 text-sm">
+            <p class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span data-face-text></span>
+              <button type="button" data-face-clear class="font-semibold text-brand underline">Ver todas as fotos</button>
+              <button type="button" data-face-again class="font-semibold text-brand underline">Nova selfie</button>
+            </p>
+            <p data-face-proto class="mt-1 text-[11px] text-muted"></p>
+          </div>
 
           <!-- Galeria masonry: colunas preenchidas pela proporção real de cada foto -->
           <div data-grid class="mt-4 flex items-start gap-2 sm:gap-3" aria-live="polite"></div>
@@ -168,6 +189,40 @@ const chip =
       </form>
     </dialog>
 
+    <!-- Busca por selfie: termo antes, depois a selfie (processada no aparelho) -->
+    <dialog data-face class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-line bg-bg-2 p-0 text-ink backdrop:bg-black/70">
+      <div class="space-y-4 p-5 sm:p-6">
+        <div class="flex items-start justify-between gap-3">
+          <h2 class="text-2xl font-bold sm:text-3xl">{term.title}</h2>
+          <button type="button" data-face-close class="grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label="Fechar"><Icon name="close" size={20} /></button>
+        </div>
+        <div data-face-step="term" class="space-y-4">
+          <div class="max-h-[45dvh] space-y-2 overflow-y-auto rounded-xl border border-line bg-bg p-4 text-sm leading-relaxed text-ink/90" tabindex="0" aria-label="Texto do termo">
+            {term.paragraphs.map((t) => <p>{t}</p>)}
+            <p class="text-xs text-muted">Versão {term.termsVersion} · Veja também a <a href="/privacidade#reconhecimento-facial" target="_blank" class="text-brand underline">Privacidade</a>.</p>
+          </div>
+          <label class="flex items-start gap-3 text-sm">
+            <input type="checkbox" data-face-accept class="mt-1 size-4 shrink-0 accent-[var(--color-brand)]" />
+            <span>{term.checkbox}</span>
+          </label>
+          <div class="flex flex-col gap-2 sm:flex-row-reverse">
+            <button type="button" data-face-go class="btn btn-primary min-h-12 flex-1" disabled>Concordo, tirar selfie</button>
+            <button type="button" data-face-cancel class="btn btn-outline min-h-12 flex-1">Não concordo</button>
+          </div>
+          <input type="file" accept="image/*" capture="user" data-face-file class="sr-only" tabindex="-1" aria-hidden="true" />
+          <p class="text-xs text-muted">Dica: rosto de frente, sem óculos escuros e com boa luz. Na primeira vez o site baixa o reconhecimento (~20 MB); prefira o Wi-Fi.</p>
+        </div>
+        <div data-face-step="work" hidden class="space-y-3 py-4 text-center">
+          <p data-face-status class="text-sm" aria-live="polite"></p>
+          <div class="h-2 overflow-hidden rounded-full bg-bg" aria-hidden="true"><div data-face-bar class="h-full w-0 bg-brand transition-all"></div></div>
+          <div data-face-retry hidden class="flex flex-col gap-2 pt-2 sm:flex-row-reverse">
+            <button type="button" data-face-again2 class="btn btn-primary min-h-11 flex-1">Tentar outra selfie</button>
+            <button type="button" data-face-cancel2 class="btn btn-outline min-h-11 flex-1">Ver a galeria completa</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
     <!-- Foto ampliada -->
     <dialog data-lightbox class="m-auto h-dvh max-h-none w-full max-w-none bg-black p-0 text-ink backdrop:bg-black/80">
       <div class="flex h-full flex-col">
@@ -201,12 +256,14 @@ const chip =
   import { cartSummary, columnsFor, packOffer, relativeHeight, shortestColumn } from '@/lib/gallery';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
   import { formatDateBR } from '@/lib/proposal';
+  import { encodeVec, mainFace } from '@/lib/faces';
+  import { store } from '@/config/store';
 
   type Photo = { id: string; n: number; w: number; h: number };
   type Counts = { all: number; vertical: number; horizontal: number; square: number };
   type PublicEvent = {
     id: string; slug: string; name: string; date: string; location: string; description: string; cover_image: string; cover_position: string;
-    price_single: number; price_pack: number; photo_count: number; sale_ends_at: string; state: string; checkout: boolean;
+    price_single: number; price_pack: number; photo_count: number; sale_ends_at: string; state: string; checkout: boolean; face_search?: boolean;
   };
 
   const root = document.querySelector<HTMLElement>('[data-gallery]')!;
@@ -220,6 +277,8 @@ const chip =
   let next: number | null = 0;
   let loading = false;
   let generation = 0; // invalida respostas antigas ao trocar filtro
+  /** Resultado da busca por selfie (null = galeria normal). */
+  let faceResults: Photo[] | null = null;
   const view = { orient: 'all', order: 'asc', from: 0 };
   /** Fotos escolhidas: número → id (fica salvo neste aparelho). */
   let selected = new Map<number, string>();
@@ -275,6 +334,14 @@ const chip =
 
   async function loadMore() {
     if (loading || next === null) return;
+    if (faceResults) {
+      // Busca por selfie: mostra só as fotos encontradas (mais parecidas primeiro).
+      photos = [...faceResults];
+      next = null;
+      photos.forEach((p, i) => place(tile(p, i), p));
+      $('[data-empty]').hidden = true;
+      return;
+    }
     loading = true;
     const gen = generation;
     $('[data-loading-more]').hidden = false;
@@ -316,6 +383,7 @@ const chip =
     $<HTMLSelectElement>('[data-order-select]').value = view.order;
     const note = $('[data-from-note]');
     note.hidden = !view.from;
+    $('[data-face-note]').hidden = !faceResults;
     // Guarda filtro/ordem no endereço (sem recarregar a página).
     const q = new URLSearchParams();
     if (view.orient !== 'all') q.set('formato', view.orient);
@@ -353,6 +421,7 @@ const chip =
     $('[data-p-badge]').hidden = !offer.badge;
     $('[data-p-badge]').textContent = `Economize a partir de ${offer.worthFrom} fotos`;
     $('[data-p-until]').textContent = ev.sale_ends_at ? formatDateBR(ev.sale_ends_at.slice(0, 10)) : '—';
+    $('[data-face-cta]').hidden = !ev.face_search;
     $('[data-content]').hidden = false;
     $('[data-loading]').hidden = true;
     renderBar();
@@ -466,7 +535,8 @@ const chip =
   // ───────── Filtros, ordenação e busca ─────────
   root.querySelectorAll<HTMLElement>('[data-orient]').forEach((b) =>
     b.addEventListener('click', () => {
-      if (view.orient === b.dataset.orient && !view.from) return;
+      if (view.orient === b.dataset.orient && !view.from && !faceResults) return;
+      faceResults = null;
       view.orient = b.dataset.orient!;
       view.from = 0;
       resetView();
@@ -475,6 +545,7 @@ const chip =
   $<HTMLSelectElement>('[data-order-select]').addEventListener('change', (e) => {
     view.order = (e.target as HTMLSelectElement).value;
     view.from = 0;
+    faceResults = null;
     resetView();
   });
   $('[data-jump]').addEventListener('submit', async (e) => {
@@ -482,6 +553,7 @@ const chip =
     const n = Number.parseInt($<HTMLInputElement>('#jump-n').value.replace(/\D/g, ''), 10);
     if (!n) return;
     Object.assign(view, { orient: 'all', order: 'asc', from: n });
+    faceResults = null;
     await resetView();
     const first = photos[0];
     $('[data-from-text]').textContent = !first
@@ -496,7 +568,80 @@ const chip =
       setTimeout(() => li.classList.remove('ring-4'), 2000);
     }
   });
-  $('[data-from-clear]').addEventListener('click', () => { view.from = 0; $<HTMLInputElement>('#jump-n').value = ''; resetView(); });
+  $('[data-from-clear]').addEventListener('click', () => { view.from = 0; faceResults = null; $<HTMLInputElement>('#jump-n').value = ''; resetView(); });
+
+  // ───────── Busca por selfie ─────────
+  const fd = $<HTMLDialogElement>('[data-face]');
+  const faceAccept = $<HTMLInputElement>('[data-face-accept]');
+  const faceFile = $<HTMLInputElement>('[data-face-file]');
+  const faceStep = (s: 'term' | 'work') => root.querySelectorAll<HTMLElement>('[data-face-step]').forEach((el) => (el.hidden = el.dataset.faceStep !== s));
+  const faceStatus = (t: string, pct?: number) => {
+    $('[data-face-status]').textContent = t;
+    if (pct !== undefined) $('[data-face-bar]').style.width = `${pct}%`;
+  };
+  function openFace() {
+    // O termo é aceito de novo a cada busca.
+    faceAccept.checked = false;
+    $<HTMLButtonElement>('[data-face-go]').disabled = true;
+    faceStep('term');
+    fd.showModal();
+  }
+  function faceFail(msg: string) {
+    faceStatus(msg);
+    $('[data-face-retry]').hidden = false;
+  }
+  async function runFaceSearch(file: File) {
+    faceStep('work');
+    $('[data-face-retry]').hidden = true;
+    faceStatus('Preparando o reconhecimento…', 2);
+    try {
+      const eng = await import('@/lib/face-engine');
+      await eng.loadEngine((p) => faceStatus(`Preparando o reconhecimento… ${p}%`, Math.round(p * 0.8)), 'lite');
+      faceStatus('Analisando sua selfie no seu aparelho…', 85);
+      const bmp = await createImageBitmap(file);
+      const faces = await eng.facesOf(bmp, { minScore: 0.7, variant: 'lite' });
+      bmp.close();
+      const me = mainFace(faces) as (typeof faces)[number] | null;
+      if (!me) return faceFail('Não encontramos um rosto nítido na selfie. Tente de frente, sem óculos escuros e com boa luz.');
+      faceStatus('Procurando suas fotos…', 92);
+      const vec = encodeVec(me.vec);
+      me.vec.fill(0);
+      const res = await fetch(`/api/public/events/${encodeURIComponent(slug)}/faces`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vec, accept: true, version: store.faceSearch.termsVersion }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; consent?: string; photos?: Photo[] };
+      if (!res.ok || !data.photos) return faceFail(data.error ?? 'Não foi possível buscar agora. Tente de novo.');
+      faceStatus('Pronto!', 100);
+      fd.close();
+      faceResults = data.photos;
+      const n = data.photos.length;
+      $('[data-face-text]').textContent = n
+        ? `Encontramos ${n} foto${n === 1 ? '' : 's'} parecida${n === 1 ? '' : 's'} com você. Confira antes de comprar: a busca pode errar.`
+        : 'Não encontramos fotos parecidas com a sua selfie. Tente outra selfie ou veja a galeria completa.';
+      $('[data-face-proto]').textContent = `Consentimento registrado (protocolo ${data.consent}). A selfie não foi enviada nem guardada.`;
+      await resetView();
+      $('[data-face-note]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch {
+      faceFail('Seu navegador não conseguiu analisar a selfie. Atualize a página ou tente em outro navegador.');
+    }
+  }
+  $('[data-face-open]').addEventListener('click', openFace);
+  $('[data-face-again]').addEventListener('click', openFace);
+  $('[data-face-again2]').addEventListener('click', openFace);
+  faceAccept.addEventListener('change', () => ($<HTMLButtonElement>('[data-face-go]').disabled = !faceAccept.checked));
+  $('[data-face-go]').addEventListener('click', () => {
+    if (!faceAccept.checked) return;
+    faceFile.value = '';
+    faceFile.click();
+  });
+  faceFile.addEventListener('change', () => {
+    const f = faceFile.files?.[0];
+    if (f && faceAccept.checked) void runFaceSearch(f);
+  });
+  for (const s of ['[data-face-close]', '[data-face-cancel]', '[data-face-cancel2]']) $(s).addEventListener('click', () => fd.close());
+  $('[data-face-clear]').addEventListener('click', () => { faceResults = null; resetView(); });
 
   // ───────── Compra (Mercado Pago) ─────────
   const co = $<HTMLDialogElement>('[data-checkout]');

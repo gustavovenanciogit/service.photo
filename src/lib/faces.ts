@@ -244,3 +244,66 @@ export function pilotMetrics(results: { photo: string; score: number }[], correc
     recall: tp + fn ? tp / (tp + fn) : null,
   };
 }
+
+// ───────── Pacote de busca (servidor) ─────────
+/**
+ * Todas as assinaturas de um evento num arquivo só (guardado no R2), para a busca pública ser rápida:
+ *   "VF1\0" | quantidade N (uint32) | nº da foto[N] (uint32) | escala[N] (float32) | assinaturas N×128 (int8)
+ * Cada assinatura vira 128 bytes (int8 com escala própria): ~1,1 MB para 9 mil rostos.
+ */
+const PACK_MAGIC = 0x00314656; // "VF1\0" (little-endian)
+
+export function packIndex(rows: { n: number; vec: ArrayLike<number> }[]) {
+  const N = rows.length;
+  const buf = new ArrayBuffer(8 + N * 8 + N * VEC_LEN);
+  const dv = new DataView(buf);
+  dv.setUint32(0, PACK_MAGIC, true);
+  dv.setUint32(4, N, true);
+  const seqs = new Uint32Array(buf, 8, N);
+  const scales = new Float32Array(buf, 8 + N * 4, N);
+  const q = new Int8Array(buf, 8 + N * 8, N * VEC_LEN);
+  rows.forEach((r, i) => {
+    let max = 0;
+    for (let j = 0; j < VEC_LEN; j++) max = Math.max(max, Math.abs(r.vec[j]!));
+    const s = max / 127 || 1;
+    seqs[i] = r.n;
+    scales[i] = s;
+    for (let j = 0; j < VEC_LEN; j++) q[i * VEC_LEN + j] = Math.round(r.vec[j]! / s);
+  });
+  return new Uint8Array(buf);
+}
+
+/** Confere o formato do pacote; devolve a quantidade de rostos ou null. */
+export function packCount(buf: ArrayBuffer) {
+  if (buf.byteLength < 8) return null;
+  const dv = new DataView(buf);
+  const N = dv.getUint32(4, true);
+  if (dv.getUint32(0, true) !== PACK_MAGIC || N > 200_000 || buf.byteLength !== 8 + N * 8 + N * VEC_LEN) return null;
+  return N;
+}
+
+/** Compara a assinatura da selfie com o pacote: melhor pontuação por foto, acima do limite, da maior para a menor. */
+export function searchPack(buf: ArrayBuffer, query: ArrayLike<number>, threshold: number, max = 300) {
+  const N = packCount(buf);
+  if (N === null) return [];
+  const seqs = new Uint32Array(buf, 8, N);
+  const scales = new Float32Array(buf, 8 + N * 4, N);
+  const q = new Int8Array(buf, 8 + N * 8, N * VEC_LEN);
+  const qv = Float32Array.from(query);
+  const best = new Map<number, number>();
+  for (let i = 0; i < N; i++) {
+    let s = 0;
+    const o = i * VEC_LEN;
+    for (let j = 0; j < VEC_LEN; j++) s += q[o + j]! * qv[j]!;
+    s *= scales[i]!;
+    if (s >= threshold && s > (best.get(seqs[i]!) ?? -1)) best.set(seqs[i]!, s);
+  }
+  return [...best]
+    .map(([n, score]) => ({ n, score }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, max);
+}
+
+/** Limite padrão da busca pública e a faixa permitida no painel. */
+export const THRESHOLD_RANGE = { min: 0.25, max: 0.6 } as const;
+export const validThreshold = (v: unknown) => (typeof v === 'number' && v >= THRESHOLD_RANGE.min && v <= THRESHOLD_RANGE.max ? Math.round(v * 1000) / 1000 : null);

@@ -1,7 +1,8 @@
 ---
 /**
- * RECONHECIMENTO FACIAL — PILOTO (/painel/rostos/)
- * Só no painel. Serve para medir a taxa de acerto com voluntários antes de qualquer liberação ao público.
+ * RECONHECIMENTO FACIAL (/painel/rostos/)
+ *  - Índice por evento + busca por selfie na galeria (ligada evento a evento, com aviso do evento confirmado).
+ *  - Piloto com voluntários para medir a taxa de acerto e escolher o nível de exigência.
  *  1. Indexar: o navegador baixa cada original, encontra os rostos (YuNet) e gera as assinaturas (SFace).
  *     Só as assinaturas (números) vão para o servidor.
  *  2. Consentimento do voluntário (texto versionado) registrado antes da selfie.
@@ -11,16 +12,16 @@ import PanelLayout from '@/layouts/PanelLayout.astro';
 const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none';
 ---
 
-<PanelLayout title="Reconhecimento facial (piloto)">
-  <p class="eyebrow">Loja de fotos · piloto fechado</p>
+<PanelLayout title="Reconhecimento facial">
+  <p class="eyebrow">Loja de fotos</p>
   <h1 class="mt-1 text-4xl font-extrabold sm:text-5xl">Reconhecimento facial</h1>
   <p class="mt-2 max-w-3xl text-muted">
-    Teste interno para medir a taxa de acerto com voluntários. Nada disso aparece para compradores. As fotos são analisadas neste navegador; o servidor
-    guarda só as assinaturas numéricas dos rostos das fotos do evento. Selfies nunca são enviadas nem guardadas.
+    O comprador tira uma selfie na galeria e vê só as fotos dele — sempre depois de aceitar o termo de consentimento. As fotos são analisadas neste
+    navegador e a selfie no aparelho do comprador; o servidor guarda só as assinaturas numéricas dos rostos das fotos do evento.
   </p>
   <p class="mt-3 max-w-3xl rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-    Dado biométrico é dado pessoal sensível (LGPD, art. 11). Use só com voluntários que concordaram por escrito aqui e não libere ao público antes da revisão
-    jurídica e do aviso no evento.
+    Dado biométrico é dado pessoal sensível (LGPD, art. 11). O termo aceito pelo comprador cobre a selfie dele; as outras pessoas que aparecem nas fotos
+    precisam ser avisadas pelo evento (regulamento/inscrição ou aviso no local). Ligue a busca só em eventos com esse aviso e atenda pedidos de remoção.
   </p>
 
   <!-- 1. Evento e índice -->
@@ -41,12 +42,51 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     <div class="mt-2 h-2 overflow-hidden rounded-full bg-bg" aria-hidden="true"><div data-bar class="h-full w-0 bg-brand transition-all"></div></div>
     <p class="mt-2 text-xs text-muted">
       Na primeira vez o navegador baixa os modelos (~39 MB) e guarda em cache. Mantenha a aba aberta enquanto indexa; dá para pausar e continuar depois.
+      Fotos enviadas depois só entram na busca quando forem indexadas.
     </p>
   </section>
 
+  <!-- 2. Busca na galeria -->
+  <section class="card mt-6 p-4 sm:p-5" aria-labelledby="pub-title">
+    <h2 id="pub-title" class="text-lg font-bold">2. Busca por selfie na galeria (compradores)</h2>
+    <p data-pub-status class="mt-2 text-sm text-muted">Escolha um evento.</p>
+    <label class="mt-3 flex max-w-3xl items-start gap-2 text-sm">
+      <input type="checkbox" data-notice class="mt-1 size-4 accent-[var(--color-brand)]" />
+      <span>O público deste evento foi avisado sobre o reconhecimento facial (cláusula no regulamento/inscrição ou aviso combinado com o organizador/academia).</span>
+    </label>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button type="button" data-pub-on class="btn btn-primary min-h-11 text-sm" disabled>Ligar busca por selfie</button>
+      <button type="button" data-pub-off class="btn btn-outline min-h-11 text-sm" hidden>Desligar</button>
+      <button type="button" data-repack class="btn btn-outline min-h-11 text-sm" disabled>Atualizar índice da busca</button>
+    </div>
+
+    <div class="mt-5 grid max-w-3xl gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <label class="block text-sm">
+        <span class="text-muted">Pedido de remoção: tirar estas fotos da busca (números, separados por vírgula)</span>
+        <input data-remove-n class={`${field} mt-1`} placeholder="Ex.: 12, 48" inputmode="numeric" autocomplete="off" />
+      </label>
+      <button type="button" data-remove class="btn btn-outline min-h-11 text-sm" disabled>Tirar da busca</button>
+    </div>
+    <p class="mt-1 text-xs text-muted">A foto continua na galeria; só deixa de aparecer na busca por selfie (para todas as pessoas dela).</p>
+
+    <div class="mt-5 border-t border-line pt-4">
+      <h3 class="font-bold">Nível de exigência (todos os eventos)</h3>
+      <div class="mt-2 flex flex-wrap items-center gap-3 text-sm">
+        <input type="range" min="0.25" max="0.6" step="0.001" data-global-t class="w-56 accent-[var(--color-brand)]" />
+        <output data-global-out class="w-12 font-mono"></output>
+        <button type="button" data-global-save class="btn btn-outline min-h-9 px-3 text-xs">Salvar</button>
+        <button type="button" data-global-reset class="text-xs text-muted underline">Voltar ao padrão</button>
+      </div>
+      <p class="mt-1 text-xs text-muted">Mais baixo: acha mais fotos da pessoa, mas mostra mais fotos de outras. Mais alto: menos erros, mas pode esconder fotos dela. Use o piloto abaixo para escolher.</p>
+    </div>
+  </section>
+
+  <h2 class="mt-10 text-2xl font-extrabold">Piloto com voluntários</h2>
+  <p class="mt-1 max-w-3xl text-sm text-muted">Mede a taxa de acerto com pessoas que concordaram. Não aparece para compradores.</p>
+
   <!-- 2. Consentimento -->
   <section class="card mt-6 p-4 sm:p-5" aria-labelledby="cs-title">
-    <h2 id="cs-title" class="text-lg font-bold">2. Consentimento do voluntário</h2>
+    <h2 id="cs-title" class="text-lg font-bold">3. Consentimento do voluntário</h2>
     <div class="mt-3 max-w-3xl space-y-2 rounded-xl border border-line bg-bg p-4 text-sm leading-relaxed" data-consent-text>
       <p><strong>Teste de busca por reconhecimento facial — Venart (versão piloto-2026-11-v1)</strong></p>
       <p>
@@ -75,7 +115,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
 
   <!-- 3. Selfie e resultados -->
   <section class="card mt-6 p-4 sm:p-5" aria-labelledby="sf-title">
-    <h2 id="sf-title" class="text-lg font-bold">3. Selfie e conferência</h2>
+    <h2 id="sf-title" class="text-lg font-bold">4. Selfie e conferência</h2>
     <div class="mt-3 flex flex-wrap items-center gap-3">
       <label class="btn btn-primary min-h-11 cursor-pointer text-sm" data-selfie-btn aria-disabled="true">
         Tirar ou escolher selfie
@@ -117,14 +157,14 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
 
   <!-- 4. Medições salvas -->
   <section class="card mt-6 p-4 sm:p-5" aria-labelledby="rn-title">
-    <h2 id="rn-title" class="text-lg font-bold">4. Medições salvas deste evento</h2>
+    <h2 id="rn-title" class="text-lg font-bold">5. Medições salvas deste evento</h2>
     <div data-runs class="mt-3 text-sm text-muted">Escolha um evento.</div>
   </section>
 </PanelLayout>
 
 <script>
   import { api, toast } from '@/lib/panel-api';
-  import { COSINE_MATCH, cosine, decodeVec, encodeVec, mainFace, pilotMetrics } from '@/lib/faces';
+  import { COSINE_MATCH, cosine, decodeVec, encodeVec, mainFace, packIndex, pilotMetrics } from '@/lib/faces';
   import type { EventRecord } from '@/lib/events';
 
   const CONSENT_VERSION = 'piloto-2026-11-v1';
@@ -167,6 +207,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
   async function refreshStatus() {
     if (!eventId) return null;
     const s = await api.faceStatus(eventId);
+    renderPublic(s);
     $('[data-status]').textContent = `${s.indexed} de ${s.total} fotos indexadas · ${s.faces} rosto${s.faces === 1 ? '' : 's'} encontrados${s.pending.length ? ` · faltam ${s.pending.length}` : ''}.`;
     $('[data-bar]').style.width = `${s.total ? (s.indexed / s.total) * 100 : 0}%`;
     $<HTMLButtonElement>('[data-index]').disabled = running || !s.pending.length;
@@ -218,7 +259,10 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
         status.textContent = `Indexando foto nº ${p.seq}… ${done} de ${s.pending.length} · ${faces} rostos · ~${fmt(each, 1)} s por foto${left ? ` · faltam ~${left} min` : ''}`;
         $('[data-bar]').style.width = `${((s.indexed + done) / s.total) * 100}%`;
       }
-      if (!paused) toast('Índice pronto.');
+      if (!paused) {
+        await buildPack();
+        toast('Índice pronto.');
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Falha ao indexar.', 'error');
     } finally {
@@ -229,7 +273,46 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     }
   }
 
-  // ───────── 2. Consentimento ─────────
+  // ───────── 2. Busca na galeria ─────────
+  type Status = Awaited<ReturnType<typeof api.faceStatus>>;
+  let lastStatus: Status | null = null;
+  function renderPublic(s: Status) {
+    lastStatus = s;
+    const st = $('[data-pub-status]');
+    const when = s.face_pack_at ? new Date(s.face_pack_at).toLocaleString('pt-BR') : '';
+    st.textContent = s.face_search
+      ? `Ligada: compradores veem "Encontrar minhas fotos por selfie" na galeria. Índice da busca de ${when}.`
+      : s.face_pack_at
+        ? `Desligada. Índice da busca pronto (${when}).`
+        : 'Desligada. Indexe as fotos primeiro.';
+    if (s.face_search && s.pending.length) st.textContent += ` Atenção: ${s.pending.length} foto(s) ainda sem índice não aparecem na busca.`;
+    $('[data-pub-off]').hidden = !s.face_search;
+    $('[data-pub-on]').hidden = s.face_search;
+    $<HTMLButtonElement>('[data-pub-on]').disabled = running || !s.face_pack_at || !$<HTMLInputElement>('[data-notice]').checked;
+    $<HTMLButtonElement>('[data-repack]').disabled = running || !s.indexed;
+    $<HTMLButtonElement>('[data-remove]').disabled = running || !s.indexed;
+  }
+
+  /** Junta as assinaturas do evento num pacote compacto e envia (a busca pública usa só ele). */
+  async function buildPack() {
+    const rows = await api.faceVectors(eventId);
+    const list = rows.flatMap((r) => {
+      const vec = decodeVec(r.v);
+      return vec ? [{ n: r.n, vec }] : [];
+    });
+    await api.uploadFacePack(eventId, packIndex(list));
+    await refreshStatus();
+  }
+
+  async function loadFaceSettings() {
+    const s = await api.faceSettings();
+    const r = $<HTMLInputElement>('[data-global-t]');
+    r.value = String(s.threshold);
+    r.dataset.default = String(s.default);
+    $('[data-global-out]').textContent = fmt(s.threshold);
+  }
+
+  // ───────── 3. Consentimento ─────────
   function updateConsentBtn() {
     $<HTMLButtonElement>('[data-consent]').disabled = !eventId || !$<HTMLInputElement>('[data-accept]').checked || !$<HTMLInputElement>('[data-label]').value.trim();
   }
@@ -457,6 +540,46 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     await refreshStatus();
     await loadRuns();
   });
+  $('[data-notice]').addEventListener('change', () => lastStatus && renderPublic(lastStatus));
+  $('[data-pub-on]').addEventListener('click', async () => {
+    try {
+      await api.setFacePublic(eventId, true, $<HTMLInputElement>('[data-notice]').checked);
+      toast('Busca por selfie ligada neste evento.');
+      await refreshStatus();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Falha.', 'error');
+    }
+  });
+  $('[data-pub-off]').addEventListener('click', async () => {
+    await api.setFacePublic(eventId, false, false);
+    toast('Busca por selfie desligada.');
+    await refreshStatus();
+  });
+  $('[data-repack]').addEventListener('click', () => void buildPack().then(() => toast('Índice da busca atualizado.')).catch((e) => toast(e.message, 'error')));
+  $('[data-remove]').addEventListener('click', async () => {
+    const nums = $<HTMLInputElement>('[data-remove-n]').value.split(/[,;\s]+/).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+    if (!nums.length) return toast('Informe os números das fotos.', 'error');
+    if (!confirm(`Tirar ${nums.length} foto(s) da busca por selfie?`)) return;
+    try {
+      const r = await api.removeFromFaceSearch(eventId, nums);
+      await buildPack();
+      $<HTMLInputElement>('[data-remove-n]').value = '';
+      toast(`${r.removed} foto(s) fora da busca.`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Falha.', 'error');
+    }
+  });
+  $('[data-global-t]').addEventListener('input', (e) => ($('[data-global-out]').textContent = fmt(Number((e.target as HTMLInputElement).value))));
+  $('[data-global-save]').addEventListener('click', async () => {
+    const r = await api.saveFaceSettings(Number($<HTMLInputElement>('[data-global-t]').value));
+    $('[data-global-out]').textContent = fmt(r.threshold);
+    toast('Nível de exigência salvo.');
+  });
+  $('[data-global-reset]').addEventListener('click', () => {
+    const r = $<HTMLInputElement>('[data-global-t]');
+    r.value = r.dataset.default ?? String(COSINE_MATCH);
+    $('[data-global-out]').textContent = fmt(Number(r.value));
+  });
   $('[data-accept]').addEventListener('change', updateConsentBtn);
   $('[data-label]').addEventListener('input', updateConsentBtn);
   $('[data-consent]').addEventListener('click', () => void registerConsent().catch((e) => toast(e.message, 'error')));
@@ -474,5 +597,6 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     updateSelfieEnabled();
   });
 
+  loadFaceSettings().catch(() => undefined);
   loadEvents().catch((e) => toast(e instanceof Error ? e.message : 'Falha ao carregar.', 'error'));
 </script>
