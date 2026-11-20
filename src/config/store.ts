@@ -33,6 +33,24 @@ export const store = {
     monthlyLimit: 6_750,
     openedAt: '', // data de abertura do CNPJ (AAAA-MM-DD), para o limite proporcional do 1º ano
   },
+  /**
+   * BUSCA POR SELFIE (reconhecimento facial). O comprador precisa aceitar este termo ANTES de cada busca;
+   * o aceite fica registrado com a versão. Mude a versão sempre que mudar o texto.
+   */
+  faceSearch: {
+    termsVersion: 'selfie-2026-11-v1',
+    title: 'Termo de consentimento — busca por selfie',
+    paragraphs: [
+      'Para encontrar suas fotos, o site compara o rosto da sua selfie com os rostos das fotos deste evento (reconhecimento facial). O uso é opcional: se não concordar, você continua vendo a galeria completa e pode buscar pelo número da foto.',
+      'A selfie é analisada no seu próprio aparelho. Ela não é enviada nem guardada. Só uma sequência de números que representa o rosto é enviada para a comparação, usada apenas nesta busca e descartada em seguida.',
+      'Os rostos das fotos do evento são convertidos em sequências de números para permitir a busca. Esse índice é apagado junto com as fotos do evento, ao fim do prazo de venda e download.',
+      'Fica registrado apenas que você aceitou este termo (data, hora, evento e versão do texto), sem nome, imagem ou outro dado seu.',
+      'Use somente a sua própria selfie ou a de uma criança ou adolescente pelo qual você é responsável legal. Nesse caso, você consente em nome dele.',
+      'O resultado pode ter erros (fotos de outras pessoas ou fotos suas que não aparecem). Confira as fotos antes de comprar.',
+      'Base legal: consentimento (LGPD, art. 11, I, e art. 14, § 1º). Você pode pedir informações ou retirar o consentimento a qualquer momento pelo WhatsApp.',
+    ],
+    checkbox: 'Li e concordo com o uso da selfie (minha ou de quem sou responsável legal) para esta busca.',
+  },
   /** Nome que aparece na fatura do cartão. */
   statementDescriptor: 'VENART',
 } as const;

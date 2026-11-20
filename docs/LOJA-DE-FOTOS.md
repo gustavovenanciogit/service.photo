@@ -188,8 +188,9 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ## Fase 6 — Reconhecimento facial
 
 ### Jurídico (antes de abrir ao público)
-- [ ] **6.1 🤖 Rascunho** do termo de consentimento (selfie), do aviso para eventos e do relatório de impacto (LGPD).
-- [ ] **6.2 👤 Revisão** por advogado.
+- [x] **6.1 🤖 Rascunho** do termo de consentimento (selfie) e do aviso para eventos. _(termo `selfie-2026-11-v1` em `src/config/store.ts`, mostrado antes de cada busca e na Privacidade; aviso sugerido abaixo. Relatório de impacto: pendente com o advogado.)_
+  > **Aviso sugerido para o regulamento/inscrição do evento:** "As fotos do evento serão vendidas na galeria online da Venart, que oferece busca por selfie (reconhecimento facial). Os rostos das fotos são convertidos em códigos numéricos usados só para essa busca e apagados ao fim do prazo de venda. Quem não quiser ser encontrado pela busca pode pedir a remoção pelo WhatsApp (92) …".
+- [ ] **6.2 👤 Revisão** por advogado. _(recomendada mesmo com o recurso já disponível: termo, aviso do evento e relatório de impacto)_
 - [ ] **6.3 👤 Aviso nos eventos:** cláusula no regulamento/inscrição (organizadores) ou aviso combinado (academias/assessorias).
 
 ### Tecnologia
@@ -202,7 +203,8 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 - [ ] **6.8 👤 Voluntários** que autorizam o teste (você, amigos, atletas parceiros) num evento seu.
 - [x] **6.9 🤖 Ferramenta de medição** no painel: % das fotos da pessoa encontradas e % de fotos erradas, por nível de exigência. _(marcação ✓/✗, "faltou a foto nº", tabela por limite 0,30–0,50 e medições salvas)_
 - [ ] **6.10 👤🤖 Escolha da tecnologia e do nível de exigência** pelos números reais.
-- [ ] **6.11 👤 Liberar ao público** somente após 6.2, 6.3 e 6.10.
+- [x] **6.11 🤖 Busca por selfie na galeria** _(20/11/2026: ligada evento a evento no painel → Reconhecimento facial, só depois de confirmar o aviso do evento; termo aceito a cada busca e registrado; selfie analisada no celular com o modelo leve (~10 MB) e só a assinatura vai ao servidor; pedido de remoção tira fotos da busca; nível de exigência ajustável)_
+- [ ] **6.12 👤 Liberar em cada evento** só com o aviso do evento (6.3) e, de preferência, depois do piloto (6.8–6.10).
 
 **✅ Pronto quando:** consentimento registrado, avisos nos eventos e acerto medido aprovado por você.
 

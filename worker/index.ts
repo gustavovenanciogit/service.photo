@@ -17,8 +17,8 @@ import {
 import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
 import { settingsApi } from './settings.ts';
-import { facesApi } from './faces.ts';
-import { eventsApi, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
+import { facesApi, publicFaceSearch } from './faces.ts';
+import { eventsApi, faceSearchEvent, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
 import { createOrder, MpError, orderStatus, payOrder, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
@@ -114,6 +114,17 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (pubEvent && method === 'GET') {
     await db.ensureSchema(env.DB);
     return publicEventApi(env, pubEvent[1]!, url, await isLoggedIn(req, env), json);
+  }
+
+  // ── Público: busca por selfie (termo aceito antes; selfie não sai do aparelho) ──
+  const faceSearch = /^\/api\/public\/events\/([a-z0-9-]{1,60})\/faces$/.exec(path);
+  if (faceSearch && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+    if (!(await db.allowLead(env.DB, await sha256Hex(`venart-faces:${ip}`), 20))) return json({ error: 'Muitas buscas seguidas. Aguarde alguns minutos.' }, 429);
+    const ev = await faceSearchEvent(env, faceSearch[1]!, await isLoggedIn(req, env));
+    if (!ev) return json({ error: 'Evento não encontrado.' }, 404);
+    return publicFaceSearch(env, ev, await readJson(req, 10_000), json);
   }
 
   // ── Público: compra de fotos ──

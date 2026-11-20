@@ -99,7 +99,7 @@ export async function purgeExpired(env: EventsEnv, now = new Date()) {
     await db.batch([
       db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(e.id),
       ...purgeFaces(db, e.id),
-      db.prepare("UPDATE events SET purged_at = ?, photo_count = 0, cover_photo_id = '', cover_image = '', status = 'encerrado', updated_at = ? WHERE id = ?").bind(t, t, e.id),
+      db.prepare("UPDATE events SET purged_at = ?, photo_count = 0, cover_photo_id = '', cover_image = '', status = 'encerrado', face_search = 0, face_pack_at = '', updated_at = ? WHERE id = ?").bind(t, t, e.id),
     ]);
     console.log('Limpeza: arquivos apagados do evento', e.id, e.name);
     done.push(e.id);
@@ -200,7 +200,7 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
         return json({ error: 'Há compradores com download ainda válido neste evento. Exclua depois que o prazo de download terminar.' }, 409);
       }
       if (env.PHOTOS) await purgePrefix(env.PHOTOS, `events/${eventId}/`);
-      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), ...purgeFaces(db, eventId), db.prepare('DELETE FROM face_consents WHERE event_id = ?').bind(eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
+      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), ...purgeFaces(db, eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
       return json({ ok: true });
     }
     return json({ error: 'Não encontrado.' }, 404);
@@ -348,6 +348,8 @@ const publicEvent = (e: EventRecord, state: string, env: PaymentsEnv) => ({
   photo_count: e.photo_count,
   sale_ends_at: saleEndsAt(e),
   state,
+  // Busca por selfie: só com o recurso ligado, índice pronto e venda aberta.
+  face_search: e.face_search === 1 && !!e.face_pack_at && (state === 'aberto' || state === 'rascunho'),
 });
 
 export async function publicEventApi(env: EventsEnv, slug: string, url: URL, admin: boolean, json: Json) {
@@ -450,3 +452,13 @@ export async function serveEventPage(req: Request, env: EventsEnv, url: URL, slu
   return r;
 }
 
+
+/** Evento para a busca por selfie: publicado e aberto (ou rascunho para o fotógrafo logado testar). */
+export async function faceSearchEvent(env: EventsEnv, slug: string, admin: boolean) {
+  const e = await getBySlug(env.DB, slug);
+  if (!e) return null;
+  const state = publicState(e);
+  if (state === 'oculto' && !admin) return null;
+  const open = state === 'aberto' || (admin && state === 'oculto');
+  return { id: e.id, face_search: e.face_search === 1 && !!e.face_pack_at && open };
+}

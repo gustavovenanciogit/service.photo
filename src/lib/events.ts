@@ -42,6 +42,8 @@ export interface EventRecord {
   watermark_model: number; // 0 = modelo padrão; 1–8 = modelo próprio desta galeria
   cover_image: string; // capa da página (vazio = sem capa); guarda a data do envio (versão)
   cover_position: string; // enquadramento da capa, ex.: "50% 40%"
+  face_search: number; // 1 = busca por selfie ligada para compradores (exige aviso do evento confirmado)
+  face_pack_at: string; // quando o pacote de busca por rostos foi gerado (vazio = sem pacote)
   photo_count: number;
   published_at: string; // ISO
   purged_at: string; // quando os arquivos foram apagados automaticamente (vazio = ainda guardados)

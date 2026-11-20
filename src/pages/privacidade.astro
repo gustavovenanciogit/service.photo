@@ -7,8 +7,9 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { site } from '@/config/site';
 import { messages, whatsappLink } from '@/lib/whatsapp';
+import { store } from '@/config/store';
 
-const updated = '15/11/2026';
+const updated = '20/11/2026';
 const wa = whatsappLink(site.whatsappNumber, 'Olá! Gostaria de falar sobre os meus dados pessoais registrados no seu site.');
 ---
 
@@ -38,6 +39,22 @@ const wa = whatsappLink(site.whatsappNumber, 'Olá! Gostaria de falar sobre os m
         <p>Na galeria, as fotos que você seleciona e os dados do formulário de compra ficam guardados <strong>só no seu aparelho</strong> (armazenamento do navegador), para você não perder a seleção.</p>
         <p>Para evitar abuso (envio automático em massa), o endereço de internet de quem envia é guardado apenas de forma embaralhada (hash), sem identificar a pessoa.</p>
         <p>O site <strong>não usa</strong> cookies de rastreamento, publicidade ou estatísticas de visitas.</p>
+      </section>
+
+      <section id="reconhecimento-facial" class="scroll-mt-24 space-y-3">
+        <h2>Busca por selfie (reconhecimento facial)</h2>
+        <p>Em alguns eventos, a galeria oferece a opção de encontrar suas fotos com uma selfie. É <strong>opcional</strong> e só funciona depois que você aceita o termo de consentimento, a cada busca.</p>
+        <ul class="space-y-1">
+          <li><strong>Selfie:</strong> analisada no seu próprio aparelho; não é enviada nem guardada. Só uma sequência de números que representa o rosto vai para a comparação, é usada naquela busca e descartada.</li>
+          <li><strong>Fotos do evento:</strong> os rostos que aparecem nelas são convertidos em sequências de números (o índice da busca), guardadas na Cloudflare e apagadas junto com as fotos do evento, ao fim do prazo de venda e download. Nenhuma imagem de rosto separada é criada.</li>
+          <li><strong>Registro do aceite:</strong> data, hora, evento e versão do termo, sem nome nem imagem.</li>
+          <li><strong>Base legal:</strong> consentimento de quem faz a busca (LGPD, art. 11, I; para crianças e adolescentes, de um dos responsáveis — art. 14, § 1º). O público dos eventos com a busca ligada é avisado pela organização.</li>
+          <li><strong>Remoção:</strong> se você aparece nas fotos de um evento e não quer ser encontrado pela busca, peça pelo WhatsApp que as fotos indicadas saem da busca.</li>
+        </ul>
+        <details class="rounded-xl border border-line bg-bg-2 p-4 text-sm">
+          <summary class="cursor-pointer font-semibold">Texto completo do termo (versão {store.faceSearch.termsVersion})</summary>
+          <div class="mt-3 space-y-2">{store.faceSearch.paragraphs.map((t) => <p>{t}</p>)}</div>
+        </details>
       </section>
 
       <section class="space-y-3">

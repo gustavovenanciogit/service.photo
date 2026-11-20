@@ -112,13 +112,23 @@ export const api = {
   },
   deleteWatermarkLogo: () => request<WatermarkSettings>('DELETE', '/api/settings/watermark/logo'),
   // Reconhecimento facial (piloto)
-  faceStatus: (id: string) => request<{ total: number; indexed: number; faces: number; pending: { id: string; seq: number }[] }>('GET', `/api/events/${encodeURIComponent(id)}/faces`),
+  faceStatus: (id: string) => request<{ total: number; indexed: number; faces: number; pending: { id: string; seq: number }[]; face_search: boolean; face_pack_at: string }>('GET', `/api/events/${encodeURIComponent(id)}/faces`),
   saveFaces: (id: string, pid: string, faces: { vec: string; score: number; box: number[] }[]) =>
     request<{ ok: true; faces: number }>('POST', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/faces`, { faces }),
   faceVectors: (id: string) => request<{ p: string; n: number; v: string }[]>('GET', `/api/events/${encodeURIComponent(id)}/faces/vectors`),
   deleteFaces: (id: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}/faces`),
   faceConsent: (id: string, version: string, label: string) => request<{ id: string }>('POST', `/api/events/${encodeURIComponent(id)}/faces/consent`, { version, label, accept: true }),
   revokeFaceConsent: (cid: string) => request<{ ok: true }>('POST', `/api/faces/consent/${encodeURIComponent(cid)}/revoke`, {}),
+  async uploadFacePack(id: string, pack: Uint8Array) {
+    const res = await fetch(`/api/events/${encodeURIComponent(id)}/faces/pack`, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' }, body: new Blob([pack as BlobPart]) });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; faces?: number; face_pack_at?: string };
+    if (!res.ok) throw new ApiError(res.status, data.error ?? 'Falha ao enviar o índice.');
+    return data;
+  },
+  setFacePublic: (id: string, enabled: boolean, notice: boolean) => request<{ ok: true; face_search: boolean }>('POST', `/api/events/${encodeURIComponent(id)}/faces/public`, { enabled, notice }),
+  removeFromFaceSearch: (id: string, numbers: number[]) => request<{ ok: true; removed: number }>('POST', `/api/events/${encodeURIComponent(id)}/faces/remove`, { numbers }),
+  faceSettings: () => request<{ threshold: number; default: number }>('GET', '/api/faces/settings'),
+  saveFaceSettings: (threshold: number) => request<{ threshold: number; default: number }>('PUT', '/api/faces/settings', { threshold }),
   pilotRuns: (id: string) => request<{ id: string; consent_id: string; data: unknown; created_at: string; label: string | null; version: string | null }[]>('GET', `/api/events/${encodeURIComponent(id)}/faces/pilot`),
   savePilotRun: (id: string, consent_id: string, data: unknown) => request<{ ok: true }>('POST', `/api/events/${encodeURIComponent(id)}/faces/pilot`, { consent_id, data }),
   deletePhoto: (id: string, pid: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}`),
