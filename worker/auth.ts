@@ -85,3 +85,22 @@ export async function registerFailure(db: D1Database, ip: string) {
 }
 
 export const clearFailures = (db: D1Database, ip: string) => db.prepare('DELETE FROM login_attempts WHERE ip = ?').bind(ip).run();
+
+// ───────── Galeria privada: acesso às fotos encontradas pela selfie ─────────
+const viewKey = (secret: string) =>
+  crypto.subtle.importKey('raw', enc.encode(`venart-faceview:${secret}`), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+/** Validade da chave de cada foto encontrada (horas). */
+export const PHOTO_ACCESS_HOURS = 72;
+
+/** Chave de acesso a uma foto de galeria privada: "x=<expira em horas>&t=<assinatura>". */
+export async function signPhotoAccess(secret: string, photoId: string, nowMs = Date.now()) {
+  const exp = Math.floor(nowMs / 3_600_000) + PHOTO_ACCESS_HOURS;
+  const sig = b64url(await crypto.subtle.sign('HMAC', await viewKey(secret), enc.encode(`${photoId}.${exp}`))).slice(0, 22);
+  return `x=${exp}&t=${sig}`;
+}
+
+export async function verifyPhotoAccess(secret: string | undefined, photoId: string, x: string | null, t: string | null, nowMs = Date.now()) {
+  if (!secret || !x || !t || !/^\d{1,10}$/.test(x) || Number(x) < Math.floor(nowMs / 3_600_000)) return false;
+  const expected = b64url(await crypto.subtle.sign('HMAC', await viewKey(secret), enc.encode(`${photoId}.${x}`))).slice(0, 22);
+  return expected.length === t.length && crypto.subtle.timingSafeEqual(enc.encode(expected), enc.encode(t));
+}

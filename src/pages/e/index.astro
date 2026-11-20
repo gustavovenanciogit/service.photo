@@ -85,13 +85,13 @@ const chip =
           <!-- Busca por selfie (opcional, só em eventos com o recurso ligado) -->
           <div data-face-cta hidden class="mt-6 flex flex-col gap-3 rounded-2xl border border-brand/40 bg-brand/10 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p class="flex items-center gap-2 font-bold"><Icon name="search" size={18} class="text-brand" /> Encontre suas fotos com uma selfie</p>
-              <p class="mt-0.5 text-sm text-muted">Mostramos só as fotos parecidas com você. É opcional e só funciona depois que você aceita o termo.</p>
+              <p class="flex items-center gap-2 font-bold"><Icon name="search" size={18} class="text-brand" /> <span data-face-cta-title>Encontre suas fotos com uma selfie</span></p>
+              <p data-face-cta-text class="mt-0.5 text-sm text-muted">Mostramos só as fotos parecidas com você. É opcional e só funciona depois que você aceita o termo.</p>
             </div>
             <button type="button" data-face-open class="btn btn-primary min-h-11 shrink-0 text-sm">Buscar por selfie</button>
           </div>
           <!-- Filtros, ordenação e busca -->
-          <div class="sticky top-[var(--header-h,64px)] z-20 -mx-4 mt-6 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border sm:px-3">
+          <div data-filters class="sticky top-[var(--header-h,64px)] z-20 -mx-4 mt-6 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border sm:px-3">
             <div class="flex items-center gap-2">
               <div class="flex min-w-0 flex-1 flex-wrap gap-1 sm:gap-2" role="group" aria-label="Filtrar por formato">
                 <button type="button" class={chip} data-orient="all" aria-pressed="true">Todas <span data-count="all" class="opacity-80"></span></button>
@@ -279,17 +279,33 @@ const chip =
   let generation = 0; // invalida respostas antigas ao trocar filtro
   /** Resultado da busca por selfie (null = galeria normal). */
   let faceResults: Photo[] | null = null;
+  /** Galeria privada: o público só vê as fotos encontradas pela própria selfie. */
+  let privateMode = false;
+  /** Chaves de acesso às fotos da galeria privada (id → "x=…&t=…"), entregues pela busca. */
+  let tokens = new Map<string, string>();
+  const photoUrl = (id: string, part: 'thumb' | 'preview') => `/f/${ev.id}/${id}/${part}.jpg${tokens.has(id) ? `?${tokens.get(id)}` : ''}`;
+  const faceKey = () => `venart-face-${ev.id}`;
   const view = { orient: 'all', order: 'asc', from: 0 };
   /** Fotos escolhidas: número → id (fica salvo neste aparelho). */
   let selected = new Map<number, string>();
   const storeKey = () => `venart-sel-${ev.id}`;
 
-  const save = () => { try { localStorage.setItem(storeKey(), JSON.stringify([...selected])); } catch { /* sem armazenamento */ } };
+  const save = () => {
+    try {
+      localStorage.setItem(storeKey(), JSON.stringify([...selected]));
+      // Chaves só das fotos selecionadas (para as miniaturas do carrinho continuarem aparecendo).
+      localStorage.setItem(`${storeKey()}-k`, JSON.stringify([...tokens].filter(([id]) => [...selected.values()].includes(id))));
+    } catch { /* sem armazenamento */ }
+  };
   const restore = () => {
     try {
       const raw = JSON.parse(localStorage.getItem(storeKey()) ?? '[]') as unknown[];
       selected = new Map(raw.filter((e): e is [number, string] => Array.isArray(e) && Number.isInteger(e[0]) && /^ph_[a-z0-9]+$/.test(String(e[1]))));
     } catch { selected = new Map(); }
+    try {
+      const k = JSON.parse(localStorage.getItem(`${storeKey()}-k`) ?? '[]') as unknown[];
+      tokens = new Map(k.filter((e): e is [string, string] => Array.isArray(e) && /^ph_[a-z0-9]+$/.test(String(e[0])) && /^x=\d+&t=[\w-]+$/.test(String(e[1]))));
+    } catch { tokens = new Map(); }
   };
 
   // ───────── Masonry ─────────
@@ -350,13 +366,20 @@ const chip =
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { event: PublicEvent; photos: Photo[]; next: number | null; counts: Counts | null };
       if (gen !== generation) return; // filtro mudou durante o carregamento
-      if (!ev) { ev = data.event; restore(); renderHeader(); }
+      if (!ev) {
+        ev = data.event;
+        restore();
+        privateMode = !!(data.event as PublicEvent & { face_only?: boolean }).face_only;
+        if (privateMode) restoreFace();
+        renderHeader();
+        if (privateMode && faceResults) { next = 0; loading = false; $('[data-loading-more]').hidden = true; void resetView(); return; }
+      }
       if (data.counts) renderCounts(data.counts);
       const start = photos.length;
       photos.push(...data.photos);
       next = data.next;
       photos.slice(start).forEach((p, i) => place(tile(p, start + i), p));
-      $('[data-empty]').hidden = photos.length > 0;
+      $('[data-empty]').hidden = photos.length > 0 || privateMode;
     } finally {
       if (gen === generation) {
         loading = false;
@@ -421,7 +444,17 @@ const chip =
     $('[data-p-badge]').hidden = !offer.badge;
     $('[data-p-badge]').textContent = `Economize a partir de ${offer.worthFrom} fotos`;
     $('[data-p-until]').textContent = ev.sale_ends_at ? formatDateBR(ev.sale_ends_at.slice(0, 10)) : '—';
-    $('[data-face-cta]').hidden = !ev.face_search;
+    $('[data-face-cta]').hidden = !ev.face_search && !privateMode;
+    if (privateMode) {
+      // Galeria privada: sem lista completa, sem filtros e sem busca por número.
+      $('[data-filters]').hidden = true;
+      $('[data-face-clear]').hidden = true;
+      $('[data-face-cta-title]').textContent = 'Galeria privada: encontre suas fotos com uma selfie';
+      $('[data-face-cta-text]').textContent = ev.face_search
+        ? 'Para proteger a privacidade de todos, cada pessoa vê só as fotos em que aparece. A busca só funciona depois que você aceita o termo.'
+        : 'Para proteger a privacidade de todos, cada pessoa vê só as fotos em que aparece. A busca por selfie ainda está sendo preparada: volte mais tarde ou fale comigo no WhatsApp.';
+      $('[data-face-open]').hidden = !ev.face_search;
+    }
     $('[data-content]').hidden = false;
     $('[data-loading]').hidden = true;
     renderBar();
@@ -448,7 +481,7 @@ const chip =
     open.className = 'block size-full focus-visible:outline-none';
     open.setAttribute('aria-label', `Ampliar foto ${photoLabel(p.n)}`);
     const img = document.createElement('img');
-    img.src = `/f/${ev.id}/${p.id}/thumb.jpg`;
+    img.src = photoUrl(p.id, 'thumb');
     img.alt = `Foto ${photoLabel(p.n)}`;
     img.loading = 'lazy';
     img.decoding = 'async';
@@ -513,7 +546,7 @@ const chip =
     $('[data-bar-thumbs]').replaceChildren(
       ...[...selected.entries()].slice(-3).map(([n, id]) => {
         const im = document.createElement('img');
-        im.src = `/f/${ev.id}/${id}/thumb.jpg`;
+        im.src = photoUrl(id, 'thumb');
         im.alt = '';
         im.className = 'size-11 rounded-lg border-2 border-bg object-cover';
         im.title = photoLabel(n);
@@ -611,21 +644,40 @@ const chip =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vec, accept: true, version: store.faceSearch.termsVersion }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; consent?: string; photos?: Photo[] };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; consent?: string; photos?: (Photo & { q?: string })[] };
       if (!res.ok || !data.photos) return faceFail(data.error ?? 'Não foi possível buscar agora. Tente de novo.');
       faceStatus('Pronto!', 100);
       fd.close();
-      faceResults = data.photos;
-      const n = data.photos.length;
-      $('[data-face-text]').textContent = n
-        ? `Encontramos ${n} foto${n === 1 ? '' : 's'} parecida${n === 1 ? '' : 's'} com você. Confira antes de comprar: a busca pode errar.`
-        : 'Não encontramos fotos parecidas com a sua selfie. Tente outra selfie ou veja a galeria completa.';
-      $('[data-face-proto]').textContent = `Consentimento registrado (protocolo ${data.consent}). A selfie não foi enviada nem guardada.`;
+      for (const p of data.photos) if (p.q) tokens.set(p.id, p.q);
+      faceResults = data.photos.map(({ id, n, w, h }) => ({ id, n, w, h }));
+      showFaceNote(data.consent ?? '');
+      if (privateMode) {
+        // Mantém o resultado se a página for recarregada nesta aba (as chaves valem por 72 h).
+        try { sessionStorage.setItem(faceKey(), JSON.stringify({ photos: data.photos, consent: data.consent })); } catch { /* ok */ }
+      }
       await resetView();
       $('[data-face-note]').scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch {
       faceFail('Seu navegador não conseguiu analisar a selfie. Atualize a página ou tente em outro navegador.');
     }
+  }
+  function showFaceNote(consent: string) {
+    const n = faceResults?.length ?? 0;
+    $('[data-face-text]').textContent = n
+      ? `Encontramos ${n} foto${n === 1 ? '' : 's'} parecida${n === 1 ? '' : 's'} com você. Confira antes de comprar: a busca pode errar.`
+      : privateMode
+        ? 'Não encontramos fotos parecidas com a sua selfie. Tente outra selfie (de frente e com boa luz) ou fale comigo no WhatsApp.'
+        : 'Não encontramos fotos parecidas com a sua selfie. Tente outra selfie ou veja a galeria completa.';
+    $('[data-face-proto]').textContent = `Consentimento registrado (protocolo ${consent}). A selfie não foi enviada nem guardada.`;
+  }
+  function restoreFace() {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(faceKey()) ?? 'null') as { photos?: (Photo & { q?: string })[]; consent?: string } | null;
+      if (!s?.photos) return;
+      for (const p of s.photos) if (p.q && /^x=\d+&t=[\w-]+$/.test(p.q)) tokens.set(p.id, p.q);
+      faceResults = s.photos.map(({ id, n, w, h }) => ({ id, n, w, h }));
+      showFaceNote(s.consent ?? '');
+    } catch { /* sem armazenamento */ }
   }
   $('[data-face-open]').addEventListener('click', openFace);
   $('[data-face-again]').addEventListener('click', openFace);
@@ -715,11 +767,11 @@ const chip =
     current = Math.max(0, Math.min(i, photos.length - 1));
     const p = photos[current]!;
     const img = $<HTMLImageElement>('[data-lb-img]');
-    img.src = `/f/${ev.id}/${p.id}/preview.jpg`;
+    img.src = photoUrl(p.id, 'preview');
     img.alt = `Foto ${photoLabel(p.n)} (prévia com marca d'água)`;
     paintLightbox();
     const nx = photos[current + 1];
-    if (nx) new Image().src = `/f/${ev.id}/${nx.id}/preview.jpg`; // pré-carrega a próxima
+    if (nx) new Image().src = photoUrl(nx.id, 'preview'); // pré-carrega a próxima
     if (current >= photos.length - 3) loadMore();
   }
   function openLightbox(i: number) { showPhoto(i); lb.showModal(); }

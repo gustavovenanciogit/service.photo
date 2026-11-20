@@ -25,11 +25,13 @@ import { jpegSize } from '../src/lib/jpeg.ts';
 import { ORDER_SQL, ORIENTATION_SQL, parseGalleryQuery } from '../src/lib/gallery.ts';
 import { imageKind } from '../src/lib/site-content.ts';
 import { purgeFaces } from './faces.ts';
+import { verifyPhotoAccess } from './auth.ts';
 
 export interface EventsEnv extends PaymentsEnv {
   DB: D1Database;
   PHOTOS?: R2Bucket;
   ASSETS: Fetcher;
+  ADMIN_PASSWORD?: string;
 }
 
 /** Fotos compradas com download ainda válido não podem ser apagadas. */
@@ -43,9 +45,9 @@ export const PART_LIMITS: Record<PhotoPart, number> = { thumb: 400_000, preview:
 const PAGE = 120;
 export const MAX_REGISTER = 25;
 
-type EventRow = Omit<EventRecord, 'listed'> & { listed: number };
+type EventRow = Omit<EventRecord, 'listed' | 'face_only'> & { listed: number; face_only: number };
 type PhotoRow = Omit<EventPhoto, 'ready'> & { ready: number };
-const toEvent = (r: EventRow | null): EventRecord | null => (r ? { ...r, listed: !!r.listed } : null);
+const toEvent = (r: EventRow | null): EventRecord | null => (r ? { ...r, listed: !!r.listed, face_only: !!r.face_only } : null);
 const toPhoto = (r: PhotoRow): EventPhoto => ({ ...r, ready: !!r.ready });
 const now = () => new Date().toISOString();
 
@@ -308,13 +310,13 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
   const published_at = before?.published_at || (e.status === 'publicado' ? t : '');
   const values = [
     e.slug, e.name, e.date, e.location, e.category, e.description, e.cover_photo_id,
-    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, published_at, e.watermark_model, e.cover_position, t,
+    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, e.face_only ? 1 : 0, published_at, e.watermark_model, e.cover_position, t,
   ];
   if (before) {
     await db
       .prepare(
         `UPDATE events SET slug=?, name=?, date=?, location=?, category=?, description=?, cover_photo_id=?, price_single=?, price_pack=?,
-         sale_days=?, download_days=?, status=?, listed=?, published_at=?, watermark_model=?, cover_position=?, updated_at=? WHERE id=?`,
+         sale_days=?, download_days=?, status=?, listed=?, face_only=?, published_at=?, watermark_model=?, cover_position=?, updated_at=? WHERE id=?`,
       )
       .bind(...values, id)
       .run();
@@ -322,7 +324,7 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
     await db
       .prepare(
         `INSERT INTO events (slug, name, date, location, category, description, cover_photo_id, price_single, price_pack,
-         sale_days, download_days, status, listed, published_at, watermark_model, cover_position, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         sale_days, download_days, status, listed, face_only, published_at, watermark_model, cover_position, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(...values, id, t)
       .run();
@@ -350,6 +352,8 @@ const publicEvent = (e: EventRecord, state: string, env: PaymentsEnv) => ({
   state,
   // Busca por selfie: só com o recurso ligado, índice pronto e venda aberta.
   face_search: e.face_search === 1 && !!e.face_pack_at && (state === 'aberto' || state === 'rascunho'),
+  // Galeria privada: o público não vê a lista; só as fotos que a selfie encontrar.
+  face_only: e.face_only,
 });
 
 export async function publicEventApi(env: EventsEnv, slug: string, url: URL, admin: boolean, json: Json) {
@@ -358,6 +362,8 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
   if (!e || (state === 'oculto' && !admin)) return json({ error: 'Evento não encontrado.' }, 404);
   const cache: Record<string, string> = state === 'aberto' && !admin ? { 'Cache-Control': 'no-cache' } : {};
   if (state === 'encerrado' && !admin) return json({ event: publicEvent(e, state, env), photos: [], next: null }, 200, cache);
+  // Galeria privada: nenhuma foto na lista pública (nem pela busca por número).
+  if (e.face_only && !admin) return json({ event: publicEvent(e, state, env), photos: [], next: null, counts: null }, 200, cache);
   // Filtros (orientação real), ordenação, busca "a partir da foto nº" e paginação.
   const q = parseGalleryQuery(url.searchParams);
   const where = ['event_id = ?', 'ready = 1'];
@@ -389,14 +395,15 @@ export async function publicEventApi(env: EventsEnv, slug: string, url: URL, adm
           .first<{ all: number; vertical: number; horizontal: number; square: number }>()
       : null;
   return json(
-    { event: publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, env), photos, next: more ? q.offset + PAGE : null, counts },
+    // O fotógrafo logado vê a galeria inteira mesmo quando ela é privada.
+    { event: { ...publicEvent(e, admin && state === 'oculto' ? 'rascunho' : state, env), face_only: e.face_only && !admin }, photos, next: more ? q.offset + PAGE : null, counts },
     200,
     cache,
   );
 }
 
 /** /f/:eventId/:photoId/(thumb|preview).jpg — só de eventos publicados (ou para o fotógrafo logado). */
-export async function servePhoto(env: EventsEnv, path: string, admin: boolean) {
+export async function servePhoto(env: EventsEnv, path: string, admin: boolean, url?: URL) {
   const cover = /^\/f\/(evt_[a-z0-9]{6,30})\/cover\.jpg$/.exec(path);
   if (cover && env.PHOTOS) {
     const e = await getEvent(env.DB, cover[1]!);
@@ -411,6 +418,11 @@ export async function servePhoto(env: EventsEnv, path: string, admin: boolean) {
   const [, eventId, photoId, part] = m as unknown as [string, string, string, PhotoPart];
   const e = await getEvent(env.DB, eventId);
   if (!e || (publicState(e) !== 'aberto' && !admin)) return new Response('Não encontrado', { status: 404 });
+  // Galeria privada: só com a chave entregue pela busca por selfie (a foto de capa escolhida continua pública).
+  const locked = e.face_only && !admin && photoId !== e.cover_photo_id;
+  if (locked && !(await verifyPhotoAccess(env.ADMIN_PASSWORD, photoId, url?.searchParams.get('x') ?? null, url?.searchParams.get('t') ?? null))) {
+    return new Response('Não encontrado', { status: 404 });
+  }
   const obj = await env.PHOTOS.get(photoKey(eventId, part, photoId));
   if (!obj) return new Response('Não encontrado', { status: 404 });
   return new Response(obj.body, {
@@ -418,7 +430,7 @@ export async function servePhoto(env: EventsEnv, path: string, admin: boolean) {
       'Content-Type': 'image/jpeg',
       ETag: obj.httpEtag,
       // As prévias nunca mudam (cada foto tem id próprio): o navegador guarda por 1 dia.
-      'Cache-Control': admin && publicState(e) !== 'aberto' ? 'private, no-store' : 'public, max-age=86400',
+      'Cache-Control': locked ? 'private, max-age=3600' : admin && publicState(e) !== 'aberto' ? 'private, no-store' : 'public, max-age=86400',
       'X-Content-Type-Options': 'nosniff',
     },
   });
@@ -460,5 +472,5 @@ export async function faceSearchEvent(env: EventsEnv, slug: string, admin: boole
   const state = publicState(e);
   if (state === 'oculto' && !admin) return null;
   const open = state === 'aberto' || (admin && state === 'oculto');
-  return { id: e.id, face_search: e.face_search === 1 && !!e.face_pack_at && open };
+  return { id: e.id, face_search: e.face_search === 1 && !!e.face_pack_at && open, face_only: e.face_only && !admin };
 }

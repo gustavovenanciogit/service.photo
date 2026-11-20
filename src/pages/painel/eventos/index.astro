@@ -28,6 +28,10 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
       <input name="location" maxlength="160" class={field} placeholder="Ex.: Ponta Negra" />
     </label>
     <button class="btn btn-primary min-h-12">Criar evento</button>
+    <label class="flex items-start gap-2 text-sm sm:col-span-4">
+      <input name="face_only" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
+      <span><strong>Galeria privada</strong> <span class="text-muted">— cada pessoa vê só as próprias fotos, pela busca por selfie (dá para mudar depois na edição do evento).</span></span>
+    </label>
   </form>
 
   <p data-loading class="mt-8 text-muted">Carregando…</p>
@@ -93,8 +97,9 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
 
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const data = Object.fromEntries(new FormData(form)) as Record<string, string>;
-    if (!data.name?.trim()) return toast('Informe o nome do evento.', 'error');
+    const raw = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    if (!raw.name?.trim()) return toast('Informe o nome do evento.', 'error');
+    const data = { ...raw, face_only: raw.face_only === 'on' } as unknown as Partial<EventRecord>;
     const btn = form.querySelector('button')!;
     btn.disabled = true;
     try {

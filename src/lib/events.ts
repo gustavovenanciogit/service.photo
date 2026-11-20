@@ -44,6 +44,7 @@ export interface EventRecord {
   cover_position: string; // enquadramento da capa, ex.: "50% 40%"
   face_search: number; // 1 = busca por selfie ligada para compradores (exige aviso do evento confirmado)
   face_pack_at: string; // quando o pacote de busca por rostos foi gerado (vazio = sem pacote)
+  face_only: boolean; // galeria privada: o público só vê as fotos encontradas pela própria selfie
   photo_count: number;
   published_at: string; // ISO
   purged_at: string; // quando os arquivos foram apagados automaticamente (vazio = ainda guardados)
@@ -64,7 +65,7 @@ export interface EventPhoto {
 
 export type EventInput = Pick<
   EventRecord,
-  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'cover_photo_id' | 'watermark_model' | 'cover_position'
+  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'face_only' | 'cover_photo_id' | 'watermark_model' | 'cover_position'
 > & { slug: string };
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -112,6 +113,7 @@ export function parseEvent(input: unknown): Result<EventInput> {
       download_days: Math.round(num(o.download_days, 1, 365, EVENT_DEFAULTS.download_days)),
       status,
       listed: o.listed === true,
+      face_only: o.face_only === true,
       watermark_model: [1, 2, 3, 4, 5, 6, 7, 8].includes(Number(o.watermark_model)) ? Number(o.watermark_model) : 0,
       cover_position: coverPosition(o.cover_position),
     },
