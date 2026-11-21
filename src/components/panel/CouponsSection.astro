@@ -1,0 +1,387 @@
+---
+/**
+ * CUPONS E PROMOÇÕES — seção da edição do evento (/painel/eventos/editar/?id=…)
+ * Lista os cupons que valem para este evento (deste evento, de eventos específicos que o
+ * incluem, ou de todos os eventos) e cria/edita/desativa/exclui. Regras: src/lib/coupons.ts.
+ * O evento já existe (rascunho) quando esta tela abre, então os cupons podem ser criados
+ * antes de publicar.
+ */
+import Icon from '@/components/Icon.astro';
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-[#070A08] px-3 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+const radio = 'flex items-center gap-2 text-sm';
+const box = 'rounded-2xl border border-brand/20 bg-[#123222]/40 p-4';
+---
+
+<section id="cupons" class="card mt-6 scroll-mt-24 p-5 sm:p-6" aria-labelledby="cp-title" data-coupons>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 id="cp-title" class="text-2xl font-bold">Cupons e promoções</h2>
+      <p class="mt-1 max-w-2xl text-sm text-muted">Códigos de desconto que o cliente digita ao finalizar a compra. Um cupom por pedido; pode valer só aqui, em alguns eventos ou em todos.</p>
+      <p class="mt-2 flex flex-wrap gap-2 text-xs">
+        <span data-cp-active class="rounded-full border border-brand/40 bg-brand/10 px-2.5 py-1 font-semibold text-brand">0 ativos</span>
+        <span data-cp-expired class="rounded-full border border-line px-2.5 py-1 font-semibold text-muted">0 expirados</span>
+      </p>
+    </div>
+    <button type="button" data-cp-new class="btn btn-primary min-h-11 gap-2 px-4 text-sm"><Icon name="plus" size={18} /> Criar cupom</button>
+  </div>
+
+  <p data-cp-loading class="mt-4 text-sm text-muted">Carregando cupons…</p>
+  <p data-cp-empty hidden class="mt-4 rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">Nenhum cupom para este evento ainda.</p>
+  <div class="mt-4 overflow-x-auto">
+    <table data-cp-table hidden class="w-full min-w-[860px] text-left text-sm">
+      <thead class="text-xs text-muted">
+        <tr>
+          <th class="py-2 pr-3">Código</th><th class="pr-3">Desconto</th><th class="pr-3">Eventos</th><th class="pr-3">Situação</th>
+          <th class="pr-3">Início</th><th class="pr-3">Expiração</th><th class="pr-3">Utilizações</th><th class="text-right">Ações</th>
+        </tr>
+      </thead>
+      <tbody data-cp-rows></tbody>
+    </table>
+  </div>
+
+  <!-- Criar / editar -->
+  <dialog data-cp-dialog class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-brand/30 bg-[#070A08] p-0 text-[#F5FAF5] backdrop:bg-black/75">
+    <form data-cp-form class="space-y-4 p-5 sm:p-6" novalidate>
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="eyebrow">Cupons e promoções</p>
+          <h3 data-cp-title class="mt-1 text-3xl font-bold">Criar cupom</h3>
+        </div>
+        <button type="button" data-cp-close class="grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label="Fechar"><Icon name="close" size={20} /></button>
+      </div>
+
+      <!-- A. Código -->
+      <div class={box}>
+        <label class="block text-sm font-semibold" for="cp-code">Código do cupom</label>
+        <div class="mt-1.5 flex gap-2">
+          <input id="cp-code" name="code" required maxlength="24" autocomplete="off" spellcheck="false" placeholder="Ex.: VENART10" class={`${field} mt-0 font-mono uppercase`} />
+          <button type="button" data-cp-gen class="btn btn-outline min-h-11 shrink-0 px-3 text-xs">Gerar código</button>
+          <button type="button" data-cp-copy class="grid size-11 shrink-0 place-items-center rounded-xl border border-line text-muted hover:text-ink" aria-label="Copiar código"><Icon name="copy" size={18} /></button>
+        </div>
+        <p class="mt-1 text-xs text-muted">3 a 24 letras, números, "-" ou "_". Maiúsculas e minúsculas são iguais; espaços são removidos.</p>
+      </div>
+
+      <!-- B. Tipo e valor -->
+      <div class={box}>
+        <p class="text-sm font-semibold">Tipo de desconto</p>
+        <div class="mt-2 flex flex-wrap gap-4">
+          <label class={radio}><input type="radio" name="kind" value="percent" checked class="accent-[var(--color-brand)]" /> Percentual (%)</label>
+          <label class={radio}><input type="radio" name="kind" value="fixed" class="accent-[var(--color-brand)]" /> Valor fixo (R$)</label>
+        </div>
+        <label class="mt-3 block max-w-[220px] text-sm"><span data-cp-value-label>Desconto (%)</span><input name="value" inputmode="decimal" placeholder="Ex.: 10" class={field} /></label>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <!-- C. Quantidade -->
+        <div class={box}>
+          <p class="text-sm font-semibold">Quantidade de utilizações</p>
+          <label class={`${radio} mt-2`}><input type="radio" name="uses_mode" value="unlimited" checked class="accent-[var(--color-brand)]" /> Ilimitado</label>
+          <label class={`${radio} mt-1`}><input type="radio" name="uses_mode" value="limit" class="accent-[var(--color-brand)]" /> Definir quantidade</label>
+          <input name="max_uses" inputmode="numeric" placeholder="Ex.: 50" class={field} disabled />
+        </div>
+        <!-- D. Por cliente -->
+        <div class={box}>
+          <p class="text-sm font-semibold">Limite por cliente</p>
+          <label class={`${radio} mt-2`}><input type="radio" name="pc_mode" value="none" checked class="accent-[var(--color-brand)]" /> Sem limite individual</label>
+          <label class={`${radio} mt-1`}><input type="radio" name="pc_mode" value="limit" class="accent-[var(--color-brand)]" /> Limitar por cliente</label>
+          <input name="per_customer" inputmode="numeric" placeholder="Ex.: 1" class={field} disabled />
+          <p class="mt-1.5 text-[11px] leading-snug text-amber-200/90">
+            O comprador não faz login: o limite usa o e-mail e o WhatsApp informados na compra. Quem usar outro e-mail e outro número consegue repetir.
+          </p>
+        </div>
+        <!-- E. Início -->
+        <div class={box}>
+          <p class="text-sm font-semibold">Início</p>
+          <label class={`${radio} mt-2`}><input type="radio" name="start_mode" value="now" checked class="accent-[var(--color-brand)]" /> Imediatamente</label>
+          <label class={`${radio} mt-1`}><input type="radio" name="start_mode" value="at" class="accent-[var(--color-brand)]" /> Agendar início</label>
+          <input name="starts_at" type="datetime-local" class={field} disabled />
+        </div>
+        <!-- F. Validade -->
+        <div class={box}>
+          <p class="text-sm font-semibold">Validade</p>
+          <label class={`${radio} mt-2`}><input type="radio" name="end_mode" value="none" checked class="accent-[var(--color-brand)]" /> Sem data de validade</label>
+          <label class={`${radio} mt-1`}><input type="radio" name="end_mode" value="at" class="accent-[var(--color-brand)]" /> Definir expiração</label>
+          <input name="ends_at" type="datetime-local" class={field} disabled />
+        </div>
+      </div>
+      <p class="-mt-2 text-[11px] text-muted">Datas e horários no fuso de Manaus (AM).</p>
+
+      <!-- G. Eventos -->
+      <div class={box}>
+        <p class="text-sm font-semibold">Vale para</p>
+        <div class="mt-2 flex flex-wrap gap-4">
+          <label class={radio}><input type="radio" name="scope_mode" value="this" checked class="accent-[var(--color-brand)]" /> Somente este evento</label>
+          <label class={radio}><input type="radio" name="scope_mode" value="some" class="accent-[var(--color-brand)]" /> Eventos específicos</label>
+          <label class={radio}><input type="radio" name="scope_mode" value="all" class="accent-[var(--color-brand)]" /> Todos os eventos</label>
+        </div>
+        <div data-cp-events hidden class="mt-3">
+          <input data-cp-ev-search type="search" placeholder="Buscar evento…" class={`${field} mt-0`} />
+          <ul data-cp-ev-list class="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1 text-sm"></ul>
+        </div>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <!-- H. Mínimo -->
+        <div class={box}>
+          <p class="text-sm font-semibold">Valor mínimo da compra</p>
+          <label class={`${radio} mt-2`}><input type="radio" name="min_mode" value="none" checked class="accent-[var(--color-brand)]" /> Sem valor mínimo</label>
+          <label class={`${radio} mt-1`}><input type="radio" name="min_mode" value="at" class="accent-[var(--color-brand)]" /> Definir valor mínimo (R$)</label>
+          <input name="min" inputmode="decimal" placeholder="Ex.: 50,00" class={field} disabled />
+        </div>
+        <!-- I. Aplicação -->
+        <div class={box}>
+          <p class="text-sm font-semibold">Aplicar o desconto em</p>
+          <label class={`${radio} mt-2`}><input type="radio" name="applies" value="single" class="accent-[var(--color-brand)]" /> Fotos avulsas</label>
+          <label class={`${radio} mt-1`}><input type="radio" name="applies" value="pack" class="accent-[var(--color-brand)]" /> Pacote "todas as suas fotos"</label>
+          <label class={`${radio} mt-1`}><input type="radio" name="applies" value="both" checked class="accent-[var(--color-brand)]" /> Ambos</label>
+        </div>
+      </div>
+
+      <!-- J. Acumulação -->
+      <label class={`${box} flex items-start gap-3 text-sm`}>
+        <input type="checkbox" name="stackable" class="mt-1 size-4 accent-[var(--color-brand)]" />
+        <span>
+          <strong>Acumular com o desconto do pacote</strong>
+          <span class="mt-0.5 block text-xs text-muted">
+            Desligado (padrão): quando o pacote já sai mais barato, o cliente fica com o menor valor entre o pacote e as fotos com o cupom — sem somar os dois. Um cupom por pedido.
+          </span>
+        </span>
+      </label>
+
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="active" checked class="size-4 accent-[var(--color-brand)]" /> Cupom ativo</label>
+      <p data-cp-error role="alert" hidden class="text-sm text-red-300"></p>
+      <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button type="button" data-cp-cancel class="btn btn-outline min-h-11 px-5 text-sm">Cancelar</button>
+        <button class="btn btn-primary min-h-11 px-6 text-sm">Salvar cupom</button>
+      </div>
+    </form>
+  </dialog>
+</section>
+
+<script>
+  import { api, h, toast } from '@/lib/panel-api';
+  import { COUPON_STATUS, describeDiscount, formatManaus, generateCode, isoToManaus, normalizeCode, type Coupon } from '@/lib/coupons';
+  import type { CouponView } from '@/lib/panel-api';
+  import type { EventRecord } from '@/lib/events';
+  import { svgIcon } from '@/lib/ui-icons';
+
+  const root = document.querySelector<HTMLElement>('[data-coupons]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  const eventId = new URLSearchParams(location.search).get('id') ?? '';
+  const dlg = $<HTMLDialogElement>('[data-cp-dialog]');
+  const form = $<HTMLFormElement>('[data-cp-form]');
+  const f = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+  const radioVal = (n: string) => (form.querySelector<HTMLInputElement>(`input[name="${n}"]:checked`)?.value ?? '');
+  const setRadio = (n: string, v: string) => { const r = form.querySelector<HTMLInputElement>(`input[name="${n}"][value="${v}"]`); if (r) r.checked = true; };
+  let coupons: CouponView[] = [];
+  let events: EventRecord[] = [];
+  let editing: CouponView | null = null;
+  const picked = new Set<string>();
+
+  const TONE: Record<string, string> = {
+    brand: 'border-brand/50 bg-brand/15 text-brand', neutral: 'border-white/25 text-ink', amber: 'border-amber-300/40 bg-amber-400/10 text-amber-200',
+    muted: 'border-line text-muted', red: 'border-red-400/40 bg-red-500/10 text-red-200',
+  };
+
+  // ───────── Lista ─────────
+  const eventsLabel = (c: Coupon) =>
+    c.scope === 'all' ? 'Todos os eventos' : c.event_ids.length === 1 && c.event_ids[0] === eventId ? 'Somente este' : `${c.event_ids.length} evento${c.event_ids.length === 1 ? '' : 's'}`;
+
+  function render() {
+    $('[data-cp-loading]').hidden = true;
+    $('[data-cp-empty]').hidden = coupons.length > 0;
+    $('[data-cp-table]').hidden = !coupons.length;
+    $('[data-cp-active]').textContent = `${coupons.filter((c) => c.status === 'ativo').length} ativos`;
+    $('[data-cp-expired]').textContent = `${coupons.filter((c) => c.status === 'expirado').length} expirados`;
+    $('[data-cp-rows]').replaceChildren(
+      ...coupons.map((c) => {
+        const tr = h('tr', 'border-t border-line align-middle');
+        const code = h('td', 'py-2.5 pr-3');
+        const cb = document.createElement('button');
+        cb.type = 'button';
+        cb.className = 'inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2 py-1 font-mono text-sm font-bold text-brand hover:bg-white/10';
+        cb.innerHTML = `${c.code} ${svgIcon('copy', 14, 'opacity-70')}`;
+        cb.title = 'Copiar código';
+        cb.addEventListener('click', () => copy(c.code));
+        code.append(cb);
+        const st = COUPON_STATUS[c.status];
+        const status = h('td', 'pr-3');
+        status.append(h('span', `rounded-full border px-2.5 py-0.5 text-xs font-semibold ${TONE[st.tone]}`, st.label));
+        const uses = `${c.uses_confirmed} confirmada${c.uses_confirmed === 1 ? '' : 's'}${c.uses_active > c.uses_confirmed ? ` (+${c.uses_active - c.uses_confirmed} aguardando pagamento)` : ''} / ${c.max_uses || '∞'}`;
+        const acts = h('td', 'whitespace-nowrap text-right');
+        const btn = (label: string, cls: string, fn: () => void) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = `ml-1 rounded-lg px-2 py-1 text-xs font-semibold ${cls}`;
+          b.textContent = label;
+          b.addEventListener('click', fn);
+          return b;
+        };
+        acts.append(
+          btn('Editar', 'text-ink hover:bg-white/5', () => open(c)),
+          btn(c.active ? 'Desativar' : 'Ativar', 'text-muted hover:bg-white/5', () => void toggle(c)),
+          btn('Excluir', 'text-red-300 hover:bg-red-500/10', () => void remove(c)),
+        );
+        const discount = `${describeDiscount(c)}${c.applies === 'single' ? ' · avulsas' : c.applies === 'pack' ? ' · pacote' : ''}${c.min_cents ? ` · mín. R$ ${(c.min_cents / 100).toFixed(2).replace('.', ',')}` : ''}`;
+        tr.append(
+          code,
+          h('td', 'pr-3', discount),
+          h('td', 'pr-3 text-muted', eventsLabel(c)),
+          status,
+          h('td', 'pr-3 text-muted', c.starts_at ? formatManaus(c.starts_at) : 'Imediato'),
+          h('td', 'pr-3 text-muted', c.ends_at ? formatManaus(c.ends_at) : 'Sem validade'),
+          h('td', 'pr-3 text-muted', uses),
+          acts,
+        );
+        return tr;
+      }),
+    );
+  }
+
+  async function load() {
+    try {
+      coupons = await api.coupons(eventId);
+      render();
+    } catch (e) {
+      $('[data-cp-loading]').textContent = (e as Error).message;
+    }
+  }
+
+  async function copy(code: string) {
+    try { await navigator.clipboard.writeText(code); toast(`Código ${code} copiado.`); } catch { prompt('Copie o código:', code); }
+  }
+  async function toggle(c: CouponView) {
+    try { await api.setCouponActive(c.id, !c.active); toast(c.active ? 'Cupom desativado.' : 'Cupom ativado.'); await load(); } catch (e) { toast((e as Error).message, 'error'); }
+  }
+  async function remove(c: CouponView) {
+    if (!confirm(`Excluir o cupom ${c.code}?`)) return;
+    try { await api.deleteCoupon(c.id); toast('Cupom excluído.'); await load(); } catch (e) { toast((e as Error).message, 'error'); }
+  }
+
+  // ───────── Formulário ─────────
+  const toggles: [string, string, string][] = [
+    ['uses_mode', 'limit', 'max_uses'], ['pc_mode', 'limit', 'per_customer'], ['start_mode', 'at', 'starts_at'], ['end_mode', 'at', 'ends_at'], ['min_mode', 'at', 'min'],
+  ];
+  function syncForm() {
+    for (const [r, v, input] of toggles) {
+      const on = radioVal(r) === v;
+      f(input).disabled = !on;
+      if (!on) f(input).value = '';
+    }
+    $('[data-cp-value-label]').textContent = radioVal('kind') === 'fixed' ? 'Desconto (R$)' : 'Desconto (%)';
+    $('[data-cp-events]').hidden = radioVal('scope_mode') !== 'some';
+  }
+  form.addEventListener('change', syncForm);
+
+  function renderEvents() {
+    const q = $<HTMLInputElement>('[data-cp-ev-search]').value.trim().toLowerCase();
+    $('[data-cp-ev-list]').replaceChildren(
+      ...events
+        .filter((e) => !q || e.name.toLowerCase().includes(q) || e.location.toLowerCase().includes(q))
+        .map((e) => {
+          const li = document.createElement('li');
+          const l = h('label', 'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5') as HTMLLabelElement;
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'size-4 accent-[var(--color-brand)]';
+          cb.checked = picked.has(e.id);
+          cb.addEventListener('change', () => (cb.checked ? picked.add(e.id) : picked.delete(e.id)));
+          l.append(cb, h('span', 'min-w-0 flex-1 truncate', `${e.name}${e.id === eventId ? ' (este)' : ''}`), h('span', 'text-xs text-muted', e.date.split('-').reverse().join('/')));
+          li.append(l);
+          return li;
+        }),
+    );
+  }
+  $('[data-cp-ev-search]').addEventListener('input', renderEvents);
+
+  function open(c: CouponView | null) {
+    editing = c;
+    form.reset();
+    $('[data-cp-error]').hidden = true;
+    $('[data-cp-title]').textContent = c ? `Editar cupom ${c.code}` : 'Criar cupom';
+    picked.clear();
+    if (c) {
+      f('code').value = c.code;
+      setRadio('kind', c.kind);
+      f('value').value = String(c.kind === 'percent' ? c.value / 100 : c.value / 100).replace('.', ',');
+      setRadio('uses_mode', c.max_uses ? 'limit' : 'unlimited');
+      setRadio('pc_mode', c.per_customer ? 'limit' : 'none');
+      setRadio('start_mode', c.starts_at ? 'at' : 'now');
+      setRadio('end_mode', c.ends_at ? 'at' : 'none');
+      setRadio('min_mode', c.min_cents ? 'at' : 'none');
+      setRadio('applies', c.applies);
+      setRadio('scope_mode', c.scope === 'all' ? 'all' : c.event_ids.length === 1 && c.event_ids[0] === eventId ? 'this' : 'some');
+      c.event_ids.forEach((id) => picked.add(id));
+      f('stackable').checked = c.stackable;
+      f('active').checked = c.active;
+    } else picked.add(eventId);
+    syncForm();
+    if (c) {
+      if (c.max_uses) f('max_uses').value = String(c.max_uses);
+      if (c.per_customer) f('per_customer').value = String(c.per_customer);
+      if (c.starts_at) f('starts_at').value = isoToManaus(c.starts_at);
+      if (c.ends_at) f('ends_at').value = isoToManaus(c.ends_at);
+      if (c.min_cents) f('min').value = (c.min_cents / 100).toFixed(2).replace('.', ',');
+    }
+    renderEvents();
+    dlg.showModal();
+    f('code').focus();
+  }
+
+  $('[data-cp-new]').addEventListener('click', () => open(null));
+  $('[data-cp-close]').addEventListener('click', () => dlg.close());
+  $('[data-cp-cancel]').addEventListener('click', () => dlg.close());
+  $('[data-cp-gen]').addEventListener('click', () => { f('code').value = generateCode('VENART'); });
+  $('[data-cp-copy]').addEventListener('click', () => { const c = normalizeCode(f('code').value); if (c) void copy(c); });
+  f('code').addEventListener('input', () => { const p = f('code').selectionStart; f('code').value = normalizeCode(f('code').value); f('code').setSelectionRange(p, p); });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const scopeMode = radioVal('scope_mode');
+    const payload = {
+      code: f('code').value,
+      kind: radioVal('kind'),
+      value: f('value').value,
+      max_uses: radioVal('uses_mode') === 'limit' ? f('max_uses').value : 0,
+      per_customer: radioVal('pc_mode') === 'limit' ? f('per_customer').value : 0,
+      starts_at: radioVal('start_mode') === 'at' ? f('starts_at').value : '',
+      ends_at: radioVal('end_mode') === 'at' ? f('ends_at').value : '',
+      scope: scopeMode === 'all' ? 'all' : 'events',
+      event_ids: scopeMode === 'this' ? [eventId] : [...picked],
+      min: radioVal('min_mode') === 'at' ? f('min').value : '',
+      applies: radioVal('applies'),
+      stackable: f('stackable').checked,
+      active: f('active').checked,
+    };
+    // Campos "definir…" marcados precisam de valor.
+    const need: [string, string, string][] = [['uses_mode', 'max_uses', 'a quantidade'], ['pc_mode', 'per_customer', 'o limite por cliente'], ['start_mode', 'starts_at', 'a data de início'], ['end_mode', 'ends_at', 'a data de expiração'], ['min_mode', 'min', 'o valor mínimo']];
+    for (const [, input, label] of need) {
+      if (!f(input).disabled && !f(input).value.trim()) return showError(`Informe ${label} ou escolha a outra opção.`);
+    }
+    if (radioVal('uses_mode') === 'limit' && !(Number(f('max_uses').value) >= 1)) return showError('A quantidade de utilizações deve ser 1 ou mais.');
+    if (radioVal('pc_mode') === 'limit' && !(Number(f('per_customer').value) >= 1)) return showError('O limite por cliente deve ser 1 ou mais.');
+    const btn = form.querySelector<HTMLButtonElement>('button:not([type])')!;
+    btn.disabled = true;
+    try {
+      if (editing) await api.updateCoupon(editing.id, payload);
+      else await api.createCoupon(payload);
+      dlg.close();
+      toast(editing ? 'Cupom atualizado.' : `Cupom ${normalizeCode(payload.code)} criado.`);
+      await load();
+    } catch (err) {
+      showError((err as Error).message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  function showError(m: string) {
+    const el = $('[data-cp-error]');
+    el.textContent = m;
+    el.hidden = false;
+  }
+
+  if (/^evt_[a-z0-9]+$/.test(eventId)) {
+    void load();
+    api.events().then((list) => { events = list; }).catch(() => undefined);
+  }
+</script>

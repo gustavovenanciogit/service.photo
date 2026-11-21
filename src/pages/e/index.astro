@@ -191,6 +191,18 @@ const chip =
           <input name="phone" type="tel" required maxlength="20" inputmode="tel" autocomplete="tel" placeholder="(92) 99999-9999" class={field} />
           <span class="mt-1 block text-xs text-muted">Para reenviar o link das fotos, se você precisar.</span>
         </label>
+        <!-- Cupom de desconto (opcional; um por pedido) -->
+        <div class="rounded-xl border border-line bg-bg/50 p-3">
+          <button type="button" data-cp-toggle class="text-sm font-semibold text-brand underline-offset-2 hover:underline">Tem um cupom de desconto?</button>
+          <div data-cp-box hidden class="mt-2">
+            <div class="flex gap-2">
+              <label class="sr-only" for="co-coupon">Cupom</label>
+              <input id="co-coupon" data-cp-code maxlength="24" autocomplete="off" spellcheck="false" placeholder="Ex.: VENART10" class="w-full min-w-0 rounded-xl border border-line bg-bg px-3 py-2.5 font-mono text-sm uppercase text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none" />
+              <button type="button" data-cp-apply class="btn btn-outline min-h-11 shrink-0 px-4 text-sm">Aplicar</button>
+            </div>
+            <p data-cp-msg class="mt-2 text-sm" aria-live="polite"></p>
+          </div>
+        </div>
         <label class="flex items-start gap-3 text-sm">
           <input name="accept" type="checkbox" required class="mt-1 size-4 shrink-0 accent-[var(--color-brand)]" />
           <span>Li e aceito os <a href="/termos-de-compra" target="_blank" class="text-brand underline">Termos de compra</a> e a <a href="/privacidade" target="_blank" class="text-brand underline">Privacidade</a>.</span>
@@ -783,6 +795,8 @@ const chip =
   $('[data-buy]').addEventListener('click', () => {
     const s = cartSummary(selected.size, ev);
     $('[data-co-summary]').textContent = `${selected.size} foto${selected.size === 1 ? '' : 's'} · ${formatBRL(s.total)}${s.usePack ? ' (pacote)' : ''}`;
+    // A seleção pode ter mudado: o cupom precisa ser aplicado de novo.
+    if (couponApplied) clearCoupon(coupon ? 'Seleção alterada: aplique o cupom de novo.' : '');
     try {
       const saved = JSON.parse(localStorage.getItem(BUYER_KEY) ?? '{}') as Record<string, string>;
       for (const k of ['name', 'email', 'phone']) {
@@ -794,6 +808,44 @@ const chip =
     co.showModal();
   });
   $('[data-co-close]').addEventListener('click', () => co.close());
+  // ───────── Cupom ─────────
+  let coupon = '';
+  let couponApplied = '';
+  const cpMsg = $('[data-cp-msg]');
+  const cpCode = $<HTMLInputElement>('[data-cp-code]');
+  function clearCoupon(msg = '') {
+    couponApplied = '';
+    cpMsg.textContent = msg;
+    cpMsg.className = 'mt-2 text-sm text-amber-200';
+  }
+  $('[data-cp-toggle]').addEventListener('click', () => { $('[data-cp-box]').hidden = false; cpCode.focus(); });
+  cpCode.addEventListener('input', () => { cpCode.value = cpCode.value.replace(/\s+/g, '').toUpperCase(); if (couponApplied) clearCoupon(''); });
+  cpCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('[data-cp-apply]').click(); } });
+  $('[data-cp-apply]').addEventListener('click', async () => {
+    coupon = cpCode.value.trim();
+    if (!coupon) return clearCoupon('Digite o código do cupom.');
+    const btn = $<HTMLButtonElement>('[data-cp-apply]');
+    btn.disabled = true;
+    try {
+      const d = Object.fromEntries(new FormData(coForm)) as Record<string, string>;
+      const res = await fetch(`/api/public/events/${encodeURIComponent(ev.slug)}/coupon`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: coupon, count: selected.size, email: d.email ?? '', phone: d.phone ?? '' }),
+      });
+      const r = (await res.json().catch(() => ({}))) as { error?: string; code?: string; subtotal?: number; discount?: number; total?: number; use_pack?: boolean };
+      if (!res.ok || !r.code) return clearCoupon(r.error ?? 'Não foi possível validar o cupom.');
+      couponApplied = r.code;
+      cpMsg.className = 'mt-2 text-sm text-brand';
+      cpMsg.textContent = `Cupom ${r.code} aplicado: −${formatBRL(r.discount!)}. Total: ${formatBRL(r.total!)}${r.total === 0 ? ' (grátis)' : ''}.`;
+      $('[data-co-summary]').textContent = `${selected.size} foto${selected.size === 1 ? '' : 's'}${r.use_pack ? ' (pacote)' : ''} · de ${formatBRL(r.subtotal!)} por ${formatBRL(r.total!)}`;
+    } catch {
+      clearCoupon('Sem conexão. Tente de novo.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   coForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(coForm)) as Record<string, string>;
@@ -808,9 +860,12 @@ const chip =
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // mode "site": o pagamento (Pix ou cartão) acontece na página do pedido, sem sair da Venart.
-        body: JSON.stringify({ mode: 'site', slug: ev.slug, photo_ids: [...selected.values()], name: d.name, email: d.email, phone: d.phone, accept: d.accept === 'on' }),
+        body: JSON.stringify({
+          mode: 'site', slug: ev.slug, photo_ids: [...selected.values()], name: d.name, email: d.email, phone: d.phone, accept: d.accept === 'on',
+          ...(couponApplied ? { coupon: couponApplied } : {}),
+        }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; checkout_url?: string; token?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; checkout_url?: string; token?: string; free?: boolean };
       if (!res.ok || !data.token) throw new Error(data.error ?? 'Não foi possível iniciar o pagamento. Tente de novo.');
       // Guarda o link do pedido neste aparelho (para voltar depois, mesmo sem o e-mail).
       try {

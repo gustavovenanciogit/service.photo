@@ -27,6 +27,7 @@ import { store } from '../src/config/store.ts';
 import { getBySlug, type EventsEnv } from './events.ts';
 import { mpConfigured, paymentStatus } from './payments.ts';
 import { allowLead } from './db.ts';
+import { evaluateCoupon, releaseCoupon, reserveCoupon } from './coupons.ts';
 
 export type OrdersEnv = EventsEnv;
 
@@ -128,10 +129,24 @@ export async function createOrder(req: Request, env: OrdersEnv, url: URL, body: 
   }
   if (photos.length !== c.photo_ids.length) return json({ error: 'Algumas fotos não estão mais disponíveis. Atualize a página.' }, 409);
 
-  const price = selectionPrice(photos.length, ev);
   const t = now();
+  const orderId = orderCode();
+  // Cupom (opcional): valida, calcula em centavos e reserva a utilização antes de gravar o pedido.
+  const couponCode = typeof (body as { coupon?: unknown }).coupon === 'string' ? ((body as { coupon: string }).coupon).trim() : '';
+  let price: { total: number; usePack: boolean; subtotal: number; discount: number; code: string };
+  if (couponCode) {
+    const r = await evaluateCoupon(env.DB, couponCode, ev, photos.length, c.email, c.phone);
+    if ('error' in r) return json({ error: r.error }, 400);
+    if (!(await reserveCoupon(env.DB, r.coupon, orderId, r.keys))) return json({ error: 'Este cupom acabou de esgotar (ou você já usou o máximo permitido).' }, 409);
+    price = { total: r.price.totalCents / 100, usePack: r.price.usePack, subtotal: r.price.baseCents / 100, discount: r.price.discountCents / 100, code: r.coupon.code };
+  } else {
+    const p = selectionPrice(photos.length, ev);
+    price = { total: p.total, usePack: p.usePack, subtotal: p.total, discount: 0, code: '' };
+  }
+  // Cupom de 100%: pedido grátis, liberado na hora (não passa pelo Mercado Pago).
+  const free = price.total <= 0;
   const order = {
-    id: orderCode(),
+    id: orderId,
     token: orderToken(),
     total: price.total,
     photo_count: photos.length,
@@ -144,9 +159,14 @@ export async function createOrder(req: Request, env: OrdersEnv, url: URL, body: 
     db
       .prepare(
         `INSERT INTO orders (id, token, event_id, event_name, event_slug, buyer_name, buyer_email, buyer_phone, total, use_pack, photo_count,
-         status, download_days, terms_version, provider, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'pendente', ?,?,?,?,?)`,
+         status, download_days, terms_version, provider, subtotal, discount, coupon_code, payment_method, paid_at, download_until, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
-      .bind(order.id, order.token, ev.id, ev.name, ev.slug, c.name, c.email, c.phone, price.total, price.usePack ? 1 : 0, photos.length, ev.download_days, store.termsVersion, 'mercadopago', t, t),
+      .bind(
+        order.id, order.token, ev.id, ev.name, ev.slug, c.name, c.email, c.phone, price.total, price.usePack ? 1 : 0, photos.length,
+        free ? 'pago' : 'pendente', ev.download_days, store.termsVersion, 'mercadopago', price.subtotal, price.discount, price.code,
+        free ? 'cupom' : '', free ? t : '', free ? downloadUntil(t, ev.download_days) : '', t, t,
+      ),
   ];
   // Itens em blocos de 33 (3 parâmetros cada, até 99 por consulta).
   for (let i = 0; i < photos.length; i += 33) {
@@ -157,7 +177,13 @@ export async function createOrder(req: Request, env: OrdersEnv, url: URL, body: 
         .bind(...chunk.flatMap((p) => [order.id, p.id, p.seq])),
     );
   }
-  await db.batch(stmts);
+  try {
+    await db.batch(stmts);
+  } catch (e) {
+    if (price.code) await releaseCoupon(db, order.id).run();
+    throw e;
+  }
+  if (free) return json({ ok: true, id: order.id, token: order.token, checkout_url: '', free: true }, 201);
 
   // Checkout transparente: o pagamento acontece na página do pedido (Pix ou cartão), sem sair do site.
   if ((body as { mode?: unknown }).mode === 'site') return json({ ok: true, id: order.id, token: order.token, checkout_url: '' }, 201);
@@ -166,7 +192,7 @@ export async function createOrder(req: Request, env: OrdersEnv, url: URL, body: 
     const checkout_url = await createPreference(env, url, { ...order, event_name: ev.name });
     return json({ ok: true, id: order.id, token: order.token, checkout_url }, 201);
   } catch (e) {
-    await db.batch([db.prepare('DELETE FROM order_items WHERE order_id = ?').bind(order.id), db.prepare('DELETE FROM orders WHERE id = ?').bind(order.id)]);
+    await db.batch([db.prepare('DELETE FROM order_items WHERE order_id = ?').bind(order.id), db.prepare('DELETE FROM orders WHERE id = ?').bind(order.id), releaseCoupon(db, order.id)]);
     throw e;
   }
 }
@@ -268,6 +294,9 @@ export async function orderStatus(env: OrdersEnv, token: string, url: URL, json:
       event_slug: o.event_slug,
       buyer_first_name: o.buyer_name.split(/\s+/)[0],
       total: o.total,
+      subtotal: o.subtotal,
+      discount: o.discount,
+      coupon_code: o.coupon_code,
       use_pack: o.use_pack,
       photo_count: o.photo_count,
       paid_at: o.paid_at,

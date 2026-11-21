@@ -5,6 +5,7 @@
  * link para divulgar (copiar, WhatsApp, QR Code) e publicação.
  */
 import PanelLayout from '@/layouts/PanelLayout.astro';
+import CouponsSection from '@/components/panel/CouponsSection.astro';
 import { EVENT_DEFAULTS } from '@/lib/events';
 const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
 ---
@@ -69,6 +70,8 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         <p data-cover-status class="mt-1 text-xs text-muted"></p>
       </div>
     </section>
+
+    <CouponsSection />
 
     <!-- Fotos -->
     <section class="card mt-6 p-5 sm:p-6" aria-labelledby="photos-title">

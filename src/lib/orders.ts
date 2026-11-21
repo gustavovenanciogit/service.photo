@@ -27,6 +27,9 @@ export interface Order {
   buyer_email: string;
   buyer_phone: string;
   total: number;
+  subtotal: number; // antes do cupom (0 em pedidos antigos)
+  discount: number; // desconto do cupom (R$)
+  coupon_code: string;
   use_pack: boolean;
   photo_count: number;
   status: OrderStatus;

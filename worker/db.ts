@@ -189,6 +189,39 @@ const SCHEMA = [
     answer TEXT NOT NULL,
     created_at TEXT NOT NULL
   )`,
+  // Cupons de desconto (valores em centavos; percentual em centésimos de %).
+  `CREATE TABLE IF NOT EXISTS coupons (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    value INTEGER NOT NULL,
+    max_uses INTEGER NOT NULL DEFAULT 0,
+    per_customer INTEGER NOT NULL DEFAULT 0,
+    starts_at TEXT NOT NULL DEFAULT '',
+    ends_at TEXT NOT NULL DEFAULT '',
+    scope TEXT NOT NULL DEFAULT 'events',
+    min_cents INTEGER NOT NULL DEFAULT 0,
+    applies TEXT NOT NULL DEFAULT 'both',
+    stackable INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS coupon_events (
+    coupon_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    PRIMARY KEY (coupon_id, event_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS coupon_events_event ON coupon_events (event_id)`,
+  `CREATE TABLE IF NOT EXISTS coupon_redemptions (
+    id TEXT PRIMARY KEY,
+    coupon_id TEXT NOT NULL,
+    order_id TEXT NOT NULL,
+    email TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS coupon_redemptions_coupon ON coupon_redemptions (coupon_id)`,
   `CREATE TABLE IF NOT EXISTS face_pilot_runs (
     id TEXT PRIMARY KEY,
     event_id TEXT NOT NULL,
@@ -230,6 +263,9 @@ const MIGRATIONS = [
   `ALTER TABLE events ADD COLUMN face_pack_at TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE events ADD COLUMN face_only INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE face_index ADD COLUMN sharp REAL NOT NULL DEFAULT -1`,
+  `ALTER TABLE orders ADD COLUMN subtotal REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0`,
+  `ALTER TABLE orders ADD COLUMN coupon_code TEXT NOT NULL DEFAULT ''`,
 ];
 
 /**

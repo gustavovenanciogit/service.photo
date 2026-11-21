@@ -7,6 +7,9 @@ import type { EventPhoto, EventRecord, PhotoPart } from './events';
 import type { Order } from './orders';
 import type { RevenueEntry } from './reports';
 import type { WatermarkSettings } from './watermark-models';
+import type { Coupon, CouponStatus } from './coupons';
+
+export type CouponView = Coupon & { uses_confirmed: number; uses_active: number; status: CouponStatus };
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -131,6 +134,12 @@ export const api = {
     request<{ ok: true; pair: string }>('POST', `/api/events/${encodeURIComponent(id)}/faces/labels`, { a, b, score, answer }),
   resetFaceLabels: () => request<{ ok: true }>('DELETE', '/api/faces/labels'),
   deleteFaceLabel: (pair: string) => request<{ ok: true }>('DELETE', `/api/faces/labels/${encodeURIComponent(pair)}`),
+  // Cupons de desconto
+  coupons: (eventId?: string) => request<CouponView[]>('GET', `/api/coupons${eventId ? `?event=${encodeURIComponent(eventId)}` : ''}`),
+  createCoupon: (c: unknown) => request<{ id: string }>('POST', '/api/coupons', c),
+  updateCoupon: (id: string, c: unknown) => request<{ ok: true }>('PUT', `/api/coupons/${encodeURIComponent(id)}`, c),
+  setCouponActive: (id: string, active: boolean) => request<{ ok: true }>('PATCH', `/api/coupons/${encodeURIComponent(id)}`, { active }),
+  deleteCoupon: (id: string) => request<{ ok: true }>('DELETE', `/api/coupons/${encodeURIComponent(id)}`),
   // Reconhecimento facial (piloto)
   faceStatus: (id: string) => request<{ total: number; indexed: number; faces: number; pending: { id: string; seq: number }[]; face_search: boolean; face_pack_at: string }>('GET', `/api/events/${encodeURIComponent(id)}/faces`),
   saveFaces: (id: string, pid: string, faces: { vec: string; score: number; box: number[]; sharp?: number }[]) =>

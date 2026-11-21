@@ -123,7 +123,7 @@ import { messages } from '@/lib/whatsapp';
   import qrcode from 'qrcode-generator';
 
   type OrderView = {
-    id: string; status: string; event_name: string; event_slug: string; buyer_first_name: string; total: number; use_pack: boolean;
+    id: string; status: string; event_name: string; event_slug: string; buyer_first_name: string; total: number; use_pack: boolean; subtotal?: number; discount?: number; coupon_code?: string;
     photo_count: number; paid_at: string; download_until: string; can_download: boolean; checkout_url: string; items: { id: string; n: number }[];
     pay_online?: boolean; pix?: { code: string; expires: string } | null; mp_public_key?: string;
   };
@@ -148,7 +148,9 @@ import { messages } from '@/lib/whatsapp';
     const o = order;
     $('[data-code]').textContent = o.id;
     $('[data-title]').textContent = o.status === 'pago' ? `Suas fotos de ${o.event_name}` : o.event_name;
-    $('[data-sub]').textContent = `${o.photo_count} foto${o.photo_count === 1 ? '' : 's'} · ${formatBRL(o.total)}${o.use_pack ? ' (pacote)' : ''}`;
+    $('[data-sub]').textContent = `${o.photo_count} foto${o.photo_count === 1 ? '' : 's'} · ${formatBRL(o.total)}${o.use_pack ? ' (pacote)' : ''}${
+      o.discount ? ` · cupom ${o.coupon_code}: −${formatBRL(o.discount)} (de ${formatBRL(o.subtotal ?? o.total + o.discount)})` : ''
+    }`;
     const helpMsg = help(`Olá! Preciso de ajuda com o pedido ${o.id} (${o.event_name}).`);
     $<HTMLAnchorElement>('[data-help2]').href = helpMsg;
 

@@ -19,7 +19,9 @@ import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type Fil
 import { settingsApi } from './settings.ts';
 import { facesApi, publicFaceSearch } from './faces.ts';
 import { store } from '../src/config/store.ts';
-import { eventsApi, faceSearchEvent, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
+import { couponCheckApi, couponsAdminApi } from './coupons.ts';
+import { publicState } from '../src/lib/events.ts';
+import { eventsApi, faceSearchEvent, getBySlug, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
 import { createOrder, MpError, orderStatus, payOrder, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
 
@@ -126,6 +128,17 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     const ev = await faceSearchEvent(env, faceSearch[1]!, await isLoggedIn(req, env));
     if (!ev) return json({ error: 'Evento não encontrado.' }, 404);
     return publicFaceSearch(env, ev, await readJson(req, 10_000), json);
+  }
+
+  // ── Público: prévia do cupom na galeria (limite de tentativas por IP contra adivinhação de códigos) ──
+  const couponCheck = /^\/api\/public\/events\/([a-z0-9-]{1,60})\/coupon$/.exec(path);
+  if (couponCheck && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+    if (!(await db.allowLead(env.DB, await sha256Hex(`venart-coupon:${ip}`), 30))) return json({ error: 'Muitas tentativas de cupom. Aguarde alguns minutos.' }, 429);
+    const ev = await getBySlug(env.DB, couponCheck[1]!);
+    if (!ev || publicState(ev) !== 'aberto') return json({ error: 'A venda deste evento não está aberta.' }, 409);
+    return couponCheckApi(env.DB, ev, await readJson(req, 5_000), json);
   }
 
   // ── Público: compra de fotos ──
@@ -345,6 +358,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     const n = (await req.arrayBuffer()).byteLength;
     return json({ bytes: n });
   }
+  if (path === '/api/coupons' || path.startsWith('/api/coupons/')) return couponsAdminApi(req, env, path, url, json, (r) => readJson(r));
   if (path.startsWith('/api/settings/')) return settingsApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/orders' || path.startsWith('/api/orders/')) return ordersAdminApi(req, env, path, json, (r) => readJson(r));
   // Reconhecimento facial (piloto do painel)
