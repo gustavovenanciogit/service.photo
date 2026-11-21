@@ -129,6 +129,7 @@ export const api = {
   faceLabels: () => request<{ e: string; pair: string; s: number; ans: 'same' | 'diff' | 'unsure'; at: string }[]>('GET', '/api/faces/labels'),
   saveFaceLabel: (id: string, a: string, b: string, score: number, answer: 'same' | 'diff' | 'unsure') =>
     request<{ ok: true; pair: string }>('POST', `/api/events/${encodeURIComponent(id)}/faces/labels`, { a, b, score, answer }),
+  resetFaceLabels: () => request<{ ok: true }>('DELETE', '/api/faces/labels'),
   deleteFaceLabel: (pair: string) => request<{ ok: true }>('DELETE', `/api/faces/labels/${encodeURIComponent(pair)}`),
   // Reconhecimento facial (piloto)
   faceStatus: (id: string) => request<{ total: number; indexed: number; faces: number; pending: { id: string; seq: number }[]; face_search: boolean; face_pack_at: string }>('GET', `/api/events/${encodeURIComponent(id)}/faces`),

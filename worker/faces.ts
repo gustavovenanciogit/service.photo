@@ -57,6 +57,10 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
     return json({ ok: true });
   }
 
+  if (path === '/api/faces/labels' && method === 'DELETE') {
+    await db.prepare('DELETE FROM face_labels').run();
+    return json({ ok: true });
+  }
   if (path === '/api/faces/labels' && method === 'GET') {
     const rows = (await db.prepare('SELECT event_id AS e, pair, score AS s, answer AS ans, created_at AS at FROM face_labels ORDER BY created_at DESC LIMIT 20000').all()).results;
     return json(rows);

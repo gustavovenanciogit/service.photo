@@ -55,6 +55,10 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
       </div>
     </div>
     <p data-advice class="mt-3 text-sm text-muted"></p>
+    <p class="mt-2 text-xs text-muted">
+      Respondeu pares com rostos desfocados antes da correção?
+      <button type="button" data-reset class="font-semibold text-red-300 underline">Recomeçar o treino (apagar as respostas)</button>
+    </p>
     <details class="mt-3 text-sm">
       <summary class="cursor-pointer text-muted hover:text-ink">Ver a tabela completa</summary>
       <div class="mt-2 overflow-x-auto">
@@ -119,7 +123,7 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
 <script>
   import { api, toast } from '@/lib/panel-api';
   import { calibrate, pickPairs, samePhotoNegatives, type Answer, type IndexedFace, type Pair } from '@/lib/face-calibration';
-  import { blurryStored, COSINE_MATCH, decodeVec, reliableBox } from '@/lib/faces';
+  import { COSINE_MATCH, decodeVec, MIN_SHARPNESS, reliableBox } from '@/lib/faces';
 
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -184,6 +188,15 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
     );
   }
   $('[data-max]').addEventListener('change', renderResult);
+  $('[data-reset]').addEventListener('click', async () => {
+    if (!confirm(`Apagar as ${labels.length} respostas e recomeçar o treino? O nível de exigência em uso não muda.`)) return;
+    try {
+      await api.resetFaceLabels();
+      labels = [];
+      renderResult();
+      toast('Respostas apagadas. Pode recomeçar o treino.');
+    } catch (e) { toast((e as Error).message, 'error'); }
+  });
   $('[data-apply]').addEventListener('click', async () => {
     const t = Number($('[data-apply]').dataset.t);
     if (!confirm(`Aplicar o nível ${fmt(t)} na busca por selfie de todos os eventos?`)) return;
@@ -270,12 +283,23 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
       faces = rows.flatMap((r) => {
         const vec = decodeVec(r.v);
         const box = r.b.split(',').map(Number);
-        // Mesmo critério da busca: rostos pequenos demais ficam de fora.
-        return vec && box.length === 4 && reliableBox(box, r.w, r.h) && !blurryStored(r.sh) ? [{ id: r.id, p: r.p, n: r.n, vec, box, w: r.w, h: r.h }] : [];
+        // Só rostos grandes E com nitidez medida e aprovada (índices antigos, sem medida, ficam de fora).
+        return vec && box.length === 4 && reliableBox(box, r.w, r.h) && r.sh >= MIN_SHARPNESS ? [{ id: r.id, p: r.p, n: r.n, vec, box, w: r.w, h: r.h }] : [];
       });
       byId = new Map(faces.map((f) => [f.id, f]));
+      const old = rows.filter((r) => r.sh < 0).length;
       if (faces.length < 4) {
-        st.textContent = 'Este evento ainda não tem rostos reconhecidos. Envie as fotos com "Reconhecer rostos durante o envio" ou indexe em Reconhecimento facial.';
+        if (old) {
+          st.innerHTML = '';
+          st.append(
+            `Este evento foi indexado antes do filtro de nitidez (${old} rostos sem medida), por isso os pares viriam com rostos desfocados. Refaça o índice primeiro: `,
+          );
+          const a = document.createElement('a');
+          a.href = `/painel/rostos/?evento=${encodeURIComponent(eventId)}&refazer=1`;
+          a.className = 'font-semibold text-brand underline';
+          a.textContent = 'Refazer índice agora';
+          st.append(a);
+        } else st.textContent = 'Este evento ainda não tem rostos reconhecidos. Envie as fotos com "Reconhecer rostos durante o envio" ou indexe em Reconhecimento facial.';
         return;
       }
       autoNeg = samePhotoNegatives(faces);
@@ -289,10 +313,7 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
         st.textContent = 'Não há mais pares novos para conferir neste evento. Experimente outro evento.';
         return;
       }
-      const old = rows.filter((r) => r.sh < 0).length;
-      st.textContent = `${faces.length} rostos neste evento · ${autoNeg.length} exemplos automáticos (rostos na mesma foto).${
-        old ? ` Atenção: ${old} rostos foram indexados antes do filtro de nitidez — em Reconhecimento facial, clique em "Refazer índice" para tirar os desfocados.` : ''
-      }`;
+      st.textContent = `${faces.length} rostos nítidos neste evento · ${autoNeg.length} exemplos automáticos (rostos na mesma foto).`;
       pos = 0;
       batch = queue.length;
       history = [];

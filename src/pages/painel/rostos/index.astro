@@ -203,6 +203,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     if (remembered && events.some((e) => e.id === remembered)) {
       sel.value = remembered;
       await selectEvent(remembered);
+      if (askRedo && !$<HTMLButtonElement>('[data-redo]').disabled) $('[data-redo]').click();
     }
   }
 
@@ -229,6 +230,8 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     await refreshStatus();
     await loadRuns();
   }
+  // Vindo do Treinar IA (?refazer=1): já oferece refazer o índice do evento.
+  const askRedo = new URLSearchParams(location.search).has('refazer');
 
   async function runIndex() {
     const s = await refreshStatus();
