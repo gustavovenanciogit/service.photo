@@ -141,7 +141,8 @@ export function similarityTransform(landmarks: number[], ref = REF_POINTS) {
 
 /** Recorta e alinha o rosto (112×112 RGBA) a partir da imagem original, com interpolação bilinear. */
 export function alignCrop(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number, landmarks: number[], size = REC_SIZE) {
-  const { a, b, tx, ty } = similarityTransform(landmarks);
+  const k = size / REC_SIZE;
+  const { a, b, tx, ty } = similarityTransform(landmarks, k === 1 ? REF_POINTS : REF_POINTS.map(([x, y]) => [x! * k, y! * k]));
   // inversa de [a -b; b a]
   const det = a * a + b * b || 1;
   const out = new Uint8ClampedArray(size * size * 4);
@@ -225,9 +226,8 @@ export function decodeVec(b64: string): Float32Array | null {
 }
 
 /**
- * Nitidez do rosto alinhado (variância do Laplaciano no 112×112 em tons de cinza).
- * Medido nas fotos de evento: pessoas desfocadas ao fundo ficam abaixo de ~40;
- * rostos em foco, acima de ~190. Rostos borrados geram assinaturas que confundem pessoas.
+ * Nitidez de um recorte quadrado RGBA (variância do Laplaciano em tons de cinza).
+ * Use faceSharpness para medir um rosto: ela mede no tamanho real dele.
  */
 export function sharpness(rgba: Uint8ClampedArray | Uint8Array, size = REC_SIZE) {
   const g = new Float32Array(size * size);
@@ -245,10 +245,22 @@ export function sharpness(rgba: Uint8ClampedArray | Uint8Array, size = REC_SIZE)
     }
   return s2 / c - (s / c) ** 2;
 }
-/** Nitidez mínima para indexar rostos das fotos do evento. */
-export const MIN_SHARPNESS = 80;
+/**
+ * Nitidez do rosto NO TAMANHO REAL dele (recorte alinhado com o lado ≈ largura do rosto,
+ * entre 112 e 256 px). Reduzir um rosto grande para 112 px "esconde" o desfoque:
+ * rosto de 239 px com desfoque leve dava 162 reduzido e 15 no tamanho real.
+ * Medido no portfólio: rostos em foco 130–313; com desfoque leve (σ2) ≤ 18.
+ */
+export function faceSharpness(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number, f: Pick<Face, 'w' | 'landmarks'>) {
+  const size = Math.max(REC_SIZE, Math.min(256, Math.round(f.w)));
+  return sharpness(alignCrop(rgba, w, h, f.landmarks, size), size);
+}
+/** Nitidez mínima para indexar rostos das fotos do evento (só rostos bem focados). */
+export const MIN_SHARPNESS = 100;
 /** Na selfie do comprador, mais tolerante (câmera de celular com pouca luz). */
-export const MIN_SHARPNESS_SELFIE = 30;
+export const MIN_SHARPNESS_SELFIE = 20;
+/** Rosto guardado com nitidez conhecida abaixo do mínimo (índices refeitos). -1 = medido antes do filtro. */
+export const blurryStored = (sharp: number | null | undefined) => typeof sharp === 'number' && sharp >= 0 && sharp < MIN_SHARPNESS;
 
 /** Rosto principal de uma selfie: o maior com boa confiança. */
 export const mainFace = (faces: Face[]) => [...faces].sort((a, b) => b.w * b.h - a.w * a.h)[0] ?? null;
