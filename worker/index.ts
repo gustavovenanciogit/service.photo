@@ -314,6 +314,12 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     return r.meta.changes ? json({ ok: true }) : json({ error: 'Lançamento não encontrado.' }, 404);
   }
 
+  // Teste de velocidade de envio (painel): recebe e descarta até 4 MB.
+  if (path === '/api/upload-test' && method === 'POST') {
+    if (Number(req.headers.get('Content-Length') ?? 0) > 4_000_000) return json({ error: 'Grande demais.' }, 413);
+    const n = (await req.arrayBuffer()).byteLength;
+    return json({ bytes: n });
+  }
   if (path.startsWith('/api/settings/')) return settingsApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/orders' || path.startsWith('/api/orders/')) return ordersAdminApi(req, env, path, json, (r) => readJson(r));
   // Reconhecimento facial (piloto do painel)

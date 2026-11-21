@@ -11,7 +11,7 @@ import { alignCrop, DET_SIZE, decodeYunet, detectorTensor, normalize, recognizer
 ort.env.wasm.wasmPaths = '/ort/';
 ort.env.logLevel = 'error'; // o SFace gera muitos avisos inofensivos no console
 // Várias threads só em página isolada (painel: cabeçalhos COOP/COEP); senão 1 (galeria pública, Safari).
-ort.env.wasm.numThreads = globalThis.crossOriginIsolated ? Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)) : 1;
+ort.env.wasm.numThreads = globalThis.crossOriginIsolated ? Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 1)) : 1;
 
 export interface FaceWithVec extends Face {
   vec: Float32Array;

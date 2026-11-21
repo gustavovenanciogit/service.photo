@@ -114,6 +114,11 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         </span>
       </label>
 
+      <div class="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-bg p-4 text-sm">
+        <button type="button" data-speed class="btn btn-outline min-h-10 px-4 text-sm">Testar minha internet</button>
+        <p data-speed-out class="min-w-0 flex-1 text-muted">Mede a velocidade de envio e calcula quanto tempo um evento vai levar para subir.</p>
+      </div>
+
       <div data-drop class="mt-4 rounded-2xl border-2 border-dashed border-line p-6 text-center text-sm text-muted transition-colors">
         Ou arraste as fotos para cá.
       </div>
@@ -483,7 +488,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   let startedAt = 0;
   let wakeLock: { release(): Promise<void> } | null = null;
   // Fotos enviadas ao mesmo tempo (cada uma manda miniatura, prévia e original em paralelo).
-  const PARALLEL = 4;
+  const PARALLEL = 6;
   // Reconhecimento facial durante o envio (preferência guardada neste navegador).
   const FACE_PREF = 'venart-face-auto';
   const faceAuto = $<HTMLInputElement>('[data-face-auto]');
@@ -514,7 +519,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     const rate = done / Math.max(elapsed, 1);
     const left = queue.length + running;
     $('[data-progress-detail]').textContent = active && done > 0 && !paused
-      ? `${(bytesSent / 1_000_000 / Math.max(elapsed, 1)).toFixed(1)} MB/s · faltam cerca de ${fmtTime(left / Math.max(rate, 0.001))} · mantenha esta aba aberta`
+      ? `${(bytesSent / 1_000_000 / Math.max(elapsed, 1)).toFixed(1)} MB/s (${((bytesSent * 8) / 1_000_000 / Math.max(elapsed, 1)).toFixed(0)} Mbit/s) · faltam cerca de ${fmtTime(left / Math.max(rate, 0.001))} · mantenha esta aba aberta`
       : active ? 'Preparando…' : '';
     $('[data-pause]').hidden = !active;
     $('[data-pause]').textContent = paused ? 'Continuar' : 'Pausar';
@@ -624,6 +629,28 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     try { wakeLock = await (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen') ?? null; } catch { /* sem suporte */ }
     pump();
   }
+
+  // Teste de velocidade: diz se o limite é a internet ou o site, e quanto tempo um evento leva.
+  $('[data-speed]').addEventListener('click', async () => {
+    const btn = $<HTMLButtonElement>('[data-speed]');
+    const out = $('[data-speed-out]');
+    if (running || queue.length) return toast('Teste depois que o envio terminar.', 'error');
+    btn.disabled = true;
+    out.textContent = 'Testando (envia ~7 MB)…';
+    try {
+      const mbs = await api.uploadSpeed();
+      // Média por foto com a sua exportação (2048 px, 80%): ~0,8 MB contando prévia e miniatura.
+      const per = 0.8;
+      const min700 = Math.ceil((700 * per) / mbs / 60);
+      const needed = ((700 * per) / 600).toFixed(1);
+      out.textContent = `Sua internet está enviando ${mbs.toFixed(1)} MB/s (${(mbs * 8).toFixed(0)} Mbit/s). Um evento de 700 fotos leva cerca de ${min700} min. ` +
+        (min700 <= 10 ? 'Dentro da meta de 10 min.' : `Para ficar em 10 min seria preciso ~${needed} MB/s (${Math.ceil(Number(needed) * 8)} Mbit/s) de envio — tente cabo de rede ou outra conexão.`);
+    } catch (e) {
+      out.textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   $('[data-pause]').addEventListener('click', () => { paused = !paused; if (!paused) pump(); progress(); });
   $('[data-retry]').addEventListener('click', () => {

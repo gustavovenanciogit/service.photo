@@ -111,6 +111,20 @@ export const api = {
     return data;
   },
   deleteWatermarkLogo: () => request<WatermarkSettings>('DELETE', '/api/settings/watermark/logo'),
+  /** Mede a velocidade de envio: manda blocos aleatórios em paralelo (como o envio das fotos) e devolve MB/s. */
+  async uploadSpeed(blocks = 6, size = 1_000_000, parallel = 6) {
+    const data = new Uint8Array(size);
+    for (let i = 0; i < size; i += 65_536) crypto.getRandomValues(data.subarray(i, i + 65_536));
+    const send = async () => {
+      const res = await fetch('/api/upload-test', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' }, body: new Blob([data]) });
+      if (!res.ok) throw new ApiError(res.status, 'Falha no teste de velocidade.');
+    };
+    await send(); // aquece a conexão
+    const t0 = performance.now();
+    let left = blocks;
+    await Promise.all(Array.from({ length: parallel }, async () => { while (left-- > 0) await send(); }));
+    return (blocks * size) / 1_000_000 / ((performance.now() - t0) / 1000);
+  },
   // Reconhecimento facial (piloto)
   faceStatus: (id: string) => request<{ total: number; indexed: number; faces: number; pending: { id: string; seq: number }[]; face_search: boolean; face_pack_at: string }>('GET', `/api/events/${encodeURIComponent(id)}/faces`),
   saveFaces: (id: string, pid: string, faces: { vec: string; score: number; box: number[] }[]) =>
