@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   alignCrop, COSINE_MATCH, cosine, decodeVec, decodeYunet, detectorTensor, encodeVec, mainFace, nms, normalize, packCount, packIndex,
-  pilotMetrics, recognizerTensor, REF_POINTS, scaleFace, searchPack, similarityTransform, usableFace, validThreshold, type Face,
+  pilotMetrics, recognizerTensor, REF_POINTS, reliableBox, sharpness, MIN_SHARPNESS, scaleFace, searchPack, similarityTransform, usableFace, validThreshold, type Face,
 } from '../src/lib/faces.ts';
 
 const face = (x: number, y: number, w: number, h: number, score: number): Face => ({ x, y, w, h, score, landmarks: Array(10).fill(0) });
@@ -46,8 +46,12 @@ test('escala, rosto principal e tamanho mínimo', () => {
   assert.deepEqual([f.x, f.y, f.w, f.h, f.landmarks[0], f.landmarks[1]], [20, 40, 60, 80, 4, 8]);
   assert.equal(mainFace([face(0, 0, 30, 30, 0.9), face(0, 0, 80, 80, 0.7)])!.w, 80);
   assert.equal(mainFace([]), null);
-  assert.equal(usableFace(face(0, 0, 23, 60, 1)), false);
-  assert.equal(usableFace(face(0, 0, 24, 24, 1)), true);
+  assert.equal(usableFace(face(0, 0, 47, 60, 1)), false);
+  assert.equal(usableFace(face(0, 0, 48, 48, 1)), true);
+  // Caixa guardada em foto de 3000 px: analisada a 2000 px → 60 px viram 40 (pequeno demais)
+  assert.equal(reliableBox([0, 0, 60, 60], 3000, 2000), false);
+  assert.equal(reliableBox([0, 0, 72, 80], 3000, 2000), true);
+  assert.equal(reliableBox([0, 0, 50, 50], 1152, 2048), true);
 });
 
 test('transformação de semelhança recupera rotação, escala e deslocamento conhecidos', () => {
@@ -80,6 +84,14 @@ test('recorte alinhado: pontos já na referência copiam a imagem; fora da image
   // Rosto deslocado para fora: borda preta, alfa opaco.
   const off = alignCrop(rgba, w, h, REF_POINTS.flat().map((v, i) => (i % 2 ? v : v + 200)));
   assert.deepEqual([...off.slice(0, 4)], [0, 0, 0, 255]);
+});
+
+test('nitidez: imagem lisa ≈ 0, com detalhe é alta', () => {
+  const flat = new Uint8ClampedArray(112 * 112 * 4).fill(128);
+  assert.ok(sharpness(flat) < 1);
+  const sharp = new Uint8ClampedArray(112 * 112 * 4);
+  for (let i = 0; i < 112 * 112; i++) sharp.fill((i + Math.floor(i / 112)) % 2 ? 255 : 0, i * 4, i * 4 + 3);
+  assert.ok(sharpness(sharp) > MIN_SHARPNESS);
 });
 
 test('tensores: detector em BGR, reconhecedor em RGB (NCHW)', () => {
@@ -174,6 +186,7 @@ test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', a
     const list: (Face & { vec: Float32Array })[] = [];
     for (const f of found) {
       const crop = alignCrop(data, info.width, info.height, f.landmarks);
+      if (sharpness(crop) < MIN_SHARPNESS) continue; // como no navegador: rosto desfocado não entra
       const o = await rec.run({ data: new ort.Tensor('float32', recognizerTensor(crop), [1, 3, 112, 112]) });
       list.push({ ...f, vec: normalize(o.fc1!.data as Float32Array) });
     }
@@ -187,7 +200,8 @@ test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', a
   assert.ok(same >= COSINE_MATCH, `mesma pessoa deu ${same}`);
 
   const crowd = await faces('artes-marciais/jiu-jitsu-queda.jpg');
-  assert.ok(crowd.length >= 5, `jiu-jitsu: só ${crowd.length} rostos`);
+  // Só rostos grandes e nítidos (o lutador em foco); a plateia desfocada ao fundo fica de fora.
+  assert.ok(crowd.length >= 1, `jiu-jitsu: só ${crowd.length} rostos`);
   for (const f of [...crowd, ...(await faces('esportes/corredora-arco.jpg'))]) {
     const s = cosine(retrato.vec, f.vec);
     assert.ok(s < COSINE_MATCH, `pessoa diferente deu ${s}`);

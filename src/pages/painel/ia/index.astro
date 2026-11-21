@@ -1,0 +1,381 @@
+---
+/**
+ * TREINAR A IA — /painel/ia/
+ * O fotógrafo só responde se dois rostos são a mesma pessoa. Com as respostas, o sistema
+ * calcula o nível de exigência que acerta mais e erra menos nos eventos dele (calibragem).
+ * O modelo (SFace) não é re-treinado; o que aprende é o limite. Regras: src/lib/face-calibration.ts.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm text-ink focus:border-brand focus:outline-none';
+const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-2xl border-2 px-3 text-sm font-bold transition-colors disabled:opacity-40';
+---
+
+<PanelLayout title="Treinar IA">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="eyebrow">Reconhecimento facial</p>
+      <h1 class="mt-1 text-4xl font-extrabold sm:text-5xl">Treinar a IA</h1>
+      <p class="mt-1 max-w-3xl text-muted">
+        O sistema separa pares de rostos das suas fotos e você só diz se é a mesma pessoa. Com as respostas, ele aprende o ponto exato de exigência para os
+        seus eventos: encontrar o máximo de fotos de cada cliente sem misturar pessoas diferentes.
+      </p>
+    </div>
+  </div>
+
+  <!-- Resultado da calibragem -->
+  <section class="card mt-6 p-4 sm:p-6" aria-labelledby="res-title">
+    <h2 id="res-title" class="flex items-center gap-2 text-lg font-bold"><Icon name="bolt" size={20} class="text-brand" /> O que a IA já aprendeu</h2>
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-line bg-bg/50 p-4">
+        <p class="text-xs text-muted">Respostas dadas</p>
+        <p data-k-answers class="mt-1 font-display text-3xl font-extrabold">—</p>
+        <p data-k-answers-sub class="text-xs text-muted"></p>
+      </div>
+      <div class="rounded-2xl border border-line bg-bg/50 p-4">
+        <p class="text-xs text-muted">Nível de exigência em uso</p>
+        <p data-k-current class="mt-1 font-display text-3xl font-extrabold">—</p>
+        <p data-k-current-sub class="text-xs text-muted"></p>
+      </div>
+      <div class="rounded-2xl border border-brand/40 bg-brand/5 p-4">
+        <p class="text-xs text-muted">Nível recomendado</p>
+        <p data-k-rec class="mt-1 font-display text-3xl font-extrabold text-brand">—</p>
+        <p data-k-rec-sub class="text-xs text-muted"></p>
+      </div>
+      <div class="flex flex-col justify-between gap-2 rounded-2xl border border-line bg-bg/50 p-4">
+        <label class="text-xs text-muted">
+          Máximo de confusões aceito
+          <select data-max class={`${field} mt-1 py-2`}>
+            <option value="0.005">0,5% — galerias privadas (mais seguro)</option>
+            <option value="0.01" selected>1% — equilíbrio</option>
+            <option value="0.02">2% — acha mais fotos</option>
+          </select>
+        </label>
+        <button type="button" data-apply class="btn btn-primary min-h-10 text-sm" disabled>Aplicar recomendado</button>
+      </div>
+    </div>
+    <p data-advice class="mt-3 text-sm text-muted"></p>
+    <details class="mt-3 text-sm">
+      <summary class="cursor-pointer text-muted hover:text-ink">Ver a tabela completa</summary>
+      <div class="mt-2 overflow-x-auto">
+        <table class="w-full min-w-[460px] text-left">
+          <thead class="text-xs text-muted"><tr><th class="py-1 pr-4">Nível</th><th class="pr-4">Reconhece a mesma pessoa</th><th>Confunde pessoas diferentes</th></tr></thead>
+          <tbody data-table></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <!-- Conferência -->
+  <section class="card mt-6 p-4 sm:p-6" aria-labelledby="chk-title">
+    <div class="flex flex-wrap items-end gap-3">
+      <h2 id="chk-title" class="mr-auto flex items-center gap-2 text-lg font-bold"><Icon name="check-circle" size={20} class="text-brand" /> Conferir pares de rostos</h2>
+      <label class="block min-w-[220px] flex-1 text-sm sm:flex-none">
+        <span class="sr-only">Evento</span>
+        <select data-event class={field}><option value="">Carregando eventos…</option></select>
+      </label>
+      <button type="button" data-start class="btn btn-primary min-h-11 text-sm" disabled>Começar</button>
+    </div>
+    <p data-status class="mt-3 text-sm text-muted" aria-live="polite">Escolha um evento com fotos já indexadas (rostos reconhecidos no envio).</p>
+
+    <div data-trainer hidden class="mt-4">
+      <div class="mb-3 flex items-center gap-3 text-sm">
+        <div class="h-2 flex-1 overflow-hidden rounded-full bg-white/10"><div data-bar class="h-full w-0 rounded-full bg-brand transition-[width]"></div></div>
+        <span data-count class="shrink-0 font-semibold"></span>
+      </div>
+      <p class="mb-3 text-center text-lg font-bold">É a mesma pessoa?</p>
+      <div class="mx-auto grid max-w-2xl grid-cols-2 gap-3">
+        <figure class="overflow-hidden rounded-2xl border border-line bg-black">
+          <canvas data-crop="a" width="360" height="360" class="aspect-square w-full"></canvas>
+          <figcaption data-cap="a" class="px-3 py-2 text-xs text-muted"></figcaption>
+        </figure>
+        <figure class="overflow-hidden rounded-2xl border border-line bg-black">
+          <canvas data-crop="b" width="360" height="360" class="aspect-square w-full"></canvas>
+          <figcaption data-cap="b" class="px-3 py-2 text-xs text-muted"></figcaption>
+        </figure>
+      </div>
+      <div class="mx-auto mt-4 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3">
+        <button type="button" data-ans="diff" class={`${answerBtn} border-red-400/60 text-red-200 hover:bg-red-500/10`}>Pessoas diferentes<span class="text-[11px] font-normal opacity-70">tecla 1 ou ←</span></button>
+        <button type="button" data-ans="unsure" class={`${answerBtn} border-line text-muted hover:bg-white/5`}>Não dá para saber<span class="text-[11px] font-normal opacity-70">tecla 2 ou ↓</span></button>
+        <button type="button" data-ans="same" class={`${answerBtn} border-brand text-brand hover:bg-brand/10`}>Mesma pessoa<span class="text-[11px] font-normal opacity-70">tecla 3 ou →</span></button>
+      </div>
+      <div class="mx-auto mt-3 flex max-w-2xl justify-between text-sm">
+        <button type="button" data-undo class="text-muted underline hover:text-ink" disabled>Desfazer a última (Backspace)</button>
+        <button type="button" data-stop class="text-muted underline hover:text-ink">Parar</button>
+      </div>
+    </div>
+
+    <div data-done hidden class="mt-5 rounded-2xl border border-brand/30 bg-brand/5 p-5 text-center">
+      <p data-done-text class="font-semibold"></p>
+      <button type="button" data-more class="btn btn-primary mt-3 min-h-11 text-sm">Mais 20 pares</button>
+    </div>
+    <p class="mt-4 text-xs text-muted">
+      Dica: 20 a 30 respostas por evento já ajudam; o ideal é chegar a umas 100 no total, em eventos diferentes (luta, corrida, festa). Rostos da mesma
+      foto também ensinam sozinhos: são sempre pessoas diferentes. A pontuação fica escondida para não influenciar sua resposta.
+    </p>
+  </section>
+</PanelLayout>
+
+<script>
+  import { api, toast } from '@/lib/panel-api';
+  import { calibrate, pickPairs, samePhotoNegatives, type Answer, type IndexedFace, type Pair } from '@/lib/face-calibration';
+  import { COSINE_MATCH, decodeVec, reliableBox } from '@/lib/faces';
+
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`);
+
+  type Face = IndexedFace & { n: number; box: number[]; w: number; h: number };
+  let labels: { e: string; pair: string; s: number; ans: Answer }[] = [];
+  let threshold = COSINE_MATCH;
+  let autoNeg: number[] = [];
+  let eventId = '';
+  let faces: Face[] = [];
+  let byId = new Map<string, Face>();
+  let queue: Pair[] = [];
+  let pos = 0;
+  let batch = 0;
+  let history: { pair: Pair; key: string }[] = [];
+  let busy = false;
+
+  // ───────── Resultado ─────────
+  function renderResult() {
+    const c = calibrate(labels, autoNeg, { maxMistaken: Number($<HTMLSelectElement>('[data-max]').value) });
+    const unsure = labels.filter((l) => l.ans === 'unsure').length;
+    $('[data-k-answers]').textContent = String(labels.length);
+    $('[data-k-answers-sub]').textContent = `${c.positives} mesma pessoa · ${c.negatives} diferentes${unsure ? ` · ${unsure} sem certeza` : ''}${c.autoNegatives ? ` · +${c.autoNegatives} automáticos` : ''}`;
+    const cur = c.at(threshold);
+    $('[data-k-current]').textContent = fmt(threshold);
+    $('[data-k-current-sub]').textContent = c.positives || c.negatives ? `Reconhece ${pct(cur.found)} · confunde ${pct(cur.mistaken)}` : 'Ainda sem respostas';
+    const apply = $<HTMLButtonElement>('[data-apply]');
+    if (c.recommended) {
+      $('[data-k-rec]').textContent = fmt(c.recommended.t);
+      $('[data-k-rec-sub]').textContent = `Reconhece ${pct(c.recommended.found)} · confunde ${pct(c.recommended.mistaken)}`;
+      apply.disabled = Math.abs(c.recommended.t - threshold) < 0.0005;
+      apply.dataset.t = String(c.recommended.t);
+      const diff = c.recommended.t - threshold;
+      $('[data-advice]').textContent =
+        Math.abs(diff) < 0.0005
+          ? 'O nível em uso já é o recomendado pelas suas respostas.'
+          : diff < 0
+            ? `Baixar para ${fmt(c.recommended.t)} faz a busca encontrar mais fotos de cada cliente, mantendo as confusões dentro do limite escolhido.`
+            : `Subir para ${fmt(c.recommended.t)} evita mostrar fotos de outras pessoas (importante nas galerias privadas).`;
+    } else {
+      $('[data-k-rec]').textContent = '—';
+      const falta = Math.max(0, 15 - c.positives);
+      $('[data-k-rec-sub]').textContent = `Precisa de pelo menos 15 respostas "mesma pessoa" e 15 "diferentes"${falta ? ` (faltam ${falta} "mesma pessoa")` : ''}.`;
+      apply.disabled = true;
+      $('[data-advice]').textContent = '';
+    }
+    $('[data-table]').replaceChildren(
+      ...c.rows
+        .filter((r) => Math.round(r.t * 1000) % 25 === 0 || Math.abs(r.t - threshold) < 0.003 || r === c.recommended)
+        .map((r) => {
+          const tr = document.createElement('tr');
+          tr.className = `border-t border-line ${r === c.recommended ? 'font-semibold text-brand' : Math.abs(r.t - threshold) < 0.003 ? 'text-ink' : 'text-muted'}`;
+          for (const v of [`${fmt(r.t)}${r === c.recommended ? ' (recomendado)' : Math.abs(r.t - threshold) < 0.003 ? ' (em uso)' : ''}`, pct(r.found), pct(r.mistaken)]) {
+            const td = document.createElement('td');
+            td.className = 'py-1 pr-4';
+            td.textContent = v;
+            tr.append(td);
+          }
+          return tr;
+        }),
+    );
+  }
+  $('[data-max]').addEventListener('change', renderResult);
+  $('[data-apply]').addEventListener('click', async () => {
+    const t = Number($('[data-apply]').dataset.t);
+    if (!confirm(`Aplicar o nível ${fmt(t)} na busca por selfie de todos os eventos?`)) return;
+    try {
+      const r = await api.saveFaceSettings(t);
+      threshold = r.threshold;
+      renderResult();
+      toast('Nível de exigência aplicado na busca por selfie.');
+    } catch (e) { toast((e as Error).message, 'error'); }
+  });
+
+  // ───────── Recortes dos rostos (da foto original, sem marca d'água; reserva: a prévia) ─────────
+  type Src = { img: CanvasImageSource; width: number };
+  const images = new Map<string, Promise<Src>>();
+  const loadImg = (photo: string) => {
+    let p = images.get(photo);
+    if (!p) {
+      p = api
+        .originalPhoto(eventId, photo)
+        .then((blob) => createImageBitmap(blob, { imageOrientation: 'from-image' }))
+        .then((bmp) => ({ img: bmp, width: bmp.width }))
+        .catch(
+          () =>
+            new Promise<Src>((res, rej) => {
+              const img = new Image();
+              img.onload = () => res({ img, width: img.naturalWidth });
+              img.onerror = rej;
+              img.src = `/f/${eventId}/${photo}/preview.jpg`;
+            }),
+        );
+      images.set(photo, p);
+      // Guarda só as últimas fotos na memória.
+      if (images.size > 24) {
+        const [oldest, op] = images.entries().next().value!;
+        images.delete(oldest);
+        void op.then((s) => (s.img as ImageBitmap).close?.()).catch(() => undefined);
+      }
+    }
+    return p;
+  };
+  async function drawFace(which: 'a' | 'b', f: Face) {
+    const cv = $<HTMLCanvasElement>(`[data-crop="${which}"]`);
+    const ctx = cv.getContext('2d')!;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    $(`[data-cap="${which}"]`).textContent = `Foto nº ${String(f.n).padStart(4, '0')}`;
+    try {
+      const { img, width } = await loadImg(f.p);
+      const k = width / f.w;
+      const [x, y, w, h] = f.box;
+      // Quadrado em volta do rosto, com folga de 35%.
+      const side = Math.max(w!, h!) * 1.7 * k;
+      const cx = (x! + w! / 2) * k;
+      const cy = (y! + h! / 2) * k;
+      ctx.drawImage(img, cx - side / 2, cy - side / 2, side, side, 0, 0, cv.width, cv.height);
+    } catch {
+      ctx.fillStyle = '#888';
+      ctx.fillText('Prévia indisponível', 20, 30);
+    }
+  }
+
+  // ───────── Conferência ─────────
+  async function loadEvents() {
+    const list = await api.events();
+    const sel = $<HTMLSelectElement>('[data-event]');
+    sel.innerHTML = '<option value="">Escolha o evento…</option>';
+    for (const e of list.filter((x) => x.photo_count > 0)) sel.add(new Option(`${e.name} (${e.photo_count} fotos)`, e.id));
+    const want = new URLSearchParams(location.search).get('evento');
+    if (want && list.some((e) => e.id === want)) sel.value = want;
+    $<HTMLButtonElement>('[data-start]').disabled = !sel.value;
+  }
+  $('[data-event]').addEventListener('change', (e) => {
+    $<HTMLButtonElement>('[data-start]').disabled = !(e.target as HTMLSelectElement).value;
+  });
+
+  async function prepare() {
+    eventId = $<HTMLSelectElement>('[data-event]').value;
+    if (!eventId) return;
+    const st = $('[data-status]');
+    st.textContent = 'Carregando os rostos do evento…';
+    $<HTMLButtonElement>('[data-start]').disabled = true;
+    try {
+      const rows = await api.faceVectors(eventId);
+      faces = rows.flatMap((r) => {
+        const vec = decodeVec(r.v);
+        const box = r.b.split(',').map(Number);
+        // Mesmo critério da busca: rostos pequenos demais ficam de fora.
+        return vec && box.length === 4 && reliableBox(box, r.w, r.h) ? [{ id: r.id, p: r.p, n: r.n, vec, box, w: r.w, h: r.h }] : [];
+      });
+      byId = new Map(faces.map((f) => [f.id, f]));
+      if (faces.length < 4) {
+        st.textContent = 'Este evento ainda não tem rostos reconhecidos. Envie as fotos com "Reconhecer rostos durante o envio" ou indexe em Reconhecimento facial.';
+        return;
+      }
+      autoNeg = samePhotoNegatives(faces);
+      renderResult();
+      // Só rostos grandes o bastante para você conseguir julgar.
+      const big = faces;
+      st.textContent = 'Escolhendo os pares mais duvidosos…';
+      await new Promise((r) => setTimeout(r, 30));
+      queue = pickPairs(big, { threshold, count: 20, seed: Date.now() % 100000, exclude: new Set(labels.map((l) => l.pair)) });
+      if (!queue.length) {
+        st.textContent = 'Não há mais pares novos para conferir neste evento. Experimente outro evento.';
+        return;
+      }
+      st.textContent = `${faces.length} rostos neste evento · ${autoNeg.length} exemplos automáticos (rostos na mesma foto).`;
+      pos = 0;
+      batch = queue.length;
+      history = [];
+      $('[data-trainer]').hidden = false;
+      $('[data-done]').hidden = true;
+      await show();
+      $('[data-trainer]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      st.textContent = (e as Error).message;
+    } finally {
+      $<HTMLButtonElement>('[data-start]').disabled = false;
+    }
+  }
+
+  async function show() {
+    const p = queue[pos];
+    $('[data-count]').textContent = `${Math.min(pos + 1, batch)} de ${batch}`;
+    $('[data-bar]').style.width = `${(pos / batch) * 100}%`;
+    $<HTMLButtonElement>('[data-undo]').disabled = !history.length;
+    if (!p) return finishBatch();
+    busy = true;
+    await Promise.all([drawFace('a', byId.get(p.a)!), drawFace('b', byId.get(p.b)!)]);
+    busy = false;
+    // Pré-carrega o próximo par.
+    const nx = queue[pos + 1];
+    if (nx) [byId.get(nx.a)!, byId.get(nx.b)!].forEach((f) => void loadImg(f.p).catch(() => undefined));
+  }
+
+  async function answer(ans: Answer) {
+    const p = queue[pos];
+    if (!p || busy) return;
+    busy = true;
+    try {
+      const r = await api.saveFaceLabel(eventId, p.a, p.b, p.s, ans);
+      labels = [{ e: eventId, pair: r.pair, s: p.s, ans }, ...labels.filter((l) => l.pair !== r.pair)];
+      history.push({ pair: p, key: r.pair });
+      pos++;
+      renderResult();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      busy = false;
+    }
+    await show();
+  }
+
+  async function undo() {
+    const last = history.pop();
+    if (!last || busy) return;
+    await api.deleteFaceLabel(last.key).catch(() => undefined);
+    labels = labels.filter((l) => l.pair !== last.key);
+    pos = Math.max(0, pos - 1);
+    $('[data-trainer]').hidden = false;
+    $('[data-done]').hidden = true;
+    renderResult();
+    await show();
+  }
+
+  function finishBatch() {
+    $('[data-trainer]').hidden = true;
+    $('[data-done]').hidden = false;
+    $('[data-done-text]').textContent = `Pronto! ${batch} pares conferidos neste evento. Total: ${labels.length} respostas.`;
+    $('[data-bar]').style.width = '100%';
+  }
+
+  for (const b of document.querySelectorAll<HTMLElement>('[data-ans]')) b.addEventListener('click', () => void answer(b.dataset.ans as Answer));
+  $('[data-undo]').addEventListener('click', () => void undo());
+  $('[data-start]').addEventListener('click', () => void prepare());
+  $('[data-more]').addEventListener('click', () => void prepare());
+  $('[data-stop]').addEventListener('click', () => { $('[data-trainer]').hidden = true; $('[data-done]').hidden = true; });
+  document.addEventListener('keydown', (e) => {
+    if ($('[data-trainer]').hidden || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+    const map: Record<string, Answer> = { '1': 'diff', ArrowLeft: 'diff', '2': 'unsure', ArrowDown: 'unsure', '3': 'same', ArrowRight: 'same' };
+    if (map[e.key]) { e.preventDefault(); void answer(map[e.key]!); }
+    else if (e.key === 'Backspace') { e.preventDefault(); void undo(); }
+  });
+
+  (async () => {
+    try {
+      const [l, s] = await Promise.all([api.faceLabels(), api.faceSettings()]);
+      labels = l;
+      threshold = s.threshold;
+      renderResult();
+      await loadEvents();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  })();
+</script>

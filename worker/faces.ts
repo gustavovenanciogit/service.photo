@@ -12,6 +12,9 @@
  *   POST   /api/events/:id/faces/public          → liga/desliga a busca por selfie (exige aviso do evento confirmado)
  *   POST   /api/events/:id/faces/remove          → tira fotos da busca (pedido de exclusão de alguém)
  *   GET/PUT /api/faces/settings                  → nível de exigência da busca pública
+ *   GET    /api/faces/labels                     → respostas do "Treinar IA" (todas, para a calibragem)
+ *   POST   /api/events/:id/faces/labels          → grava/troca uma resposta (par de rostos)
+ *   DELETE /api/faces/labels/:pair               → desfaz uma resposta
  * Público (sem login):
  *   POST   /api/public/events/:slug/faces        → busca por selfie, com o termo aceito (registrado)
  * Nenhuma imagem de rosto é enviada ou guardada — só assinaturas (128 números) e caixas.
@@ -54,6 +57,16 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
     return json({ ok: true });
   }
 
+  if (path === '/api/faces/labels' && method === 'GET') {
+    const rows = (await db.prepare('SELECT event_id AS e, pair, score AS s, answer AS ans, created_at AS at FROM face_labels ORDER BY created_at DESC LIMIT 20000').all()).results;
+    return json(rows);
+  }
+  const unlabel = /^\/api\/faces\/labels\/(fx_[a-z0-9]{6,30}\|fx_[a-z0-9]{6,30})$/.exec(decodeURIComponent(path));
+  if (unlabel && method === 'DELETE') {
+    await db.prepare('DELETE FROM face_labels WHERE pair = ?').bind(unlabel[1]!).run();
+    return json({ ok: true });
+  }
+
   if (path === '/api/faces/settings') {
     if (method === 'GET') return json({ threshold: await faceThreshold(db), default: COSINE_MATCH });
     if (method === 'PUT') {
@@ -67,7 +80,7 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
     }
   }
 
-  const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})\/(?:faces(?:\/(vectors|consent|pilot|pack|public|remove))?|photos\/(ph_[a-z0-9]{6,30})\/faces)$/.exec(path);
+  const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})\/(?:faces(?:\/(vectors|consent|pilot|pack|public|remove|labels))?|photos\/(ph_[a-z0-9]{6,30})\/faces)$/.exec(path);
   if (!m) return null;
   const [, eventId, sub, photoId] = m as unknown as [string, string, string | undefined, string | undefined];
   const ev = await db.prepare('SELECT face_search, face_pack_at FROM events WHERE id = ?').bind(eventId).first<{ face_search: number; face_pack_at: string }>();
@@ -117,9 +130,9 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
   if (sub === 'vectors' && method === 'GET') {
     const rows = (
       await db
-        .prepare('SELECT f.photo_id AS p, e.seq AS n, f.vec AS v FROM face_index f JOIN event_photos e ON e.id = f.photo_id WHERE f.event_id = ?')
+        .prepare('SELECT f.id, f.photo_id AS p, e.seq AS n, f.vec AS v, f.box AS b, e.width AS w, e.height AS h FROM face_index f JOIN event_photos e ON e.id = f.photo_id WHERE f.event_id = ?')
         .bind(eventId)
-        .all<{ p: string; n: number; v: string }>()
+        .all<{ id: string; p: string; n: number; v: string; b: string; w: number; h: number }>()
     ).results;
     return json(rows);
   }
@@ -161,6 +174,20 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
       db.prepare('UPDATE event_photos SET faces = 0 WHERE event_id = ? AND id IN (SELECT value FROM json_each(?))').bind(eventId, JSON.stringify(ids)),
     ]);
     return json({ ok: true, removed: ids.length });
+  }
+
+  if (sub === 'labels' && method === 'POST') {
+    const b = (await readJson(req)) as { a?: unknown; b?: unknown; score?: unknown; answer?: unknown };
+    const ok = (x: unknown): x is string => typeof x === 'string' && /^fx_[a-z0-9]{6,30}$/.test(x);
+    if (!ok(b.a) || !ok(b.b) || b.a === b.b) return json({ error: 'Par inválido.' }, 400);
+    if (typeof b.score !== 'number' || !Number.isFinite(b.score) || Math.abs(b.score) > 1.0001) return json({ error: 'Pontuação inválida.' }, 400);
+    if (b.answer !== 'same' && b.answer !== 'diff' && b.answer !== 'unsure') return json({ error: 'Resposta inválida.' }, 400);
+    const pair = b.a < b.b ? `${b.a}|${b.b}` : `${b.b}|${b.a}`;
+    await db
+      .prepare('INSERT INTO face_labels (id, event_id, pair, score, answer, created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(pair) DO UPDATE SET answer = excluded.answer, created_at = excluded.created_at')
+      .bind(newId('fl'), eventId, pair, Math.round(b.score * 10000) / 10000, b.answer, now())
+      .run();
+    return json({ ok: true, pair });
   }
 
   if (sub === 'consent' && method === 'POST') {
