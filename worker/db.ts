@@ -179,6 +179,16 @@ const SCHEMA = [
     created_at TEXT NOT NULL,
     revoked_at TEXT NOT NULL DEFAULT ''
   )`,
+  // Treinar a IA: respostas do fotógrafo sobre pares de rostos (só números e a resposta;
+  // continuam valendo para a calibragem mesmo depois que o evento é apagado).
+  `CREATE TABLE IF NOT EXISTS face_labels (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    pair TEXT NOT NULL UNIQUE,
+    score REAL NOT NULL,
+    answer TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS face_pilot_runs (
     id TEXT PRIMARY KEY,
     event_id TEXT NOT NULL,

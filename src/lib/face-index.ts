@@ -8,7 +8,7 @@
  * - rebuildPack: junta as assinaturas do evento no pacote da busca pública.
  */
 import { api } from './panel-api';
-import { decodeVec, encodeVec, packIndex } from './faces';
+import { decodeVec, encodeVec, packIndex, reliableBox } from './faces';
 
 let engine: typeof import('./face-engine') | null = null;
 export const faceEngine = async (onProgress?: (pct: number) => void) => {
@@ -38,9 +38,12 @@ export async function indexPhoto(eventId: string, photoId: string, source: Blob)
 /** Pacote compacto das assinaturas do evento (a busca pública usa só ele). */
 export async function rebuildPack(eventId: string) {
   const rows = await api.faceVectors(eventId);
+  // Só rostos grandes o bastante (índices antigos podem ter rostos pequenos, que confundem pessoas).
   const list = rows.flatMap((r) => {
     const vec = decodeVec(r.v);
-    return vec ? [{ n: r.n, vec }] : [];
+    const box = r.b ? r.b.split(',').map(Number) : null;
+    if (!vec || (box && box.length === 4 && !reliableBox(box, r.w, r.h))) return [];
+    return [{ n: r.n, vec }];
   });
   return api.uploadFacePack(eventId, packIndex(list));
 }

@@ -6,7 +6,7 @@
  * A imagem nunca sai do aparelho: só as assinaturas são usadas.
  */
 import * as ort from 'onnxruntime-web/wasm';
-import { alignCrop, DET_SIZE, decodeYunet, detectorTensor, normalize, recognizerTensor, REC_SIZE, scaleFace, usableFace, type Face } from './faces';
+import { alignCrop, DET_SIZE, decodeYunet, detectorTensor, MIN_SHARPNESS, normalize, recognizerTensor, REC_SIZE, scaleFace, sharpness, usableFace, type Face } from './faces';
 
 ort.env.wasm.wasmPaths = '/ort/';
 ort.env.logLevel = 'error'; // o SFace gera muitos avisos inofensivos no console
@@ -95,7 +95,7 @@ export function loadEngine(onProgress?: (pct: number) => void, variant: EngineVa
 /** Detecta os rostos de uma imagem e gera a assinatura de cada um. */
 export async function facesOf(
   img: ImageBitmap | HTMLImageElement | HTMLCanvasElement,
-  o: { maxSide?: number; minScore?: number; variant?: EngineVariant } = {},
+  o: { maxSide?: number; minScore?: number; variant?: EngineVariant; minSharpness?: number } = {},
 ): Promise<FaceWithVec[]> {
   const { det, rec } = await loadEngine(undefined, o.variant);
   const W = 'naturalWidth' in img ? img.naturalWidth : img.width;
@@ -120,6 +120,8 @@ export async function facesOf(
   const result: FaceWithVec[] = [];
   for (const f of faces) {
     const crop = alignCrop(pixels, fw, fh, f.landmarks);
+    // Rosto desfocado (ex.: pessoa ao fundo fora de foco): não indexa.
+    if (sharpness(crop) < (o.minSharpness ?? MIN_SHARPNESS)) continue;
     const r = await rec.run({ data: new ort.Tensor('float32', recognizerTensor(crop), [1, 3, REC_SIZE, REC_SIZE]) });
     // Coordenadas de volta ao tamanho original da imagem.
     result.push({ ...scaleFace(f, kFull), vec: normalize((r.fc1 as ort.Tensor).data as Float32Array) });

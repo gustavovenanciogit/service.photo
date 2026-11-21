@@ -126,11 +126,15 @@ export const api = {
     await Promise.all(Array.from({ length: parallel }, async () => { while (left-- > 0) await send(); }));
     return (blocks * size) / 1_000_000 / ((performance.now() - t0) / 1000);
   },
+  faceLabels: () => request<{ e: string; pair: string; s: number; ans: 'same' | 'diff' | 'unsure'; at: string }[]>('GET', '/api/faces/labels'),
+  saveFaceLabel: (id: string, a: string, b: string, score: number, answer: 'same' | 'diff' | 'unsure') =>
+    request<{ ok: true; pair: string }>('POST', `/api/events/${encodeURIComponent(id)}/faces/labels`, { a, b, score, answer }),
+  deleteFaceLabel: (pair: string) => request<{ ok: true }>('DELETE', `/api/faces/labels/${encodeURIComponent(pair)}`),
   // Reconhecimento facial (piloto)
   faceStatus: (id: string) => request<{ total: number; indexed: number; faces: number; pending: { id: string; seq: number }[]; face_search: boolean; face_pack_at: string }>('GET', `/api/events/${encodeURIComponent(id)}/faces`),
   saveFaces: (id: string, pid: string, faces: { vec: string; score: number; box: number[] }[]) =>
     request<{ ok: true; faces: number }>('POST', `/api/events/${encodeURIComponent(id)}/photos/${encodeURIComponent(pid)}/faces`, { faces }),
-  faceVectors: (id: string) => request<{ p: string; n: number; v: string }[]>('GET', `/api/events/${encodeURIComponent(id)}/faces/vectors`),
+  faceVectors: (id: string) => request<{ id: string; p: string; n: number; v: string; b: string; w: number; h: number }[]>('GET', `/api/events/${encodeURIComponent(id)}/faces/vectors`),
   deleteFaces: (id: string) => request<{ ok: true }>('DELETE', `/api/events/${encodeURIComponent(id)}/faces`),
   faceConsent: (id: string, version: string, label: string) => request<{ id: string }>('POST', `/api/events/${encodeURIComponent(id)}/faces/consent`, { version, label, accept: true }),
   revokeFaceConsent: (cid: string) => request<{ ok: true }>('POST', `/api/faces/consent/${encodeURIComponent(cid)}/revoke`, {}),

@@ -202,7 +202,7 @@ fora do painel. Mais adiante, cada evento pode também aparecer no **site públi
 ### Validação
 - [ ] **6.8 👤 Voluntários** que autorizam o teste (você, amigos, atletas parceiros) num evento seu.
 - [x] **6.9 🤖 Ferramenta de medição** no painel: % das fotos da pessoa encontradas e % de fotos erradas, por nível de exigência. _(marcação ✓/✗, "faltou a foto nº", tabela por limite 0,30–0,50 e medições salvas)_
-- [ ] **6.10 👤🤖 Escolha da tecnologia e do nível de exigência** pelos números reais.
+- [ ] **6.10 👤🤖 Escolha da tecnologia e do nível de exigência** pelos números reais. _(ferramenta pronta: painel → **Treinar IA** — você responde "mesma pessoa / diferentes" em pares de rostos e o painel recomenda e aplica o nível; rostos < 48 px ou desfocados deixam de ser indexados)_
 - [x] **6.11 🤖 Busca por selfie na galeria** _(20/11/2026: ligada evento a evento no painel → Reconhecimento facial, só depois de confirmar o aviso do evento; termo aceito a cada busca e registrado; selfie analisada no celular com o modelo leve (~10 MB) e só a assinatura vai ao servidor; pedido de remoção tira fotos da busca; nível de exigência ajustável)_
 - [x] **6.11b 🤖 Galeria privada** _(opção do evento, na criação e na edição: o público não vê a lista nem busca por número; cada pessoa vê só as fotos que a própria selfie encontrou, com chave de acesso por foto válida por 72 h; o fotógrafo logado vê tudo; a foto de capa escolhida continua pública)_
 - [ ] **6.12 👤 Liberar em cada evento** só com o aviso do evento (6.3) e, de preferência, depois do piloto (6.8–6.10).

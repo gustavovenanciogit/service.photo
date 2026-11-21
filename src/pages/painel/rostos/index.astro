@@ -35,6 +35,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
       <div class="flex flex-wrap gap-2">
         <button type="button" data-index class="btn btn-primary min-h-11 text-sm" disabled>Indexar fotos que faltam</button>
         <button type="button" data-pause class="btn btn-outline min-h-11 text-sm" hidden>Pausar</button>
+        <button type="button" data-redo class="btn btn-outline min-h-11 text-sm" disabled title="Refaz com os critérios atuais (ignora rostos pequenos ou desfocados)">Refazer índice</button>
         <button type="button" data-wipe class="btn btn-outline min-h-11 text-sm" disabled>Apagar índice</button>
       </div>
     </div>
@@ -164,7 +165,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
 
 <script>
   import { api, toast } from '@/lib/panel-api';
-  import { COSINE_MATCH, cosine, decodeVec, mainFace, pilotMetrics } from '@/lib/faces';
+  import { COSINE_MATCH, cosine, decodeVec, mainFace, MIN_SHARPNESS_SELFIE, pilotMetrics } from '@/lib/faces';
   import { indexPhoto, rebuildPack } from '@/lib/face-index';
   import type { EventRecord } from '@/lib/events';
 
@@ -213,6 +214,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     $('[data-bar]').style.width = `${s.total ? (s.indexed / s.total) * 100 : 0}%`;
     $<HTMLButtonElement>('[data-index]').disabled = running || !s.pending.length;
     $<HTMLButtonElement>('[data-wipe]').disabled = running || !s.indexed;
+    $<HTMLButtonElement>('[data-redo]').disabled = running || !s.indexed;
     return s;
   }
 
@@ -340,7 +342,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
       const eng = await ensureModels((m) => (st.textContent = m));
       st.textContent = 'Analisando a selfie…';
       const bmp = await createImageBitmap(file);
-      const faces = await eng.facesOf(bmp, { minScore: 0.7 });
+      const faces = await eng.facesOf(bmp, { minScore: 0.7, minSharpness: MIN_SHARPNESS_SELFIE });
       bmp.close();
       const me = mainFace(faces) as (typeof faces)[number] | null;
       if (!me) {
@@ -530,6 +532,19 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
   $('[data-pause]').addEventListener('click', () => {
     paused = true;
     $('[data-status]').textContent = 'Pausando depois da foto atual…';
+  });
+  // Refazer: apaga e indexa de novo com os critérios atuais; se a busca estava ligada, volta a ligar.
+  $('[data-redo]').addEventListener('click', async () => {
+    if (!confirm('Refazer o índice deste evento com os critérios atuais? Rostos pequenos ou desfocados deixam de entrar. Leva alguns minutos (mantenha a aba aberta).')) return;
+    const wasOn = !!lastStatus?.face_search;
+    await api.deleteFaces(eventId);
+    clearSelfie();
+    await runIndex();
+    if (wasOn && !paused) {
+      await api.setFacePublic(eventId, true, true).catch((e: Error) => toast(e.message, 'error'));
+      await refreshStatus();
+      toast('Índice refeito e busca por selfie ligada de novo.');
+    }
   });
   $('[data-wipe]').addEventListener('click', async () => {
     if (!confirm('Apagar todas as assinaturas de rostos e medições deste evento?')) return;

@@ -224,11 +224,47 @@ export function decodeVec(b64: string): Float32Array | null {
   return v;
 }
 
+/**
+ * Nitidez do rosto alinhado (variância do Laplaciano no 112×112 em tons de cinza).
+ * Medido nas fotos de evento: pessoas desfocadas ao fundo ficam abaixo de ~40;
+ * rostos em foco, acima de ~190. Rostos borrados geram assinaturas que confundem pessoas.
+ */
+export function sharpness(rgba: Uint8ClampedArray | Uint8Array, size = REC_SIZE) {
+  const g = new Float32Array(size * size);
+  for (let i = 0; i < size * size; i++) g[i] = 0.299 * rgba[i * 4]! + 0.587 * rgba[i * 4 + 1]! + 0.114 * rgba[i * 4 + 2]!;
+  let s = 0;
+  let s2 = 0;
+  let c = 0;
+  for (let y = 1; y < size - 1; y++)
+    for (let x = 1; x < size - 1; x++) {
+      const i = y * size + x;
+      const v = 4 * g[i]! - g[i - 1]! - g[i + 1]! - g[i - size]! - g[i + size]!;
+      s += v;
+      s2 += v * v;
+      c++;
+    }
+  return s2 / c - (s / c) ** 2;
+}
+/** Nitidez mínima para indexar rostos das fotos do evento. */
+export const MIN_SHARPNESS = 80;
+/** Na selfie do comprador, mais tolerante (câmera de celular com pouca luz). */
+export const MIN_SHARPNESS_SELFIE = 30;
+
 /** Rosto principal de uma selfie: o maior com boa confiança. */
 export const mainFace = (faces: Face[]) => [...faces].sort((a, b) => b.w * b.h - a.w * a.h)[0] ?? null;
 
-/** Ignora rostos pequenos demais para reconhecer com segurança (lado menor que 24 px no original). */
-export const usableFace = (f: Face) => Math.min(f.w, f.h) >= 24;
+/**
+ * Tamanho mínimo do rosto (lado menor, em px na imagem analisada, até 2000 px).
+ * Medido nas fotos de evento: abaixo de ~50 px as assinaturas de pessoas diferentes ficam
+ * parecidas entre si (190 de 541 pares confundidos com 24 px; 1 de 52 com 50 px).
+ */
+export const MIN_FACE_PX = 48;
+export const ANALYSIS_MAX_SIDE = 2000;
+/** Rosto grande o bastante para reconhecer com segurança (coordenadas da imagem analisada). */
+export const usableFace = (f: Face) => Math.min(f.w, f.h) >= MIN_FACE_PX;
+/** O mesmo critério a partir da caixa guardada (coordenadas da foto original, de largura w e altura h). */
+export const reliableBox = (box: ArrayLike<number>, w: number, h: number) =>
+  Math.min(box[2]!, box[3]!) * Math.min(1, ANALYSIS_MAX_SIDE / Math.max(w || 1, h || 1)) >= MIN_FACE_PX;
 
 /** Taxa de acerto do piloto: das fotos marcadas, quantas certas (precisão) e quantas da pessoa foram achadas (cobertura). */
 export function pilotMetrics(results: { photo: string; score: number }[], correct: Set<string>, wrong: Set<string>, missing: Set<string>, threshold: number) {

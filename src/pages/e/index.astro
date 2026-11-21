@@ -288,7 +288,7 @@ const chip =
   import { cartSummary, columnsFor, packOffer, relativeHeight, shortestColumn } from '@/lib/gallery';
   import { formatBRL, whatsappLink } from '@/lib/whatsapp';
   import { formatDateBR } from '@/lib/proposal';
-  import { encodeVec, mainFace } from '@/lib/faces';
+  import { encodeVec, mainFace, MIN_SHARPNESS_SELFIE } from '@/lib/faces';
   import { store } from '@/config/store';
 
   type Photo = { id: string; n: number; w: number; h: number };
@@ -676,7 +676,7 @@ const chip =
       await eng.loadEngine((p) => faceStatus(`Preparando o reconhecimento… ${p}%`, Math.round(p * 0.8)), 'lite');
       faceStatus('Analisando sua selfie no seu aparelho…', 85);
       const bmp = await createImageBitmap(file);
-      const faces = await eng.facesOf(bmp, { minScore: 0.7, variant: 'lite' });
+      const faces = await eng.facesOf(bmp, { minScore: 0.7, variant: 'lite', minSharpness: MIN_SHARPNESS_SELFIE });
       bmp.close();
       const me = mainFace(faces) as (typeof faces)[number] | null;
       if (!me) return faceFail('Não encontramos um rosto nítido na selfie. Tente de frente, sem óculos escuros e com boa luz.');
