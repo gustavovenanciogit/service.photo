@@ -6,7 +6,7 @@
  * A imagem nunca sai do aparelho: só as assinaturas são usadas.
  */
 import * as ort from 'onnxruntime-web/wasm';
-import { alignCrop, DET_SIZE, decodeYunet, detectorTensor, MIN_SHARPNESS, normalize, recognizerTensor, REC_SIZE, scaleFace, sharpness, usableFace, type Face } from './faces';
+import { alignCrop, DET_SIZE, decodeYunet, detectorTensor, faceSharpness, MIN_SHARPNESS, normalize, recognizerTensor, REC_SIZE, scaleFace, usableFace, type Face } from './faces';
 
 ort.env.wasm.wasmPaths = '/ort/';
 ort.env.logLevel = 'error'; // o SFace gera muitos avisos inofensivos no console
@@ -15,6 +15,8 @@ ort.env.wasm.numThreads = globalThis.crossOriginIsolated ? Math.max(1, Math.min(
 
 export interface FaceWithVec extends Face {
   vec: Float32Array;
+  /** Nitidez no tamanho real do rosto (faceSharpness). */
+  sharp: number;
 }
 
 type Engine = { det: ort.InferenceSession; rec: ort.InferenceSession };
@@ -119,12 +121,13 @@ export async function facesOf(
     .filter(usableFace);
   const result: FaceWithVec[] = [];
   for (const f of faces) {
+    // Rosto desfocado (ex.: pessoa ao fundo fora de foco): não indexa. Medido no tamanho real do rosto.
+    const sharp = faceSharpness(pixels, fw, fh, f);
+    if (sharp < (o.minSharpness ?? MIN_SHARPNESS)) continue;
     const crop = alignCrop(pixels, fw, fh, f.landmarks);
-    // Rosto desfocado (ex.: pessoa ao fundo fora de foco): não indexa.
-    if (sharpness(crop) < (o.minSharpness ?? MIN_SHARPNESS)) continue;
     const r = await rec.run({ data: new ort.Tensor('float32', recognizerTensor(crop), [1, 3, REC_SIZE, REC_SIZE]) });
     // Coordenadas de volta ao tamanho original da imagem.
-    result.push({ ...scaleFace(f, kFull), vec: normalize((r.fc1 as ort.Tensor).data as Float32Array) });
+    result.push({ ...scaleFace(f, kFull), vec: normalize((r.fc1 as ort.Tensor).data as Float32Array), sharp: Math.round(sharp) });
   }
   return result;
 }

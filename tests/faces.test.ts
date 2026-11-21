@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   alignCrop, COSINE_MATCH, cosine, decodeVec, decodeYunet, detectorTensor, encodeVec, mainFace, nms, normalize, packCount, packIndex,
-  pilotMetrics, recognizerTensor, REF_POINTS, reliableBox, sharpness, MIN_SHARPNESS, scaleFace, searchPack, similarityTransform, usableFace, validThreshold, type Face,
+  pilotMetrics, recognizerTensor, REF_POINTS, reliableBox, sharpness, faceSharpness, MIN_SHARPNESS, blurryStored, scaleFace, searchPack, similarityTransform, usableFace, validThreshold, type Face,
 } from '../src/lib/faces.ts';
 
 const face = (x: number, y: number, w: number, h: number, score: number): Face => ({ x, y, w, h, score, landmarks: Array(10).fill(0) });
@@ -173,8 +173,10 @@ test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', a
   );
   const lite = await ort.InferenceSession.create(readFileSync('public/models/face/sface-2021dec-int8.onnx'), { logSeverityLevel: 3 });
 
-  async function faces(file: string, rec = full) {
-    const { data, info } = await sharp(`src/assets/portfolio/${file}`).rotate().resize(2000, 2000, { fit: 'inside', withoutEnlargement: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  async function faces(file: string, rec = full, blur = 0) {
+    let img = sharp(`src/assets/portfolio/${file}`).rotate();
+    if (blur) img = sharp(await img.resize(2000, 2000, { fit: 'inside' }).blur(blur).jpeg().toBuffer());
+    const { data, info } = await img.resize(2000, 2000, { fit: 'inside', withoutEnlargement: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const k = 640 / Math.max(info.width, info.height);
     const small = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
       .resize(Math.round(info.width * k), Math.round(info.height * k))
@@ -185,8 +187,8 @@ test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', a
     const found = decodeYunet(out as never).map((f) => scaleFace(f, k)).filter(usableFace);
     const list: (Face & { vec: Float32Array })[] = [];
     for (const f of found) {
+      if (faceSharpness(data, info.width, info.height, f) < MIN_SHARPNESS) continue; // como no navegador: rosto desfocado não entra
       const crop = alignCrop(data, info.width, info.height, f.landmarks);
-      if (sharpness(crop) < MIN_SHARPNESS) continue; // como no navegador: rosto desfocado não entra
       const o = await rec.run({ data: new ort.Tensor('float32', recognizerTensor(crop), [1, 3, 112, 112]) });
       list.push({ ...f, vec: normalize(o.fc1!.data as Float32Array) });
     }
@@ -207,6 +209,11 @@ test('modelos reais: mesma pessoa acima do limite, pessoas diferentes abaixo', a
     assert.ok(s < COSINE_MATCH, `pessoa diferente deu ${s}`);
   }
   assert.equal((await faces('eventos-sociais/cha-revelacao-vela.jpg')).length, 0);
+  // Rosto grande (≈240 px) com desfoque leve: não pode entrar no índice (antes passava ao medir reduzido a 112 px).
+  assert.equal((await faces('ensaios/ensaio-estudio-retrato.jpg', full, 2)).length, 0);
+  assert.equal(blurryStored(15), true);
+  assert.equal(blurryStored(-1), false);
+  assert.equal(blurryStored(130), false);
 
   // Produção: índice com o modelo completo (painel) e selfie com o modelo leve (celular), pelo pacote.
   const index = [

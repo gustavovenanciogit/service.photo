@@ -92,17 +92,20 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
     const body = (await readJson(req, 200_000)) as { faces?: unknown };
     const list = Array.isArray(body.faces) ? body.faces.slice(0, MAX_FACES_PER_PHOTO) : null;
     if (!list) return json({ error: 'Lista de rostos inválida.' }, 400);
-    const rows: { vec: string; score: number; box: string }[] = [];
-    for (const f of list as { vec?: unknown; score?: unknown; box?: unknown }[]) {
+    const rows: { vec: string; score: number; box: string; sharp: number }[] = [];
+    for (const f of list as { vec?: unknown; score?: unknown; box?: unknown; sharp?: unknown }[]) {
       if (typeof f.vec !== 'string' || !decodeVec(f.vec)) return json({ error: 'Assinatura inválida.' }, 400);
       const score = typeof f.score === 'number' && f.score >= 0 && f.score <= 1 ? f.score : 0;
       const box = Array.isArray(f.box) && f.box.length === 4 && f.box.every((v) => typeof v === 'number' && Number.isFinite(v)) ? f.box.map((v: number) => Math.round(v)).join(',') : '';
-      rows.push({ vec: f.vec, score, box });
+      const sharp = typeof f.sharp === 'number' && Number.isFinite(f.sharp) && f.sharp >= 0 ? Math.round(Math.min(f.sharp, 1e6)) : -1;
+      rows.push({ vec: f.vec, score, box, sharp });
     }
     const t = now();
     await db.batch([
       db.prepare('DELETE FROM face_index WHERE photo_id = ?').bind(photoId),
-      ...rows.map((r) => db.prepare('INSERT INTO face_index (id, event_id, photo_id, vec, score, box, created_at) VALUES (?,?,?,?,?,?,?)').bind(newId('fx'), eventId, photoId, r.vec, r.score, r.box, t)),
+      ...rows.map((r) =>
+        db.prepare('INSERT INTO face_index (id, event_id, photo_id, vec, score, box, sharp, created_at) VALUES (?,?,?,?,?,?,?,?)').bind(newId('fx'), eventId, photoId, r.vec, r.score, r.box, r.sharp, t),
+      ),
       db.prepare('UPDATE event_photos SET faces = ? WHERE id = ?').bind(rows.length, photoId),
     ]);
     return json({ ok: true, faces: rows.length });
@@ -130,9 +133,9 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
   if (sub === 'vectors' && method === 'GET') {
     const rows = (
       await db
-        .prepare('SELECT f.id, f.photo_id AS p, e.seq AS n, f.vec AS v, f.box AS b, e.width AS w, e.height AS h FROM face_index f JOIN event_photos e ON e.id = f.photo_id WHERE f.event_id = ?')
+        .prepare('SELECT f.id, f.photo_id AS p, e.seq AS n, f.vec AS v, f.box AS b, e.width AS w, e.height AS h, f.sharp AS sh FROM face_index f JOIN event_photos e ON e.id = f.photo_id WHERE f.event_id = ?')
         .bind(eventId)
-        .all<{ id: string; p: string; n: number; v: string; b: string; w: number; h: number }>()
+        .all<{ id: string; p: string; n: number; v: string; b: string; w: number; h: number; sh: number }>()
     ).results;
     return json(rows);
   }

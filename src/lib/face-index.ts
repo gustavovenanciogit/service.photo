@@ -8,7 +8,7 @@
  * - rebuildPack: junta as assinaturas do evento no pacote da busca pública.
  */
 import { api } from './panel-api';
-import { decodeVec, encodeVec, packIndex, reliableBox } from './faces';
+import { blurryStored, decodeVec, encodeVec, packIndex, reliableBox } from './faces';
 
 let engine: typeof import('./face-engine') | null = null;
 export const faceEngine = async (onProgress?: (pct: number) => void) => {
@@ -27,7 +27,7 @@ export async function indexPhoto(eventId: string, photoId: string, source: Blob)
     await api.saveFaces(
       eventId,
       photoId,
-      faces.map((f) => ({ vec: encodeVec(f.vec), score: Math.round(f.score * 1000) / 1000, box: [f.x, f.y, f.w, f.h] })),
+      faces.map((f) => ({ vec: encodeVec(f.vec), score: Math.round(f.score * 1000) / 1000, box: [f.x, f.y, f.w, f.h], sharp: f.sharp })),
     );
     return faces.length;
   } finally {
@@ -42,7 +42,7 @@ export async function rebuildPack(eventId: string) {
   const list = rows.flatMap((r) => {
     const vec = decodeVec(r.v);
     const box = r.b ? r.b.split(',').map(Number) : null;
-    if (!vec || (box && box.length === 4 && !reliableBox(box, r.w, r.h))) return [];
+    if (!vec || (box && box.length === 4 && !reliableBox(box, r.w, r.h)) || blurryStored(r.sh)) return [];
     return [{ n: r.n, vec }];
   });
   return api.uploadFacePack(eventId, packIndex(list));

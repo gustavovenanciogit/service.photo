@@ -119,7 +119,7 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
 <script>
   import { api, toast } from '@/lib/panel-api';
   import { calibrate, pickPairs, samePhotoNegatives, type Answer, type IndexedFace, type Pair } from '@/lib/face-calibration';
-  import { COSINE_MATCH, decodeVec, reliableBox } from '@/lib/faces';
+  import { blurryStored, COSINE_MATCH, decodeVec, reliableBox } from '@/lib/faces';
 
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -271,7 +271,7 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
         const vec = decodeVec(r.v);
         const box = r.b.split(',').map(Number);
         // Mesmo critério da busca: rostos pequenos demais ficam de fora.
-        return vec && box.length === 4 && reliableBox(box, r.w, r.h) ? [{ id: r.id, p: r.p, n: r.n, vec, box, w: r.w, h: r.h }] : [];
+        return vec && box.length === 4 && reliableBox(box, r.w, r.h) && !blurryStored(r.sh) ? [{ id: r.id, p: r.p, n: r.n, vec, box, w: r.w, h: r.h }] : [];
       });
       byId = new Map(faces.map((f) => [f.id, f]));
       if (faces.length < 4) {
@@ -289,7 +289,10 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
         st.textContent = 'Não há mais pares novos para conferir neste evento. Experimente outro evento.';
         return;
       }
-      st.textContent = `${faces.length} rostos neste evento · ${autoNeg.length} exemplos automáticos (rostos na mesma foto).`;
+      const old = rows.filter((r) => r.sh < 0).length;
+      st.textContent = `${faces.length} rostos neste evento · ${autoNeg.length} exemplos automáticos (rostos na mesma foto).${
+        old ? ` Atenção: ${old} rostos foram indexados antes do filtro de nitidez — em Reconhecimento facial, clique em "Refazer índice" para tirar os desfocados.` : ''
+      }`;
       pos = 0;
       batch = queue.length;
       history = [];
