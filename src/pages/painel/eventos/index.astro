@@ -1,119 +1,491 @@
 ---
 /**
- * EVENTOS (LOJA DE FOTOS) — /painel/eventos/
- * Lista de eventos e criação de um novo. Cada evento tem a própria página de fotos e link.
+ * PAINEL DE EVENTOS — /painel/eventos/
+ * Visão geral: calendário, próximos eventos, filtros/busca e cards com capa, vendas e ações.
+ * Dados reais de /api/events (com o resumo de vendas pagas de cada evento).
+ * Regras de status/filtros/calendário: src/lib/events-dashboard.ts (com testes).
  */
 import PanelLayout from '@/layouts/PanelLayout.astro';
-const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+import Icon from '@/components/Icon.astro';
+
+const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+const chip =
+  'inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-bg-2 px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-brand/60 aria-pressed:border-brand aria-pressed:bg-brand aria-pressed:text-bg aria-pressed:shadow-[0_0_18px_-6px_var(--color-brand)]';
 ---
 
 <PanelLayout title="Eventos">
-  <p class="eyebrow">Loja de fotos</p>
-  <h1 class="mt-1 text-5xl font-extrabold">Eventos</h1>
-  <p class="mt-2 max-w-2xl text-muted">
-    Crie o evento, envie as fotos e divulgue o link. Quem participou encontra as próprias fotos na galeria e faz o pedido.
+  <!-- Cabeçalho -->
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="eyebrow">Gerenciamento</p>
+      <h1 class="mt-1 text-4xl font-extrabold sm:text-5xl">Visão geral dos eventos</h1>
+      <p class="mt-1 text-muted">Crie, organize e acompanhe suas galerias de fotos.</p>
+    </div>
+    <button type="button" data-new-open class="btn btn-primary min-h-12 gap-2 px-6 shadow-[0_0_24px_-8px_var(--color-brand)]">
+      <Icon name="plus" size={20} /> Novo evento
+    </button>
+  </div>
+
+  <!-- Calendário e próximos eventos -->
+  <div class="mt-6 grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+    <section class="card p-4 sm:p-5" aria-labelledby="cal-title">
+      <div class="flex items-center justify-between gap-2">
+        <h2 id="cal-title" class="flex items-center gap-2 text-lg font-bold"><Icon name="calendar" size={20} class="text-brand" /> <span data-cal-title></span></h2>
+        <div class="flex gap-1">
+          <button type="button" data-cal-prev class="grid size-9 place-items-center rounded-full text-muted hover:bg-white/5 hover:text-ink" aria-label="Mês anterior"><Icon name="chevron-left" size={18} /></button>
+          <button type="button" data-cal-next class="grid size-9 place-items-center rounded-full text-muted hover:bg-white/5 hover:text-ink" aria-label="Próximo mês"><Icon name="chevron-right" size={18} /></button>
+        </div>
+      </div>
+      <div class="mt-3 grid grid-cols-7 text-center text-[11px] font-semibold text-muted" aria-hidden="true">
+        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => <span class="py-1">{d}</span>)}
+      </div>
+      <div data-cal-days class="grid grid-cols-7 gap-y-1 text-center text-sm" role="grid" aria-label="Dias do mês"></div>
+      <p class="mt-2 text-[11px] text-muted">Dias com evento têm um ponto verde. Clique para ver os eventos do dia.</p>
+    </section>
+
+    <section class="card p-4 sm:p-5" aria-labelledby="up-title">
+      <div class="flex items-center justify-between gap-2">
+        <h2 id="up-title" class="flex items-center gap-2 text-lg font-bold"><Icon name="clock" size={20} class="text-brand" /> Próximos eventos</h2>
+        <button type="button" data-see-all class="flex items-center gap-1 text-sm font-semibold text-brand hover:underline">Ver todos <Icon name="arrow-right" size={16} /></button>
+      </div>
+      <ul data-upcoming class="mt-3 space-y-2"></ul>
+    </section>
+  </div>
+
+  <!-- Filtros e busca -->
+  <div data-list-top class="mt-6 flex scroll-mt-4 flex-col gap-3 lg:flex-row lg:items-center">
+    <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0 lg:pb-0" role="group" aria-label="Filtrar eventos">
+      <button type="button" class={chip} data-filter="todos" aria-pressed="true"><Icon name="grid" size={16} /> Todos <span data-count="todos" class="opacity-80"></span></button>
+      <button type="button" class={chip} data-filter="proximos" aria-pressed="false"><Icon name="calendar" size={16} /> Próximos <span data-count="proximos" class="opacity-80"></span></button>
+      <button type="button" class={chip} data-filter="em_andamento" aria-pressed="false"><Icon name="play" size={16} /> Em andamento <span data-count="em_andamento" class="opacity-80"></span></button>
+      <button type="button" class={chip} data-filter="finalizados" aria-pressed="false"><Icon name="check-circle" size={16} /> Finalizados <span data-count="finalizados" class="opacity-80"></span></button>
+    </div>
+    <div class="flex items-center gap-2 lg:ml-auto">
+      <label class="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
+        <span class="sr-only">Buscar evento</span>
+        <Icon name="search" size={16} class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+        <input data-search type="search" placeholder="Buscar evento, local ou data…" class="w-full rounded-full border border-line bg-bg-2 py-2.5 pr-4 pl-10 text-sm text-ink placeholder:text-muted/70 focus:border-brand focus:outline-none" />
+      </label>
+      <div class="relative">
+        <button type="button" data-sort-btn aria-expanded="false" aria-haspopup="true" class="grid size-11 place-items-center rounded-full border border-line bg-bg-2 text-muted hover:border-brand/60 hover:text-ink" aria-label="Ordenar e filtros extras">
+          <Icon name="sliders" size={18} />
+        </button>
+        <div data-sort-menu hidden class="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-line bg-bg-2 p-2 shadow-xl">
+          <p class="px-2 pt-1 pb-2 text-[11px] font-semibold tracking-[0.15em] text-muted uppercase">Ordenar por</p>
+          <div data-sorts class="space-y-0.5"></div>
+          <label class="mt-2 flex items-center gap-2 border-t border-line px-2 pt-2 text-sm text-muted">
+            <input type="checkbox" data-only-sales class="size-4 accent-[var(--color-brand)]" /> Só com vendas
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p data-day-note hidden class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand/30 bg-brand/5 px-3 py-2 text-sm">
+    <span data-day-text></span>
+    <button type="button" data-day-clear class="font-semibold text-brand underline">Ver todos os dias</button>
   </p>
 
-  <form data-new class="card mt-8 grid gap-4 p-5 sm:grid-cols-[2fr_1fr_1.5fr_auto] sm:items-end sm:p-6" novalidate>
-    <label class="block">
-      <span class="text-sm font-medium">Nome do evento</span>
-      <input name="name" required maxlength="120" class={field} placeholder="Ex.: Treino aberto KOHË" />
-    </label>
-    <label class="block">
-      <span class="text-sm font-medium">Data</span>
-      <input name="date" type="date" required class={field} />
-    </label>
-    <label class="block">
-      <span class="text-sm font-medium">Local <span class="text-muted">(opcional)</span></span>
-      <input name="location" maxlength="160" class={field} placeholder="Ex.: Ponta Negra" />
-    </label>
-    <button class="btn btn-primary min-h-12">Criar evento</button>
-    <label class="flex items-start gap-2 text-sm sm:col-span-4">
-      <input name="face_only" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
-      <span><strong>Galeria privada</strong> <span class="text-muted">— cada pessoa vê só as próprias fotos, pela busca por selfie (dá para mudar depois na edição do evento).</span></span>
-    </label>
-  </form>
+  <p data-loading class="mt-8 text-muted">Carregando eventos…</p>
+  <ul data-list class="mt-5 grid gap-5 md:grid-cols-2" aria-live="polite"></ul>
+  <p data-empty hidden class="mt-5 rounded-2xl border border-dashed border-line p-10 text-center text-muted"></p>
 
-  <p data-loading class="mt-8 text-muted">Carregando…</p>
-  <ul data-list class="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-3"></ul>
+  <!-- Menu "Mais" dos cards (um só, posicionado no botão clicado) -->
+  <div data-more-menu hidden role="menu" class="fixed z-50 w-60 overflow-hidden rounded-xl border border-line bg-bg-2 py-1 shadow-2xl"></div>
+
+  <!-- Novo evento -->
+  <dialog data-new class="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-bg-2 p-0 text-ink backdrop:bg-black/70">
+    <form data-new-form class="space-y-4 p-5 sm:p-6" novalidate>
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="eyebrow">Novo evento</p>
+          <h2 class="mt-1 text-3xl font-bold">Criar galeria</h2>
+        </div>
+        <button type="button" data-new-close class="grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label="Fechar"><Icon name="close" size={20} /></button>
+      </div>
+      <label class="block"><span class="text-sm font-medium">Nome do evento</span><input name="name" required maxlength="120" class={field} placeholder="Ex.: Treino aberto KOHË" /></label>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block"><span class="text-sm font-medium">Data</span><input name="date" type="date" required class={field} /></label>
+        <label class="block"><span class="text-sm font-medium">Local <span class="text-muted">(opcional)</span></span><input name="location" maxlength="160" class={field} placeholder="Ex.: Ponta Negra" /></label>
+      </div>
+      <label class="flex items-start gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm">
+        <input name="face_only" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
+        <span><strong>Galeria privada</strong> <span class="text-muted">— cada pessoa vê só as próprias fotos, pela busca por selfie.</span></span>
+      </label>
+      <p class="text-xs text-muted">Preços, prazos, capa e fotos você ajusta na próxima tela. O evento começa como rascunho (só você vê).</p>
+      <button class="btn btn-primary min-h-12 w-full">Criar e enviar fotos</button>
+    </form>
+  </dialog>
 </PanelLayout>
 
 <script>
   import { api, h, toast, todayISO } from '@/lib/panel-api';
-  import { EVENT_STATUSES, publicState, purgeAfter, saleEndsAt, type EventRecord } from '@/lib/events';
+  import { purgeAfter, publicState, type EventRecord } from '@/lib/events';
   import { formatDateBR } from '@/lib/proposal';
+  import { formatBRL } from '@/lib/whatsapp';
+  import { svgIcon, type UiIcon } from '@/lib/ui-icons';
+  import {
+    countFilters, eventPhase, FILTERS, galleryBadge, matchesFilter, matchesSearch, monthGrid, MONTHS, MONTHS_SHORT, PHASES, soldPercent, SORTS,
+    sortEvents, upcoming, type DashboardEvent, type DashboardFilter, type SortKey,
+  } from '@/lib/events-dashboard';
 
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
-  const form = $<HTMLFormElement>('[data-new]');
-  (form.elements.namedItem('date') as HTMLInputElement).value = todayISO();
+  const today = todayISO();
+  let events: DashboardEvent[] = [];
+  const view = { filter: 'todos' as DashboardFilter, q: '', sort: 'data_desc' as SortKey, day: '', onlySales: false };
+  let cal = { y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) };
 
-  const badge = (e: EventRecord) => {
-    const st = publicState(e);
-    if (st === 'aberto') return ['Publicado', 'bg-brand/20 text-brand'];
-    if (st === 'encerrado') return ['Encerrado', 'bg-white/10 text-muted'];
-    return [EVENT_STATUSES.find((s) => s.id === e.status)?.label ?? e.status, 'bg-amber-400/15 text-amber-200'];
+  const TONES = {
+    brand: 'border-brand/50 bg-brand/15 text-brand',
+    neutral: 'border-white/25 bg-black/40 text-ink',
+    amber: 'border-amber-300/40 bg-amber-400/15 text-amber-200',
+    muted: 'border-white/15 bg-black/40 text-muted',
+  } as const;
+  /** Selos sobre a capa: fundo escuro para ler sobre qualquer foto. */
+  const COVER_TONES = {
+    brand: 'border-brand/60 bg-black/70 text-brand',
+    neutral: 'border-white/25 bg-black/70 text-ink',
+    amber: 'border-amber-300/50 bg-black/70 text-amber-200',
+    muted: 'border-white/20 bg-black/70 text-muted',
+  } as const;
+  const publicUrl = (e: EventRecord) => `${location.origin}/e/${e.slug}`;
+  const coverUrl = (e: EventRecord) =>
+    e.cover_image ? `/f/${e.id}/cover.jpg?v=${encodeURIComponent(e.cover_image)}` : e.cover_photo_id ? `/f/${e.id}/${e.cover_photo_id}/preview.jpg` : '';
+  const el = (tag: string, cls: string, html = '') => {
+    const x = document.createElement(tag);
+    x.className = cls;
+    if (html) x.innerHTML = html;
+    return x;
   };
+  const iconText = (icon: UiIcon, text: string, cls = '') => {
+    const s = el('span', `inline-flex min-w-0 items-center gap-1.5 ${cls}`, svgIcon(icon, 15, 'shrink-0 text-brand'));
+    s.append(h('span', 'truncate', text));
+    return s;
+  };
+  /** Capa ou, sem capa, um fundo VENART elegante. */
+  function coverBox(e: EventRecord, cls: string, small = false) {
+    const box = el('div', `relative overflow-hidden bg-[radial-gradient(120%_120%_at_0%_0%,#123222_0%,#0E1612_45%,#070A08_100%)] ${cls}`);
+    const url = coverUrl(e);
+    if (url) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.className = 'absolute inset-0 size-full object-cover';
+      if (e.cover_image) img.style.objectPosition = e.cover_position || '50% 50%';
+      box.append(img);
+    } else {
+      const mark = el('div', 'absolute inset-0 grid place-items-center text-center');
+      mark.append(
+        el('span', `font-display font-extrabold tracking-wide text-white/15 ${small ? 'text-sm' : 'text-5xl'}`, 'VENART<span class="text-brand/40">.</span>'),
+      );
+      box.append(mark);
+    }
+    return box;
+  }
 
-  const render = (events: EventRecord[]) => {
-    const list = $('[data-list]');
-    if (!events.length) {
-      list.replaceChildren(h('li', 'rounded-2xl border border-dashed border-line p-8 text-center text-muted md:col-span-2', 'Nenhum evento ainda. Crie o primeiro acima.'));
+  // ───────── Calendário ─────────
+  function renderCalendar() {
+    $('[data-cal-title]').textContent = `${MONTHS[cal.m - 1]} ${cal.y}`;
+    const byDay = new Map<string, number>();
+    for (const e of events) byDay.set(e.date, (byDay.get(e.date) ?? 0) + 1);
+    const box = $('[data-cal-days]');
+    box.replaceChildren(
+      ...monthGrid(cal.y, cal.m).flat().map((d) => {
+        if (!d) return el('span', '');
+        const n = byDay.get(d) ?? 0;
+        const b = document.createElement('button');
+        b.type = 'button';
+        const isToday = d === today;
+        const sel = d === view.day;
+        b.className = `relative mx-auto grid size-9 place-items-center rounded-lg text-sm transition-colors ${
+          sel ? 'bg-brand font-bold text-bg' : isToday ? 'border border-brand bg-brand/15 font-bold text-brand' : n ? 'font-semibold text-ink hover:bg-white/5' : 'text-muted hover:bg-white/5'
+        }`;
+        b.textContent = String(Number(d.slice(8)));
+        b.setAttribute('aria-label', `${formatDateBR(d)}${n ? ` — ${n} evento${n > 1 ? 's' : ''}` : ''}${isToday ? ' (hoje)' : ''}`);
+        b.setAttribute('aria-pressed', String(sel));
+        if (n) b.append(el('span', `absolute bottom-1 left-1/2 size-1.5 -translate-x-1/2 rounded-full ${sel ? 'bg-bg' : 'bg-brand shadow-[0_0_6px_var(--color-brand)]'}`));
+        b.addEventListener('click', () => {
+          if (!n && !sel) return toast(`Nenhum evento em ${formatDateBR(d)}.`);
+          view.day = sel ? '' : d;
+          renderCalendar();
+          renderList();
+          if (view.day) $('[data-list-top]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        return b;
+      }),
+    );
+  }
+  $('[data-cal-prev]').addEventListener('click', () => { cal = cal.m === 1 ? { y: cal.y - 1, m: 12 } : { y: cal.y, m: cal.m - 1 }; renderCalendar(); });
+  $('[data-cal-next]').addEventListener('click', () => { cal = cal.m === 12 ? { y: cal.y + 1, m: 1 } : { y: cal.y, m: cal.m + 1 }; renderCalendar(); });
+
+  // ───────── Próximos eventos ─────────
+  function renderUpcoming() {
+    const list = upcoming(events, today, 4);
+    const ul = $('[data-upcoming]');
+    if (!list.length) {
+      ul.replaceChildren(h('li', 'rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted', 'Nenhum evento agendado. Use "Novo evento" para criar.'));
       return;
     }
-    list.replaceChildren(
-      ...events.map((e) => {
-        const li = h('li', 'card flex flex-col gap-3 overflow-hidden');
-        const a = h('a', 'block', '') as HTMLAnchorElement;
+    ul.replaceChildren(
+      ...list.map((e) => {
+        const li = document.createElement('li');
+        const a = el('a', 'flex items-center gap-3 rounded-xl border border-line bg-bg/40 p-2 pr-3 transition-colors hover:border-brand/40') as HTMLAnchorElement;
         a.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}`;
-        const cover = h('div', 'aspect-[16/9] bg-bg-2');
-        if (e.cover_photo_id) {
-          const img = h('img', 'size-full object-cover') as HTMLImageElement;
-          img.src = `/f/${e.id}/${e.cover_photo_id}/thumb.jpg`;
-          img.alt = '';
-          img.loading = 'lazy';
-          cover.append(img);
-        } else {
-          cover.className += ' grid place-items-center text-sm text-muted';
-          cover.textContent = e.photo_count ? 'Sem capa escolhida' : 'Sem fotos ainda';
-        }
-        const body = h('div', 'px-5 pb-5');
-        const [label, cls] = badge(e);
-        const top = h('div', 'flex items-start justify-between gap-3');
-        top.append(h('h2', 'text-2xl font-bold leading-tight', e.name), h('span', `shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`, label!));
-        const info = [formatDateBR(e.date), e.location, `${e.photo_count} foto${e.photo_count === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
-        body.append(top, h('p', 'mt-1 text-sm text-muted', info));
-        if (e.published_at && publicState(e) === 'aberto') body.append(h('p', 'mt-1 text-xs text-muted', `Venda até ${formatDateBR(saleEndsAt(e).slice(0, 10))}`));
-        if (e.purged_at) body.append(h('p', 'mt-1 text-xs text-muted', `Fotos apagadas em ${formatDateBR(e.purged_at.slice(0, 10))}`));
-        else if (e.published_at) {
-          const days = Math.ceil((Date.parse(purgeAfter(e)) - Date.now()) / 86_400_000);
-          if (days <= 14) body.append(h('p', 'mt-1 text-xs text-amber-200', days > 0 ? `As fotos serão apagadas em ${days} dia${days === 1 ? '' : 's'} (fim do prazo de download)` : 'Fotos serão apagadas na próxima limpeza'));
-        }
-        a.append(cover, body);
+        const date = el('div', 'grid w-12 shrink-0 place-items-center rounded-lg border border-brand/30 py-1.5 leading-none');
+        date.append(h('span', 'font-display text-xl font-extrabold', e.date.slice(8)), h('span', 'mt-0.5 text-[10px] font-semibold text-brand', MONTHS_SHORT[Number(e.date.slice(5, 7)) - 1]!));
+        const thumb = coverBox(e, 'h-12 w-16 shrink-0 rounded-lg sm:w-20', true);
+        const mid = el('div', 'min-w-0 flex-1');
+        mid.append(h('p', 'truncate text-sm font-semibold', e.name), iconText('pin', e.location || 'Local a definir', 'mt-0.5 text-xs text-muted'));
+        const phase = PHASES[eventPhase(e, today)];
+        const right = el('div', 'hidden shrink-0 flex-col items-end gap-1 sm:flex');
+        right.append(h('span', `rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${TONES[phase.tone]}`, phase.label), h('span', 'text-[11px] text-muted', `${e.photo_count} foto${e.photo_count === 1 ? '' : 's'}`));
+        a.append(date, thumb, mid, right);
         li.append(a);
         return li;
       }),
     );
-  };
+  }
+  $('[data-see-all]').addEventListener('click', () => {
+    setFilter('proximos');
+    $('[data-list-top]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
+  // ───────── Filtros, busca e ordenação ─────────
+  function setFilter(f: DashboardFilter) {
+    view.filter = f;
+    document.querySelectorAll<HTMLElement>('[data-filter]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === f)));
+    renderList();
+  }
+  document.querySelectorAll<HTMLElement>('[data-filter]').forEach((b) => b.addEventListener('click', () => setFilter(b.dataset.filter as DashboardFilter)));
+  $<HTMLInputElement>('[data-search]').addEventListener('input', (e) => { view.q = (e.target as HTMLInputElement).value; renderList(); });
+  $('[data-day-clear]').addEventListener('click', () => { view.day = ''; renderCalendar(); renderList(); });
+  const sortBtn = $('[data-sort-btn]');
+  const sortMenu = $('[data-sort-menu]');
+  sortBtn.addEventListener('click', (e) => { e.stopPropagation(); sortMenu.hidden = !sortMenu.hidden; sortBtn.setAttribute('aria-expanded', String(!sortMenu.hidden)); });
+  sortMenu.addEventListener('click', (e) => e.stopPropagation());
+  function renderSorts() {
+    $('[data-sorts]').replaceChildren(
+      ...SORTS.map((s) => {
+        const b = el('button', `flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm ${view.sort === s.id ? 'bg-brand/10 font-semibold text-brand' : 'text-muted hover:bg-white/5 hover:text-ink'}`);
+        (b as HTMLButtonElement).type = 'button';
+        b.textContent = s.label;
+        b.addEventListener('click', () => { view.sort = s.id; renderSorts(); renderList(); });
+        return b;
+      }),
+    );
+  }
+  $<HTMLInputElement>('[data-only-sales]').addEventListener('change', (e) => { view.onlySales = (e.target as HTMLInputElement).checked; renderList(); });
+
+  // ───────── Ações ─────────
+  async function shareLink(e: EventRecord) {
+    const url = publicUrl(e);
+    if (publicState(e) === 'oculto') toast('Atenção: o evento ainda é rascunho — o link só abre depois de publicar.', 'error');
+    try {
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) return void (await navigator.share({ title: e.name, text: `Fotos do evento ${e.name}`, url }));
+      await navigator.clipboard.writeText(url);
+      toast('Link da galeria copiado.');
+    } catch {
+      prompt('Copie o link da galeria:', url);
+    }
+  }
+  async function setStatus(e: EventRecord, status: EventRecord['status'], msg: string) {
+    try {
+      const updated = await api.updateEvent(e.id, { ...e, status });
+      events = events.map((x) => (x.id === e.id ? { ...x, ...updated } : x));
+      renderAll();
+      toast(msg);
+    } catch (err) { toast((err as Error).message, 'error'); }
+  }
+  const moreMenu = $('[data-more-menu]');
+  function openMore(e: DashboardEvent, anchor: HTMLElement) {
+    const st = publicState(e);
+    const items: [UiIcon, string, () => void, string?][] = [
+      ['eye', 'Visualizar como cliente', () => window.open(publicUrl(e), '_blank', 'noopener')],
+      ['copy', 'Copiar link', async () => { try { await navigator.clipboard.writeText(publicUrl(e)); toast('Link copiado.'); } catch { prompt('Copie o link:', publicUrl(e)); } }],
+      st === 'oculto'
+        ? ['upload', 'Publicar', () => setStatus(e, 'publicado', 'Evento publicado.')]
+        : ['eye', 'Despublicar (voltar a rascunho)', () => confirm('O link deixa de funcionar para o público. Continuar?') && setStatus(e, 'rascunho', 'Evento voltou a rascunho.')],
+      st === 'encerrado'
+        ? ['play', 'Reabrir vendas', () => setStatus(e, 'publicado', 'Vendas reabertas.')]
+        : ['stop', 'Encerrar vendas', () => confirm('Encerrar as vendas deste evento? Compradores com download válido continuam baixando.') && setStatus(e, 'encerrado', 'Vendas encerradas.')],
+      ['image', 'Editar capa', () => (location.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}#capa`)],
+      ['layers', 'Duplicar', async () => {
+        if (!confirm('Criar um novo evento com os mesmos dados, preços e prazos (sem as fotos)?')) return;
+        try { const copy = await api.duplicateEvent(e.id); location.href = `/painel/eventos/editar/?id=${encodeURIComponent(copy.id)}`; } catch (err) { toast((err as Error).message, 'error'); }
+      }],
+      ['trash', 'Excluir', async () => {
+        if (!confirm(`Excluir "${e.name}" e todas as fotos? Não dá para desfazer.`)) return;
+        try { await api.deleteEvent(e.id); events = events.filter((x) => x.id !== e.id); renderAll(); toast('Evento excluído.'); } catch (err) { toast((err as Error).message, 'error'); }
+      }, 'text-red-300'],
+    ];
+    moreMenu.replaceChildren(
+      ...items.map(([icon, label, fn, cls]) => {
+        const b = el('button', `flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm hover:bg-white/5 ${cls ?? 'text-ink'}`, svgIcon(icon, 16, 'shrink-0 opacity-80'));
+        (b as HTMLButtonElement).type = 'button';
+        b.setAttribute('role', 'menuitem');
+        b.append(document.createTextNode(label));
+        b.addEventListener('click', () => { moreMenu.hidden = true; fn(); });
+        return b;
+      }),
+    );
+    moreMenu.hidden = false;
+    moreAnchor = anchor;
+    placeMore();
+    (moreMenu.querySelector('button') as HTMLElement)?.focus({ preventScroll: true });
+  }
+  let moreAnchor: HTMLElement | null = null;
+  /** Posiciona o menu junto ao botão (abaixo; acima se não couber). */
+  function placeMore() {
+    if (!moreAnchor || moreMenu.hidden) return;
+    const r = moreAnchor.getBoundingClientRect();
+    const w = moreMenu.offsetWidth;
+    const hgt = moreMenu.offsetHeight;
+    moreMenu.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.right - w))}px`;
+    moreMenu.style.top = `${r.bottom + hgt + 8 > innerHeight ? Math.max(8, r.top - hgt - 6) : r.bottom + 6}px`;
+  }
+  document.addEventListener('click', (e) => {
+    if (!moreMenu.contains(e.target as Node)) moreMenu.hidden = true;
+    sortMenu.hidden = true;
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { moreMenu.hidden = true; sortMenu.hidden = true; } });
+  // Ao rolar, o menu acompanha o botão (não fecha sozinho).
+  window.addEventListener('scroll', placeMore, { passive: true });
+  window.addEventListener('resize', placeMore);
+
+  // ───────── Cards ─────────
+  function card(e: DashboardEvent) {
+    const li = el('li', 'card group flex flex-col overflow-hidden transition-[border-color,box-shadow] hover:border-brand/40 hover:shadow-[0_0_30px_-12px_var(--color-brand)]');
+    const top = coverBox(e, 'aspect-[16/7]');
+    top.append(el('div', 'pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/30'));
+    const badge = galleryBadge(e);
+    const badges = el('div', 'absolute top-3 left-3 flex flex-wrap gap-1.5');
+    const b1 = el('span', `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur ${COVER_TONES[badge.tone]}`);
+    b1.append(el('span', `size-1.5 rounded-full ${badge.tone === 'brand' ? 'bg-brand shadow-[0_0_6px_var(--color-brand)]' : 'bg-current'}`), document.createTextNode(badge.label));
+    badges.append(b1);
+    if (e.face_only) badges.append(h('span', `rounded-full border px-2.5 py-1 text-xs font-semibold backdrop-blur ${COVER_TONES.neutral}`, 'Privada'));
+    const more = el('button', 'absolute top-3 right-3 grid size-9 place-items-center rounded-lg border border-white/15 bg-black/50 text-white backdrop-blur hover:bg-black/70', svgIcon('dots', 18));
+    (more as HTMLButtonElement).type = 'button';
+    more.setAttribute('aria-label', `Mais ações de ${e.name}`);
+    more.addEventListener('click', (ev) => { ev.stopPropagation(); openMore(e, more); });
+    const editCover = el('a', 'absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/55 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-black/75', svgIcon('camera', 15)) as HTMLAnchorElement;
+    editCover.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}#capa`;
+    editCover.append(document.createTextNode(e.cover_image || e.cover_photo_id ? 'Editar capa' : 'Adicionar capa'));
+    top.append(badges, more, editCover);
+
+    const body = el('div', 'flex flex-1 flex-col p-4 sm:p-5');
+    body.append(h('h2', 'font-display text-2xl leading-tight font-extrabold uppercase sm:text-3xl', e.name));
+    const meta = el('div', 'mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted');
+    meta.append(iconText('calendar', formatDateBR(e.date)));
+    if (e.location) meta.append(iconText('pin', e.location));
+    meta.append(iconText('camera', `${e.photo_count} foto${e.photo_count === 1 ? '' : 's'}`));
+    body.append(meta);
+    // Avisos de prazo (mantidos da versão anterior)
+    if (e.purged_at) body.append(h('p', 'mt-1 text-xs text-muted', `Fotos apagadas em ${formatDateBR(e.purged_at.slice(0, 10))}`));
+    else if (e.published_at) {
+      const days = Math.ceil((Date.parse(purgeAfter(e)) - Date.now()) / 86_400_000);
+      if (days <= 14) body.append(h('p', 'mt-1 text-xs text-amber-200', days > 0 ? `As fotos serão apagadas em ${days} dia${days === 1 ? '' : 's'} (fim do prazo de download)` : 'Fotos serão apagadas na próxima limpeza'));
+    }
+
+    // Vendas (pedidos pagos)
+    const sales = el('a', 'mt-4 flex items-center gap-3 rounded-xl border border-line bg-bg/50 p-3 transition-colors hover:border-brand/40') as HTMLAnchorElement;
+    sales.href = '/painel/vendas/';
+    sales.append(el('span', 'grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand', svgIcon('cart', 18)));
+    const sBox = el('div', 'min-w-0 flex-1');
+    const pct = soldPercent(e);
+    const has = (e.orders_paid ?? 0) > 0;
+    const line = el('div', 'flex items-baseline justify-between gap-2');
+    line.append(h('span', 'text-xs text-muted', has ? `Vendas · ${e.orders_paid} pedido${e.orders_paid === 1 ? '' : 's'}` : 'Vendas'), h('span', 'text-xs font-semibold text-muted', has ? `${pct}% das fotos` : ''));
+    const bar = el('div', 'mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10');
+    const fill = el('div', 'h-full rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]');
+    fill.style.width = `${has ? Math.max(pct, 2) : 0}%`;
+    bar.append(fill);
+    sBox.append(line, h('p', `font-display text-xl font-extrabold ${has ? 'text-ink' : 'text-muted'}`, has ? formatBRL(e.sales_total ?? 0) : 'Sem vendas ainda'), bar);
+    sales.append(sBox, el('span', 'text-muted', svgIcon('chevron-right', 18)));
+    body.append(sales);
+
+    // Ações
+    const acts = el('div', 'mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4');
+    const btn = (icon: UiIcon, label: string, cls = 'border-line text-ink hover:border-brand/50') => {
+      const b = el('button', `inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-semibold transition-colors ${cls}`, svgIcon(icon, 15, 'shrink-0'));
+      (b as HTMLButtonElement).type = 'button';
+      b.append(document.createTextNode(label));
+      return b;
+    };
+    const open = btn('image', 'Abrir galeria');
+    open.addEventListener('click', () => window.open(publicUrl(e), '_blank', 'noopener'));
+    const share = btn('link', 'Compartilhar');
+    share.addEventListener('click', () => void shareLink(e));
+    const edit = btn('edit', 'Editar');
+    edit.addEventListener('click', () => (location.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}`));
+    const more2 = btn('dots', 'Mais', 'border-brand bg-brand text-bg hover:brightness-110');
+    more2.setAttribute('aria-haspopup', 'menu');
+    more2.addEventListener('click', (ev) => { ev.stopPropagation(); openMore(e, more2); });
+    acts.append(open, share, edit, more2);
+    body.append(acts);
+    li.append(top, body);
+    return li;
+  }
+
+  function renderList() {
+    const counts = countFilters(events, today);
+    for (const f of FILTERS) $(`[data-count="${f.id}"]`).textContent = `(${counts[f.id]})`;
+    const list = sortEvents(
+      events.filter((e) => matchesFilter(e, view.filter, today) && matchesSearch(e, view.q) && (!view.day || e.date === view.day) && (!view.onlySales || (e.orders_paid ?? 0) > 0)),
+      view.sort,
+    );
+    $('[data-day-note]').hidden = !view.day;
+    if (view.day) $('[data-day-text]').textContent = `Eventos de ${formatDateBR(view.day)}`;
+    $('[data-list]').replaceChildren(...list.map(card));
+    const empty = $('[data-empty]');
+    empty.hidden = list.length > 0;
+    empty.textContent = events.length ? 'Nenhum evento com esses filtros.' : 'Nenhum evento ainda. Clique em "Novo evento" para criar o primeiro.';
+  }
+
+  function renderAll() {
+    renderCalendar();
+    renderUpcoming();
+    renderList();
+  }
+
+  // ───────── Novo evento ─────────
+  const dlg = $<HTMLDialogElement>('[data-new]');
+  const form = $<HTMLFormElement>('[data-new-form]');
+  $('[data-new-open]').addEventListener('click', () => {
+    form.reset();
+    (form.elements.namedItem('date') as HTMLInputElement).value = view.day || today;
+    dlg.showModal();
+    (form.elements.namedItem('name') as HTMLInputElement).focus();
+  });
+  $('[data-new-close]').addEventListener('click', () => dlg.close());
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const raw = Object.fromEntries(new FormData(form)) as Record<string, string>;
     if (!raw.name?.trim()) return toast('Informe o nome do evento.', 'error');
-    const data = { ...raw, face_only: raw.face_only === 'on' } as unknown as Partial<EventRecord>;
-    const btn = form.querySelector('button')!;
+    if (!raw.date) return toast('Informe a data do evento.', 'error');
+    const btn = form.querySelector<HTMLButtonElement>('button:not([type])')!;
     btn.disabled = true;
     try {
-      const e = await api.createEvent(data);
+      const e = await api.createEvent({ ...raw, face_only: raw.face_only === 'on' } as unknown as Partial<EventRecord>);
       location.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}`;
     } catch (e) {
       toast((e as Error).message, 'error');
       btn.disabled = false;
     }
   });
+  // Atalho: /painel/eventos/?novo=1 abre o formulário.
+  if (new URLSearchParams(location.search).has('novo')) $('[data-new-open]').click();
 
+  // ───────── Início ─────────
+  renderSorts();
   (async () => {
-    try { render(await api.events()); }
-    catch (e) { toast((e as Error).message, 'error'); }
-    finally { $('[data-loading]').hidden = true; }
+    try {
+      events = await api.events();
+      renderAll();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      $('[data-loading]').hidden = true;
+    }
   })();
 </script>

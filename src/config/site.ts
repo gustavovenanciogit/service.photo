@@ -11,6 +11,8 @@
 export const site = {
   /** Nome profissional exibido no topo, rodapé e SEO. */
   name: 'Venart Fotógrafo',
+  /** Nome do dono, mostrado no topo do painel. */
+  owner: 'Gustavo',
   /** Nome curto (logo do menu). */
   shortName: 'VENART',
   /** Linha de apoio do logo. */

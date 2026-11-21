@@ -18,6 +18,7 @@ import * as db from './db.ts';
 import { commitChanges, deployStatus, GitHubError, listFiles, readFile, type FileChange, type GitHubEnv } from './github.ts';
 import { settingsApi } from './settings.ts';
 import { facesApi, publicFaceSearch } from './faces.ts';
+import { store } from '../src/config/store.ts';
 import { eventsApi, faceSearchEvent, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
 import { createOrder, MpError, orderStatus, payOrder, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
@@ -314,6 +315,30 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     return r.meta.changes ? json({ ok: true }) : json({ error: 'Lançamento não encontrado.' }, 404);
   }
 
+  // Armazenamento usado no R2 (somado a partir da lista de arquivos; guardado por 30 min).
+  if (path === '/api/storage' && method === 'GET') {
+    const quota = store.storageQuotaGB * 1e9;
+    const cached = await env.DB.prepare("SELECT value FROM settings WHERE key = 'storage_usage'").first<{ value: string }>();
+    const c = cached ? (JSON.parse(cached.value) as { bytes: number; objects: number; partial: boolean; at: number }) : null;
+    if (c && Date.now() - c.at < 30 * 60_000 && url.searchParams.get('refresh') !== '1') return json({ ...c, quota });
+    let bytes = 0;
+    let objects = 0;
+    let cursor: string | undefined;
+    let calls = 0;
+    do {
+      const page = env.PHOTOS ? await env.PHOTOS.list({ cursor, limit: 1000 }) : null;
+      if (!page) break;
+      for (const o of page.objects) bytes += o.size;
+      objects += page.objects.length;
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor && ++calls < 40);
+    const v = { bytes, objects, partial: !!cursor, at: Date.now() };
+    await env.DB
+      .prepare("INSERT INTO settings (key, value, updated_at) VALUES ('storage_usage', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
+      .bind(JSON.stringify(v), new Date().toISOString())
+      .run();
+    return json({ ...v, quota });
+  }
   // Teste de velocidade de envio (painel): recebe e descarta até 4 MB.
   if (path === '/api/upload-test' && method === 'POST') {
     if (Number(req.headers.get('Content-Length') ?? 0) > 4_000_000) return json({ error: 'Grande demais.' }, 413);

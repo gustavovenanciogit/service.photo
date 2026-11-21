@@ -121,8 +121,20 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
 
   if (path === '/api/events') {
     if (method === 'GET') {
-      const rows = (await db.prepare('SELECT * FROM events ORDER BY date DESC, created_at DESC').all<EventRow>()).results;
-      return json(rows.map(toEvent));
+      // Com o resumo de vendas de cada evento (só pedidos pagos; pedidos de teste não contam).
+      const rows = (
+        await db
+          .prepare(
+            `SELECT e.*, COALESCE(s.total, 0) AS sales_total, COALESCE(s.n, 0) AS orders_paid, COALESCE(p.sold, 0) AS photos_sold
+             FROM events e
+             LEFT JOIN (SELECT event_id, SUM(total) AS total, COUNT(*) AS n FROM orders WHERE status = 'pago' GROUP BY event_id) s ON s.event_id = e.id
+             LEFT JOIN (SELECT o.event_id, COUNT(DISTINCT i.photo_id) AS sold FROM orders o JOIN order_items i ON i.order_id = o.id
+                        WHERE o.status = 'pago' GROUP BY o.event_id) p ON p.event_id = e.id
+             ORDER BY e.date DESC, e.created_at DESC`,
+          )
+          .all<EventRow & { sales_total: number; orders_paid: number; photos_sold: number }>()
+      ).results;
+      return json(rows.map((r) => ({ ...toEvent(r), sales_total: Math.round(r.sales_total * 100) / 100, orders_paid: r.orders_paid, photos_sold: r.photos_sold })));
     }
     if (method === 'POST') {
       const parsed = parseEvent(await readJson(req));

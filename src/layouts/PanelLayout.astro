@@ -77,7 +77,7 @@ const groups: { title: string; items: Item[] }[] = [
       bare ? (
         <slot />
       ) : (
-        <div class="lg:grid lg:min-h-dvh lg:grid-cols-[240px_1fr]">
+        <div class="lg:grid lg:min-h-dvh lg:grid-cols-[248px_1fr]">
           <!-- Menu lateral (computador) / barra superior (celular) -->
           <aside class="sticky top-0 z-40 border-b border-line bg-bg-2/95 backdrop-blur lg:h-dvh lg:overflow-y-auto lg:border-r lg:border-b-0">
             <div class="flex items-center justify-between gap-3 px-4 py-3 lg:block lg:px-5 lg:py-6">
@@ -85,8 +85,14 @@ const groups: { title: string; items: Item[] }[] = [
                 <span class="font-display text-2xl font-extrabold tracking-wide">
                   {site.shortName}<span class="text-brand">.</span>
                 </span>
-                <span class="mt-1 block text-[10px] tracking-[0.25em] text-brand uppercase">Painel profissional</span>
+                <span class="mt-1 block text-[10px] tracking-[0.25em] text-brand uppercase">Fotografia · painel</span>
               </a>
+              <div class="ml-auto flex items-center gap-1 lg:hidden">
+                <a href="/painel/pedidos/" class="relative grid size-10 place-items-center rounded-full text-muted hover:text-ink" aria-label="Pedidos novos">
+                  <Icon name="bell" size={20} />
+                  <span data-bell-dot hidden class="absolute top-2 right-2 size-2 rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]"></span>
+                </a>
+              </div>
               <button
                 type="button"
                 id="panel-menu-btn"
@@ -109,7 +115,7 @@ const groups: { title: string; items: Item[] }[] = [
                           <a
                             href={n.href}
                             aria-current={n.match(path) ? 'page' : undefined}
-                            class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card/50 hover:text-ink aria-[current=page]:bg-card aria-[current=page]:text-brand"
+                            class="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card/50 hover:text-ink aria-[current=page]:border-brand/40 aria-[current=page]:bg-brand/10 aria-[current=page]:text-brand aria-[current=page]:shadow-[0_0_18px_-6px_var(--color-brand)]"
                           >
                             <Icon name={n.icon as 'calendar'} size={18} /> {n.label}
                             {n.badge && <span data-badge={n.badge} hidden class="ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold text-bg" />}
@@ -120,7 +126,16 @@ const groups: { title: string; items: Item[] }[] = [
                   </div>
                 ))}
               </div>
-              <div class="mt-6 space-y-1 border-t border-line pt-4">
+              <!-- Armazenamento das fotos (R2) -->
+              <div data-storage class="mt-6 rounded-2xl border border-line bg-bg/60 p-3">
+                <p class="flex items-center gap-2 text-xs font-semibold text-ink"><Icon name="database" size={16} class="text-brand" /> Armazenamento</p>
+                <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div data-storage-bar class="h-full w-0 rounded-full bg-brand shadow-[0_0_10px_var(--color-brand)] transition-[width] duration-700"></div></div>
+                <p class="mt-1.5 flex justify-between text-[11px] text-muted"><span data-storage-text>Calculando…</span><span data-storage-pct></span></p>
+                <a href="https://dash.cloudflare.com/?to=/:account/r2/overview" target="_blank" rel="noopener noreferrer" class="mt-2.5 flex items-center justify-center gap-1.5 rounded-xl border border-brand/40 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10">
+                  <Icon name="bolt" size={14} /> Gerenciar plano
+                </a>
+              </div>
+              <div class="mt-4 space-y-1 border-t border-line pt-4">
                 <a href="/" target="_blank" rel="noopener" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted hover:text-ink">
                   <Icon name="external" size={18} /> Ver site público
                 </a>
@@ -131,9 +146,32 @@ const groups: { title: string; items: Item[] }[] = [
             </nav>
           </aside>
 
-          <main id="conteudo" class="min-w-0 px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
-            <slot />
-          </main>
+          <div class="min-w-0">
+            <!-- Barra superior: notificações e usuário (computador) -->
+            <header class="hidden items-center justify-end gap-3 border-b border-line px-10 py-3 lg:flex">
+              <a href="/painel/pedidos/" class="relative grid size-10 place-items-center rounded-full text-muted transition-colors hover:bg-card hover:text-ink" aria-label="Pedidos novos do site">
+                <Icon name="bell" size={20} />
+                <span data-bell-dot hidden class="absolute top-2 right-2.5 size-2 rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]"></span>
+              </a>
+              <div class="relative">
+                <button type="button" data-user-btn aria-expanded="false" aria-haspopup="menu" class="flex items-center gap-2.5 rounded-full py-1 pr-2 pl-1 transition-colors hover:bg-card">
+                  <span class="grid size-9 place-items-center rounded-full border border-line bg-card text-muted"><Icon name="user" size={18} /></span>
+                  <span class="text-left leading-tight">
+                    <span class="block text-sm font-semibold">{site.owner}</span>
+                    <span class="block text-[11px] text-muted">Administrador</span>
+                  </span>
+                  <Icon name="chevron-down" size={16} class="text-muted" />
+                </button>
+                <div data-user-menu hidden role="menu" class="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl border border-line bg-bg-2 py-1 shadow-xl">
+                  <a role="menuitem" href="/" target="_blank" rel="noopener" class="flex items-center gap-2 px-4 py-2.5 text-sm text-muted hover:bg-card hover:text-ink"><Icon name="external" size={16} /> Ver site público</a>
+                  <button role="menuitem" type="button" data-logout-top class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-muted hover:bg-card hover:text-ink"><Icon name="close" size={16} /> Sair</button>
+                </div>
+              </div>
+            </header>
+            <main id="conteudo" class="min-w-0 px-4 py-8 sm:px-6 lg:px-10 lg:py-8">
+              <slot />
+            </main>
+          </div>
         </div>
       )
     }
@@ -142,6 +180,7 @@ const groups: { title: string; items: Item[] }[] = [
       import { api, todayISO } from '@/lib/panel-api';
       import { buildQueue } from '@/lib/outreach';
       import { metaDiariaNovos } from '@/data/outreach';
+      import { storageSummary } from '@/lib/events-dashboard';
       const btn = document.getElementById('panel-menu-btn');
       const nav = document.getElementById('panel-nav');
       btn?.addEventListener('click', () => {
@@ -171,10 +210,32 @@ const groups: { title: string; items: Item[] }[] = [
       refreshBadges();
       // As telas avisam quando algo muda (entrega marcada, pedido atendido…).
       window.addEventListener('venart:badges', refreshBadges);
-      document.querySelector('[data-logout]')?.addEventListener('click', async () => {
+      const logout = async () => {
         await api.logout().catch(() => {});
         location.href = '/painel/login/';
+      };
+      document.querySelector('[data-logout]')?.addEventListener('click', logout);
+      document.querySelector('[data-logout-top]')?.addEventListener('click', logout);
+      // Menu do usuário
+      const userBtn = document.querySelector<HTMLElement>('[data-user-btn]');
+      const userMenu = document.querySelector<HTMLElement>('[data-user-menu]');
+      userBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        userMenu!.hidden = !userMenu!.hidden;
+        userBtn.setAttribute('aria-expanded', String(!userMenu!.hidden));
       });
+      document.addEventListener('click', () => { if (userMenu) userMenu.hidden = true; userBtn?.setAttribute('aria-expanded', 'false'); });
+      // Sino: ponto verde quando há pedidos novos do site.
+      api.leadCount().then(({ novo }) => document.querySelectorAll<HTMLElement>('[data-bell-dot]').forEach((d) => (d.hidden = !novo))).catch(() => {});
+      // Armazenamento usado (R2)
+      // (só nas telas com menu; a tela de login não tem)
+      if (document.querySelector('[data-storage]'))
+        api.storage().then((s) => {
+          const sum = storageSummary(s.bytes, s.quota);
+          document.querySelector<HTMLElement>('[data-storage-bar]')!.style.width = `${Math.max(sum.percent, 1)}%`;
+          document.querySelector('[data-storage-text]')!.textContent = `${sum.used} de ${sum.quota}${s.partial ? '+' : ''}`;
+          document.querySelector('[data-storage-pct]')!.textContent = `${sum.percent}%`;
+        }).catch(() => { document.querySelector('[data-storage-text]')!.textContent = 'Indisponível'; });
     </script>
   </body>
 </html>
