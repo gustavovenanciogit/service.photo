@@ -51,6 +51,11 @@ export const store = {
     ],
     checkbox: 'Li e concordo com o uso da selfie (minha ou de quem sou responsável legal) para esta busca.',
   },
+  /**
+   * Armazenamento das fotos (Cloudflare R2). Cota exibida no painel: a gratuita do R2 é 10 GB.
+   * Se contratar mais espaço, mude aqui.
+   */
+  storageQuotaGB: 10,
   /** Nome que aparece na fatura do cartão. */
   statementDescriptor: 'VENART',
 } as const;

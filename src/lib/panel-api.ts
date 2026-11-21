@@ -79,7 +79,8 @@ export const api = {
   deleteRevenue: (id: string) => request<{ ok: true }>('DELETE', `/api/revenue/${encodeURIComponent(id)}`),
   duplicateEvent: (id: string) => request<EventRecord>('POST', `/api/events/${encodeURIComponent(id)}/duplicate`, {}),
 
-  events: () => request<EventRecord[]>('GET', '/api/events'),
+  events: () => request<(EventRecord & { sales_total: number; orders_paid: number; photos_sold: number })[]>('GET', '/api/events'),
+  storage: (refresh = false) => request<{ bytes: number; objects: number; partial: boolean; at: number; quota: number }>('GET', `/api/storage${refresh ? '?refresh=1' : ''}`),
   event: (id: string) => request<EventRecord>('GET', `/api/events/${encodeURIComponent(id)}`),
   createEvent: (e: Partial<EventRecord>) => request<EventRecord>('POST', '/api/events', e),
   updateEvent: (id: string, e: Partial<EventRecord>) => request<EventRecord>('PUT', `/api/events/${encodeURIComponent(id)}`, e),
