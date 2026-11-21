@@ -68,6 +68,9 @@ const recount = (db: D1Database, eventId: string) =>
  * Apaga todos os arquivos com um prefixo (em lotes de até 1000).
  * maxPages limita o trabalho por execução; devolve true quando não sobrou nada.
  */
+/** Zera o valor guardado do armazenamento usado (o painel recalcula na próxima vez). */
+const forgetStorage = (db: D1Database) => db.prepare("DELETE FROM settings WHERE key = 'storage_usage'");
+
 async function purgePrefix(bucket: R2Bucket, prefix: string, maxPages = Infinity) {
   for (let i = 0; i < maxPages; i++) {
     // Sempre a primeira página: o que foi apagado some da listagem.
@@ -101,6 +104,7 @@ export async function purgeExpired(env: EventsEnv, now = new Date()) {
     await db.batch([
       db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(e.id),
       ...purgeFaces(db, e.id),
+      forgetStorage(db),
       db.prepare("UPDATE events SET purged_at = ?, photo_count = 0, cover_photo_id = '', cover_image = '', status = 'encerrado', face_search = 0, face_pack_at = '', updated_at = ? WHERE id = ?").bind(t, t, e.id),
     ]);
     console.log('Limpeza: arquivos apagados do evento', e.id, e.name);
@@ -214,7 +218,7 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
         return json({ error: 'Há compradores com download ainda válido neste evento. Exclua depois que o prazo de download terminar.' }, 409);
       }
       if (env.PHOTOS) await purgePrefix(env.PHOTOS, `events/${eventId}/`);
-      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), ...purgeFaces(db, eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
+      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), ...purgeFaces(db, eventId), forgetStorage(db), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
       return json({ ok: true });
     }
     return json({ error: 'Não encontrado.' }, 404);
@@ -263,7 +267,7 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
       return json({ error: 'Esta foto foi comprada e o download ainda está válido. Não dá para excluir agora.' }, 409);
     }
     if (env.PHOTOS) await env.PHOTOS.delete(PHOTO_PARTS.map((p) => photoKey(eventId, p, photoId)));
-    await db.batch([db.prepare('DELETE FROM event_photos WHERE id = ?').bind(photoId), db.prepare('DELETE FROM face_index WHERE photo_id = ?').bind(photoId)]);
+    await db.batch([db.prepare('DELETE FROM event_photos WHERE id = ?').bind(photoId), db.prepare('DELETE FROM face_index WHERE photo_id = ?').bind(photoId), forgetStorage(db)]);
     if (event.cover_photo_id === photoId) await db.prepare("UPDATE events SET cover_photo_id = '' WHERE id = ?").bind(eventId).run();
     await recount(db, eventId);
     return json({ ok: true });
