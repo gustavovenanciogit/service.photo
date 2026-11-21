@@ -41,7 +41,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     <p data-status class="mt-3 text-sm text-muted" aria-live="polite"></p>
     <div class="mt-2 h-2 overflow-hidden rounded-full bg-bg" aria-hidden="true"><div data-bar class="h-full w-0 bg-brand transition-all"></div></div>
     <p class="mt-2 text-xs text-muted">
-      Na primeira vez o navegador baixa os modelos (~39 MB) e guarda em cache. Mantenha a aba aberta enquanto indexa; dá para pausar e continuar depois.
+      Dica: marque "Reconhecer rostos durante o envio" na tela do evento — as fotos novas já chegam indexadas. Aqui é para eventos enviados antes. Na primeira vez o navegador baixa os modelos (~39 MB). Mantenha a aba aberta; dá para pausar e continuar depois.
       Fotos enviadas depois só entram na busca quando forem indexadas.
     </p>
   </section>
@@ -164,7 +164,8 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
 
 <script>
   import { api, toast } from '@/lib/panel-api';
-  import { COSINE_MATCH, cosine, decodeVec, encodeVec, mainFace, packIndex, pilotMetrics } from '@/lib/faces';
+  import { COSINE_MATCH, cosine, decodeVec, mainFace, pilotMetrics } from '@/lib/faces';
+  import { indexPhoto, rebuildPack } from '@/lib/face-index';
   import type { EventRecord } from '@/lib/events';
 
   const CONSENT_VERSION = 'piloto-2026-11-v1';
@@ -237,23 +238,26 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
     $('[data-pause]').hidden = false;
     const status = $('[data-status]');
     try {
-      const eng = await ensureModels((m) => (status.textContent = m));
+      await ensureModels((m) => (status.textContent = m));
       let done = 0;
       let faces = 0;
       const t0 = performance.now();
-      for (const p of s.pending) {
+      // Baixa as próximas fotos enquanto a atual é analisada (rede e processador trabalhando juntos).
+      const AHEAD = 3;
+      const downloads = new Map<number, Promise<Blob>>();
+      const fetchAt = (i: number) => {
+        const p = s.pending[i];
+        if (p && !downloads.has(i)) downloads.set(i, api.originalPhoto(eventId, p.id));
+      };
+      for (let i = 0; i < s.pending.length; i++) {
         if (paused) break;
-        const blob = await api.originalPhoto(eventId, p.id);
-        const bmp = await createImageBitmap(blob);
-        const found = await eng.facesOf(bmp);
-        bmp.close();
-        await api.saveFaces(
-          eventId,
-          p.id,
-          found.map((f) => ({ vec: encodeVec(f.vec), score: Math.round(f.score * 1000) / 1000, box: [f.x, f.y, f.w, f.h] })),
-        );
+        const p = s.pending[i]!;
+        for (let k = i; k <= i + AHEAD; k++) fetchAt(k);
+        const blob = await downloads.get(i)!;
+        downloads.delete(i);
+        const found = await indexPhoto(eventId, p.id, blob);
         done++;
-        faces += found.length;
+        faces += found;
         const each = (performance.now() - t0) / done / 1000;
         const left = Math.round(((s.pending.length - done) * each) / 60);
         status.textContent = `Indexando foto nº ${p.seq}… ${done} de ${s.pending.length} · ${faces} rostos · ~${fmt(each, 1)} s por foto${left ? ` · faltam ~${left} min` : ''}`;
@@ -295,12 +299,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text
 
   /** Junta as assinaturas do evento num pacote compacto e envia (a busca pública usa só ele). */
   async function buildPack() {
-    const rows = await api.faceVectors(eventId);
-    const list = rows.flatMap((r) => {
-      const vec = decodeVec(r.v);
-      return vec ? [{ n: r.n, vec }] : [];
-    });
-    await api.uploadFacePack(eventId, packIndex(list));
+    await rebuildPack(eventId);
     await refreshStatus();
   }
 
