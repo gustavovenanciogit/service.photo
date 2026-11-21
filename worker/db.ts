@@ -275,7 +275,37 @@ const MIGRATIONS = [
  */
 const SCHEMA_VERSION = `${SCHEMA.length}.${MIGRATIONS.length}`;
 
-async function migrate(db: D1Database) {
+/** Quantos comandos de estrutura no máximo por acesso (o plano gratuito permite 50 consultas no total). */
+const MIGRATION_BUDGET = 30;
+
+/** Nome da tabela/índice criado por um comando CREATE … IF NOT EXISTS. */
+const createdName = (sql: string) => /CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX)\s+IF\s+NOT\s+EXISTS\s+(\w+)/i.exec(sql)?.[1] ?? '';
+/** Tabela e coluna de um ALTER TABLE … ADD COLUMN. */
+const alterTarget = (sql: string) => {
+  const m = /ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)/i.exec(sql);
+  return m ? { table: m[1]!, column: m[2]! } : null;
+};
+
+/**
+ * O que falta aplicar, olhando a estrutura atual do banco (sqlite_master guarda o CREATE de
+ * cada tabela, já com as colunas adicionadas depois). Puro: usado também nos testes.
+ */
+export function pendingMigrations(existing: { name: string; sql: string | null }[]) {
+  const names = new Set(existing.map((e) => e.name));
+  const tableSql = new Map(existing.map((e) => [e.name, (e.sql ?? '').toLowerCase()]));
+  const out: string[] = [];
+  for (const s of SCHEMA) if (!names.has(createdName(s))) out.push(s);
+  for (const m of MIGRATIONS) {
+    const t = alterTarget(m);
+    if (!t) continue;
+    const sql = tableSql.get(t.table);
+    // Tabela ainda não existe (vai ser criada agora, já sem a coluna) ou coluna ausente.
+    if (sql === undefined || !new RegExp(`[(,\\s]${t.column.toLowerCase()}\\s`).test(sql)) out.push(m);
+  }
+  return out;
+}
+
+export async function migrate(db: D1Database) {
   // Já está na versão atual? Uma consulta só.
   try {
     const row = await db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").first<{ value: string }>();
@@ -283,14 +313,17 @@ async function migrate(db: D1Database) {
   } catch {
     // tabela settings ainda não existe (banco novo): segue para criar tudo
   }
-  await db.batch(SCHEMA.map((s) => db.prepare(s)));
-  let allOk = true;
-  for (const m of MIGRATIONS) {
+  // Só o que falta, em lotes pequenos: se não couber neste acesso, continua no próximo.
+  const existing = (await db.prepare("SELECT name, sql FROM sqlite_master WHERE type IN ('table', 'index')").all<{ name: string; sql: string | null }>()).results;
+  const pending = pendingMigrations(existing);
+  const now = pending.slice(0, MIGRATION_BUDGET);
+  let allOk = pending.length <= MIGRATION_BUDGET;
+  for (const m of now) {
     try {
       await db.prepare(m).run();
     } catch (e) {
       const msg = String((e as Error).message);
-      if (/duplicate column/i.test(msg)) continue; // já aplicada
+      if (/duplicate column|already exists/i.test(msg)) continue; // já aplicada
       // Não derruba o site por causa de uma coluna: registra no log e tenta de novo no próximo acesso.
       allOk = false;
       console.error('Migração falhou:', m, msg);
@@ -301,6 +334,8 @@ async function migrate(db: D1Database) {
       .prepare("INSERT INTO settings (key, value, updated_at) VALUES ('schema_version', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
       .bind(SCHEMA_VERSION, new Date().toISOString())
       .run();
+  } else if (pending.length > MIGRATION_BUDGET) {
+    console.log(`Estrutura do banco: ${now.length} aplicadas, ${pending.length - now.length} ficam para o próximo acesso.`);
   }
 }
 
