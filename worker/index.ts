@@ -447,7 +447,14 @@ export default {
           const next = encodeURIComponent(path + url.search);
           return Response.redirect(`${url.origin}/painel/login/?next=${next}`, 302);
         }
-        return withHeaders(await env.ASSETS.fetch(req));
+        const page = withHeaders(await env.ASSETS.fetch(req));
+        // Telas que processam fotos (envio e reconhecimento facial): página isolada para o
+        // reconhecimento usar vários núcleos do processador (WebAssembly com threads).
+        if (/^\/painel\/(rostos|eventos\/editar)\/?$/.test(path)) {
+          page.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+          page.headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
+        }
+        return page;
       }
 
       return env.ASSETS.fetch(req);

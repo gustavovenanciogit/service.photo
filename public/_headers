@@ -1,0 +1,4 @@
+# Motor do reconhecimento facial: as threads (workers) precisam do mesmo isolamento da página do painel.
+/ort/*
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin

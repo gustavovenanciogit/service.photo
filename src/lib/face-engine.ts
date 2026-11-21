@@ -10,7 +10,8 @@ import { alignCrop, DET_SIZE, decodeYunet, detectorTensor, normalize, recognizer
 
 ort.env.wasm.wasmPaths = '/ort/';
 ort.env.logLevel = 'error'; // o SFace gera muitos avisos inofensivos no console
-ort.env.wasm.numThreads = 1; // sem isolamento entre origens o navegador não permite várias threads
+// Várias threads só em página isolada (painel: cabeçalhos COOP/COEP); senão 1 (galeria pública, Safari).
+ort.env.wasm.numThreads = globalThis.crossOriginIsolated ? Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)) : 1;
 
 export interface FaceWithVec extends Face {
   vec: Float32Array;
@@ -66,7 +67,10 @@ export function loadEngine(onProgress?: (pct: number) => void, variant: EngineVa
       const total = 232_589 + FILES[variant].bytes;
       let done = 0;
       const track = (base: number) => (n: number) => onProgress?.(Math.min(99, Math.round(((base + n) / total) * 100)));
-      const det = await ort.InferenceSession.create(await fetchBytes('/models/face/yunet-2023mar.onnx', track(0)), opts);
+      // Se o motor não abrir em 60 s (ex.: navegador que trava as threads), desiste com aviso em vez de ficar parado.
+      const limit = <T,>(p: Promise<T>) =>
+        Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('O reconhecimento facial não iniciou neste navegador. Tente o Chrome ou atualize a página.')), 60_000))]);
+      const det = await limit(ort.InferenceSession.create(await fetchBytes('/models/face/yunet-2023mar.onnx', track(0)), opts));
       done += 232_589;
       const parts: Uint8Array[] = [];
       for (const url of FILES[variant].urls) {
@@ -76,7 +80,7 @@ export function loadEngine(onProgress?: (pct: number) => void, variant: EngineVa
       }
       const model = new Uint8Array(parts.reduce((s, b) => s + b.length, 0));
       parts.reduce((o, b) => (model.set(b, o), o + b.length), 0);
-      const rec = await ort.InferenceSession.create(model, opts);
+      const rec = await limit(ort.InferenceSession.create(model, opts));
       onProgress?.(100);
       return { det, rec };
     })().catch((e) => {

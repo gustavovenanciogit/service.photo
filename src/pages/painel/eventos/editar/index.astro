@@ -103,6 +103,17 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         </div>
       </div>
 
+      <label class="mt-4 flex items-start gap-3 rounded-2xl border border-line bg-bg p-4 text-sm">
+        <input type="checkbox" data-face-auto class="mt-1 size-4 accent-[var(--color-brand)]" />
+        <span>
+          <strong>Reconhecer rostos durante o envio</strong> <span class="text-muted">(para a busca por selfie)</span>
+          <span class="mt-0.5 block text-xs text-muted">
+            Aproveita a foto que já está no seu computador: não precisa indexar depois nem baixar os originais de novo. Na primeira vez o navegador baixa os
+            modelos (~39 MB).
+          </span>
+        </span>
+      </label>
+
       <div data-drop class="mt-4 rounded-2xl border-2 border-dashed border-line p-6 text-center text-sm text-muted transition-colors">
         Ou arraste as fotos para cá.
       </div>
@@ -117,6 +128,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         </div>
         <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/10"><div data-bar class="h-full w-0 bg-brand transition-[width]"></div></div>
         <p data-progress-detail class="mt-2 text-xs text-muted"></p>
+        <p data-face-progress hidden class="mt-1 text-xs text-muted"></p>
         <ul data-errors class="mt-2 max-h-32 space-y-0.5 overflow-auto text-xs text-red-300"></ul>
       </div>
 
@@ -194,6 +206,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   import { formatBRL } from '@/lib/whatsapp';
   import { loadWatermarkJob, makeVariants, type WatermarkJob } from '@/lib/watermark';
   import { MODELS, MODEL_IDS, type WatermarkSettings } from '@/lib/watermark-models';
+  import { FaceQueue, faceEngine, rebuildPack } from '@/lib/face-index';
 
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
   const id = new URLSearchParams(location.search).get('id') ?? '';
@@ -469,7 +482,21 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   let bytesSent = 0;
   let startedAt = 0;
   let wakeLock: { release(): Promise<void> } | null = null;
-  const PARALLEL = 3;
+  // Fotos enviadas ao mesmo tempo (cada uma manda miniatura, prévia e original em paralelo).
+  const PARALLEL = 4;
+  // Reconhecimento facial durante o envio (preferência guardada neste navegador).
+  const FACE_PREF = 'venart-face-auto';
+  const faceAuto = $<HTMLInputElement>('[data-face-auto]');
+  try { faceAuto.checked = localStorage.getItem(FACE_PREF) !== '0'; } catch { faceAuto.checked = true; }
+  faceAuto.addEventListener('change', () => { try { localStorage.setItem(FACE_PREF, faceAuto.checked ? '1' : '0'); } catch { /* ok */ } });
+  let faceQ: FaceQueue | null = null;
+  const renderFaces = () => {
+    const el = $('[data-face-progress]');
+    el.hidden = !faceQ;
+    if (!faceQ) return;
+    const total = faceQ.done + faceQ.failed + faceQ.pending;
+    el.textContent = `Rostos: ${faceQ.done} de ${total} fotos analisadas · ${faceQ.faces} rostos${faceQ.failed ? ` · ${faceQ.failed} para indexar depois` : ''}${faceQ.pending && !running && !queue.length ? ' · terminando o reconhecimento…' : ''}`;
+  };
   const MAX_SALE = 25_000_000;
 
   const fmtTime = (s: number) => (s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`);
@@ -501,10 +528,15 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     // Refazer: baixa o original guardado (só o fotógrafo logado consegue) e gera prévias novas.
     const file = item.file ?? (await api.originalPhoto(ev.id, photo.id));
     const v = await makeVariants(file, photoLabel(photo.seq), photo.id, job);
-    await api.uploadPart(ev.id, photo.id, 'thumb', v.thumb);
-    await api.uploadPart(ev.id, photo.id, 'preview', v.preview);
-    if (item.file) await api.uploadPart(ev.id, photo.id, 'sale', item.file);
+    // Os três arquivos da foto vão ao mesmo tempo.
+    await Promise.all([
+      api.uploadPart(ev.id, photo.id, 'thumb', v.thumb),
+      api.uploadPart(ev.id, photo.id, 'preview', v.preview),
+      item.file ? api.uploadPart(ev.id, photo.id, 'sale', item.file) : null,
+    ]);
     const saved = await api.completePhoto(ev.id, photo.id, v.width, v.height, job.sig);
+    // Rostos: em fila separada, sem segurar o envio das próximas fotos.
+    if (item.file && faceQ) faceQ.add(ev.id, photo.id, item.file);
     bytesSent += file.size + v.thumb.size + v.preview.size;
     photos = photos.map((p) => (p.id === saved.id ? saved : p));
   }
@@ -525,24 +557,32 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         .finally(() => {
           running--;
           renderHead(); progress();
-          if (!queue.length && !running) finish();
+          if (!queue.length && !running) void finish();
           else pump();
         });
     }
     progress();
   }
 
-  function finish() {
+  async function finish() {
+    renderGrid();
+    if (faceQ) {
+      renderFaces();
+      await faceQ.idle();
+      // Atualiza o pacote da busca por selfie com os rostos novos.
+      if (faceQ.done) await rebuildPack(ev.id).catch((e: Error) => toast(`Índice da busca: ${e.message}`, 'error'));
+      renderFaces();
+      faceQ = null;
+    }
     wakeLock?.release().catch(() => {});
     wakeLock = null;
-    renderGrid();
     const what = mode === 'marca' ? 'Marca d\'água reaplicada' : 'Todas as fotos foram enviadas';
     toast(failed.length ? `Terminou com ${failed.length} erro(s).` : `${what}!`, failed.length ? 'error' : 'ok');
     renderRemark();
   }
 
   async function addFiles(list: FileList | File[]) {
-    if (running || queue.length) return toast('Aguarde o envio atual terminar.', 'error');
+    if (running || queue.length || faceQ) return toast('Aguarde o envio atual terminar.', 'error');
     const all = [...list];
     const files = all.filter((f) => /\.jpe?g$/i.test(f.name) && f.type !== 'image/png');
     const skippedType = all.length - files.length;
@@ -575,6 +615,11 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     if (already || skippedType) toast([already && `${already} já enviada(s), puladas`, skippedType && `${skippedType} arquivo(s) que não são JPG ignorados`].filter(Boolean).join(' · '));
     if (!items.length) { progress(); return; }
     mode = 'envio';
+    if (faceAuto.checked) {
+      faceQ = new FaceQueue(renderFaces);
+      // Baixa os modelos enquanto as primeiras fotos sobem.
+      faceEngine().catch(() => toast('Não foi possível carregar o reconhecimento facial; as fotos ficam para indexar depois.', 'error'));
+    }
     queue = items; done = 0; total = items.length; bytesSent = 0; startedAt = Date.now(); paused = false;
     try { wakeLock = await (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock?.request('screen') ?? null; } catch { /* sem suporte */ }
     pump();
@@ -596,7 +641,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('border-brand'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('border-brand'));
   drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('border-brand'); if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files); });
-  window.addEventListener('beforeunload', (e) => { if (running || queue.length) e.preventDefault(); });
+  window.addEventListener('beforeunload', (e) => { if (running || queue.length || faceQ?.pending) e.preventDefault(); });
 
   // ───────── Início ─────────
 
