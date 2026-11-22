@@ -39,6 +39,16 @@ e não há limiar recomendado.
 - Toda alteração fica em `face_threshold_log` com o valor anterior; "Restaurar" volta ao anterior.
 - A busca por selfie usa o limiar do evento, se houver; senão o geral.
 
+## Ajuste automático (todos os eventos)
+- Ligado por padrão (painel → Treinar IA → "Ajuste automático da IA"). Ao fim de cada lote de pares e de cada
+  verificação de candidatos, o servidor (`POST /api/faces/auto-tune`) recalcula o limiar **geral** com **todas**
+  as avaliações de todos os eventos e ajusta sozinho.
+- Travas (`AUTO_TUNE` em `src/lib/face-validation.ts`): só com ≥ 15 pares de cada tipo; alvo = limiar recomendado
+  com no máximo **0,5%** de falsos positivos; passo de no máximo **0,03** por vez; não mexe se a diferença < 0,002.
+- Vale para os eventos atuais e futuros que usam o limiar geral; eventos com limiar próprio não mudam.
+- Cada ajuste vira registro no histórico ("Ajuste automático …") e uma sessão no gráfico (tipo "auto").
+- Restaurar o limiar geral desliga o automático (para o próximo lote não desfazer a escolha).
+
 ## Privacidade
 - Página e rotas só com login. Recortes de rosto são feitos no navegador do fotógrafo a partir do original
   (rota protegida); nenhuma URL pública nova. As sessões guardam só números; nada biométrico em logs.

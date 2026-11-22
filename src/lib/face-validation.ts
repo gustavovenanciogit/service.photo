@@ -193,3 +193,44 @@ export function analyze(cur: Metrics, next: Metrics, person?: { cur: PersonGroup
   if (!alerts.length && cur.enough) alerts.push({ level: 'info', text: 'Nenhum risco identificado nas métricas disponíveis.' });
   return { lines, alerts };
 }
+
+// ───────── Ajuste automático do limiar geral ─────────
+
+/** Travas do ajuste automático. */
+export const AUTO_TUNE = {
+  /** Máximo de pares "diferentes" aceitos: o nível mais seguro (galerias privadas). */
+  maxFpr: 0.005,
+  /** Maior mudança por vez (sem saltos bruscos). */
+  maxStep: 0.03,
+  /** Diferença mínima para valer a pena mudar. */
+  minChange: 0.002,
+} as const;
+
+export type AutoTuneDecision =
+  | { apply: true; from: number; to: number; target: number; metrics: Metrics; reason: string }
+  | { apply: false; from: number; target: number | null; reason: string };
+
+/**
+ * Decide o próximo limiar GERAL a partir de TODAS as avaliações (todos os eventos):
+ * só com evidência suficiente, mirando o limiar recomendado com no máximo 0,5% de falsos positivos,
+ * e andando no máximo 0,03 por vez. Como a taxa de falsos positivos só cai quando o limiar sobe,
+ * qualquer passo em direção ao recomendado mantém (ou melhora) a segurança.
+ */
+export function autoTuneDecision(labels: Pick<Label, 's' | 'ans'>[], current: number): AutoTuneDecision {
+  const m = metricsAt(labels, current);
+  if (!m.enough) return { apply: false, from: current, target: null, reason: `Amostra insuficiente (${m.same} "mesma pessoa" e ${m.diff} "diferentes"; mínimo ${MIN_EACH} de cada).` };
+  const target = recommendThreshold(labels, AUTO_TUNE.maxFpr);
+  if (target === null) return { apply: false, from: current, target: null, reason: 'Sem limiar recomendado ainda.' };
+  const diff = target - current;
+  if (Math.abs(diff) < AUTO_TUNE.minChange) return { apply: false, from: current, target, reason: 'O limiar geral já está no recomendado.' };
+  const step = Math.max(-AUTO_TUNE.maxStep, Math.min(AUTO_TUNE.maxStep, diff));
+  const to = Math.round(Math.min(0.6, Math.max(0.25, current + step)) * 1000) / 1000;
+  return {
+    apply: true,
+    from: current,
+    to,
+    target,
+    metrics: metricsAt(labels, to),
+    reason: `${m.same + m.diff} avaliações de todos os eventos: ${diff < 0 ? 'dá para encontrar mais fotos' : 'é preciso reduzir confusões'} (alvo ${target.toFixed(3)}${to !== target ? `, passo de no máximo ${AUTO_TUNE.maxStep}` : ''}).`,
+  };
+}

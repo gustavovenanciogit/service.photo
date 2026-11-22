@@ -85,3 +85,29 @@ test('análise: números reais e alertas de risco', () => {
   const few = analyze(metricsAt(labels.slice(0, 4), 0.5), metricsAt(labels.slice(0, 4), 0.4));
   assert.ok(few.alerts.some((x) => /Amostra insuficiente/.test(x.text)));
 });
+
+test('ajuste automático: travas de amostra, segurança e passo máximo', async () => {
+  const { autoTuneDecision } = await import('../src/lib/face-validation.ts');
+  const mk = (same: number[], diff: number[]) => [
+    ...same.map((s, i) => ({ s, ans: 'same' as const, pair: `fx_s${i}|fx_t${i}`, e: '' })),
+    ...diff.map((s, i) => ({ s, ans: 'diff' as const, pair: `fx_d${i}|fx_e${i}`, e: '' })),
+  ];
+  // Poucas respostas: não mexe
+  assert.equal(autoTuneDecision(mk([0.5], [0.1]), 0.363).apply, false);
+  // Diferentes todos abaixo de 0,30 → recomendado ~0,30; limiar atual 0,45 → desce no máximo 0,03
+  const many = mk(Array.from({ length: 20 }, (_, i) => 0.32 + i * 0.02), Array.from({ length: 20 }, (_, i) => 0.02 + i * 0.014));
+  const d1 = autoTuneDecision(many, 0.45);
+  assert.equal(d1.apply, true);
+  if (d1.apply) {
+    assert.equal(d1.to, 0.42);
+    assert.ok(d1.target < 0.42);
+    assert.ok(d1.metrics.fpr! <= 0.005);
+  }
+  // Limiar permissivo demais (aceita diferentes): sobe
+  const risky = mk(Array.from({ length: 20 }, (_, i) => 0.5 + i * 0.01), Array.from({ length: 20 }, (_, i) => 0.1 + i * 0.02));
+  const d2 = autoTuneDecision(risky, 0.3);
+  assert.equal(d2.apply, true);
+  if (d2.apply) assert.ok(d2.to > 0.3 && d2.to <= 0.33);
+  // Já no alvo: não mexe
+  if (d1.apply) assert.equal(autoTuneDecision(many, d1.target).apply, false);
+});

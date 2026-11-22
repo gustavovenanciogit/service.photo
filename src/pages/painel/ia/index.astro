@@ -62,6 +62,25 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
     </div>
     <p data-k-note class="-mt-2 text-xs text-[#9BA59E]"></p>
 
+    <!-- Ajuste automático -->
+    <section class={`${card} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:p-5`} aria-labelledby="auto-title">
+      <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+        <input type="checkbox" data-auto class="peer sr-only" />
+        <span class="h-7 w-12 rounded-full bg-white/15 transition-colors peer-checked:bg-brand"></span>
+        <span class="absolute left-1 size-5 rounded-full bg-white transition-transform peer-checked:translate-x-5"></span>
+        <span class="sr-only">Ajuste automático</span>
+      </label>
+      <div class="min-w-0 flex-1">
+        <h2 id="auto-title" class="font-bold">Ajuste automático da IA (todos os eventos)</h2>
+        <p class="text-xs text-[#9BA59E]">
+          A cada lote de treino, em qualquer evento, o limiar geral é recalculado com <strong>todas</strong> as avaliações e ajustado sozinho — no máximo 0,5% de
+          confusões, passos de até 0,03, só com evidência suficiente. Vale para os eventos atuais e os próximos (eventos com limiar próprio não mudam).
+          Cada ajuste fica no histórico e pode ser restaurado.
+        </p>
+        <p data-auto-status class="mt-1 text-xs text-brand"></p>
+      </div>
+    </section>
+
     <!-- Evolução + última sessão -->
     <div class="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <section class={`${card} p-4 sm:p-5`} aria-labelledby="ev-title">
@@ -364,7 +383,7 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
       const q = pts[Number(r.dataset.pt)]!;
       const showTip = () => {
         tip.innerHTML = `<p class="font-bold">${q.label} · ${dateBR(q.s.created_at)}</p>
-          <p class="text-[#9BA59E]">${q.s.kind === 'config' ? 'Alteração de configuração' : 'Lote de treino'}${q.s.event_id ? '' : ' · geral'}</p>
+          <p class="text-[#9BA59E]">${q.s.kind === 'auto' ? 'Ajuste automático' : q.s.kind === 'config' ? 'Alteração de configuração' : 'Lote de treino'}${q.s.event_id ? '' : ' · geral'}</p>
           <p class="mt-1">Modelo: ${q.s.model || MODEL_VERSION}</p><p>Filtros: ${q.s.pipeline || '—'}</p><p>Limiar: <b>${th(q.s.threshold)}</b></p>
           <p>Recuperação: <b class="text-[#6DFF5C]">${pc(q.m.recall)}</b></p><p>Precisão: <b>${pc(q.m.precision)}</b></p><p>Falsos positivos: <b class="text-[#F87171]">${pc(q.m.fpr)}</b></p>
           <p class="mt-1 text-[#9BA59E]">Amostras válidas (atual): ${q.m.same + q.m.diff}. Na época: ${q.s.same + q.s.diff} avaliações.</p>`;
@@ -398,7 +417,7 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
     const prev = all[all.length - 2];
     const pm = prev ? metricsAt(L, prev.threshold) : null;
     $('[data-ls-title]').textContent = `Última sessão (S${all.length})`;
-    $('[data-ls-sub]').textContent = `${dateBR(s.created_at)} · ${s.same + s.diff + s.unsure} avaliações na época · ${s.kind === 'config' ? 'alteração de configuração' : 'lote de treino'}`;
+    $('[data-ls-sub]').textContent = `${dateBR(s.created_at)} · ${s.same + s.diff + s.unsure} avaliações na época · ${s.kind === 'auto' ? 'ajuste automático' : s.kind === 'config' ? 'alteração de configuração' : 'lote de treino'}`;
     const row = (label: string, v: string, d: string) => {
       const li = h('li', 'flex items-center justify-between gap-2 border-b border-white/5 pb-2');
       li.append(h('span', 'text-[#9BA59E]', label));
@@ -686,6 +705,7 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
       }
       toast(`${marks.size} avaliação(ões) salvas no conjunto de validação.`);
       dlg('verify').close();
+      await runAutoTune();
       renderAll();
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -755,6 +775,13 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
     if (!confirm(`Restaurar o limiar anterior ${useEvent ? `deste evento` : 'geral'}?`)) return;
     try {
       const r = await api.restoreThreshold(useEvent ? scope : '');
+      // Restaurar o geral com o automático ligado: desliga, para o próximo lote não desfazer a sua escolha.
+      if (!useEvent && autoOn) {
+        await api.setFaceAuto(false).catch(() => undefined);
+        autoOn = false;
+        $<HTMLInputElement>('[data-auto]').checked = false;
+        $('[data-auto-status]').textContent = 'Desligado ao restaurar (para manter o valor escolhido). Ligue de novo quando quiser.';
+      }
       await reloadThresholds();
       testedTouched = false;
       await recordSession('config');
@@ -848,8 +875,38 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
     $('[data-done]').hidden = false;
     $('[data-done-text]').textContent = `Pronto! ${batch} pares conferidos. Sessão registrada — veja o resultado em "Analisar desempenho".`;
     await recordSession('treino');
+    await runAutoTune();
     renderAll();
   }
+
+  // ───────── Ajuste automático (limiar geral, todas as avaliações) ─────────
+  let autoOn = true;
+  async function runAutoTune() {
+    if (!autoOn) return;
+    try {
+      const r = await api.autoTune();
+      if (r.applied) {
+        await reloadThresholds();
+        sessions = await api.faceSessions().catch(() => sessions);
+        testedTouched = false;
+        $('[data-auto-status]').textContent = `Último ajuste: limiar geral ${th(r.from!)} → ${th(r.threshold!)}. ${r.reason}`;
+        toast(`IA ajustada: limiar geral ${th(r.from!)} → ${th(r.threshold!)} (vale para todos os eventos).`);
+        void renderHistory();
+      } else $('[data-auto-status]').textContent = `Sem mudança agora: ${r.reason}`;
+    } catch (e) {
+      $('[data-auto-status]').textContent = (e as Error).message;
+    }
+  }
+  $<HTMLInputElement>('[data-auto]').addEventListener('change', async (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    try {
+      const r = await api.setFaceAuto(on);
+      autoOn = r.auto;
+      toast(on ? 'Ajuste automático ligado.' : 'Ajuste automático desligado: o limiar só muda quando você aplicar.');
+      if (on) { await runAutoTune(); renderAll(); }
+      else $('[data-auto-status]').textContent = 'Desligado.';
+    } catch (err) { toast((err as Error).message, 'error'); }
+  });
   function renderAnswers() {
     const list = scopeLabels().slice(0, 30);
     const name = { same: 'Mesma pessoa', diff: 'Pessoas diferentes', unsure: 'Não tenho certeza' } as const;
@@ -922,6 +979,8 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
       const [l, s, ss, ev] = await Promise.all([api.faceLabels(), api.faceSettings(), api.faceSessions(), api.events()]);
       labels = l;
       globalT = s.threshold;
+      autoOn = s.auto;
+      $<HTMLInputElement>('[data-auto]').checked = s.auto;
       sessions = ss;
       events = ev;
       const sel = $<HTMLSelectElement>('[data-scope]');
@@ -932,7 +991,10 @@ const kpi = `${card} flex flex-col gap-1 p-4`;
       if (labels.length && !sessions.length) await recordSession('treino');
       renderAll();
       renderAnswers();
-      void renderHistory();
+      void renderHistory().then(async () => {
+        const last = (await api.thresholdHistory().catch(() => [])).find((x) => x.note.startsWith('Ajuste automático'));
+        $('[data-auto-status]').textContent = !autoOn ? 'Desligado.' : last ? `Último ajuste: ${dateBR(last.created_at)} · limiar geral ${th(last.old_value)} → ${th(last.new_value)}.` : 'Ligado. O primeiro ajuste acontece quando houver avaliações suficientes.';
+      });
     } catch (e) {
       toast((e as Error).message, 'error');
     }

@@ -10,7 +10,7 @@ import type { WatermarkSettings } from './watermark-models';
 import type { Coupon, CouponStatus } from './coupons';
 
 export type FaceSession = {
-  id: string; event_id: string; kind: 'treino' | 'config'; model: string; pipeline: string; threshold: number; recommended: number;
+  id: string; event_id: string; kind: 'treino' | 'config' | 'auto'; model: string; pipeline: string; threshold: number; recommended: number;
   same: number; diff: number; unsure: number; recall: number; precision: number; fpr: number; set_id: string; created_at: string;
 };
 export type CouponView = Coupon & { uses_confirmed: number; uses_active: number; status: CouponStatus };
@@ -165,7 +165,9 @@ export const api = {
   },
   setFacePublic: (id: string, enabled: boolean, notice: boolean) => request<{ ok: true; face_search: boolean }>('POST', `/api/events/${encodeURIComponent(id)}/faces/public`, { enabled, notice }),
   removeFromFaceSearch: (id: string, numbers: number[]) => request<{ ok: true; removed: number }>('POST', `/api/events/${encodeURIComponent(id)}/faces/remove`, { numbers }),
-  faceSettings: () => request<{ threshold: number; default: number }>('GET', '/api/faces/settings'),
+  faceSettings: () => request<{ threshold: number; default: number; auto: boolean }>('GET', '/api/faces/settings'),
+  setFaceAuto: (auto: boolean) => request<{ threshold: number; default: number; auto: boolean }>('PUT', '/api/faces/settings', { auto }),
+  autoTune: () => request<{ applied: boolean; threshold?: number; from?: number; target?: number; reason: string }>('POST', '/api/faces/auto-tune', {}),
   saveFaceSettings: (threshold: number) => request<{ threshold: number; default: number }>('PUT', '/api/faces/settings', { threshold }),
   pilotRuns: (id: string) => request<{ id: string; consent_id: string; data: unknown; created_at: string; label: string | null; version: string | null }[]>('GET', `/api/events/${encodeURIComponent(id)}/faces/pilot`),
   savePilotRun: (id: string, consent_id: string, data: unknown) => request<{ ok: true }>('POST', `/api/events/${encodeURIComponent(id)}/faces/pilot`, { consent_id, data }),

@@ -26,6 +26,7 @@
  */
 import { COSINE_MATCH, decodeVec, packCount, searchPack, validThreshold } from '../src/lib/faces.ts';
 import { store } from '../src/config/store.ts';
+import { autoTuneDecision, MODEL_VERSION, PIPELINE_VERSION } from '../src/lib/face-validation.ts';
 import { signPhotoAccess } from './auth.ts';
 import { newId } from '../src/lib/crm.ts';
 
@@ -36,6 +37,11 @@ const MAX_FACES_PER_PHOTO = 60;
 type Env = { DB: D1Database; PHOTOS?: R2Bucket; ADMIN_PASSWORD?: string };
 const packKey = (eventId: string) => `events/${eventId}/faces.bin`;
 const MAX_PACK = 26_000_000;
+
+/** Ajuste automático: ligado por padrão (só desliga se o fotógrafo desligar). */
+export const autoTuneOn = async (db: D1Database) => (await db.prepare("SELECT value FROM settings WHERE key = 'face_auto'").first<{ value: string }>())?.value !== '0';
+const setSetting = (db: D1Database, key: string, value: string) =>
+  db.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = ?3').bind(key, value, now()).run();
 
 export async function faceThreshold(db: D1Database) {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'face_threshold'").first<{ value: string }>();
@@ -78,7 +84,7 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         )
         .bind(
-          newId('fs'), ev, b.kind === 'config' ? 'config' : 'treino', str(b.model, 80), str(b.pipeline, 80), t, num(b.recommended, 0, 1), int(b.same), int(b.diff), int(b.unsure),
+          newId('fs'), ev, b.kind === 'config' || b.kind === 'auto' ? b.kind : 'treino', str(b.model, 80), str(b.pipeline, 80), t, num(b.recommended, 0, 1), int(b.same), int(b.diff), int(b.unsure),
           num(b.recall, 0, 1), num(b.precision, 0, 1), num(b.fpr, 0, 1), str(b.set_id, 16), now(),
         )
         .run();
@@ -137,16 +143,38 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
   }
 
   if (path === '/api/faces/settings') {
-    if (method === 'GET') return json({ threshold: await faceThreshold(db), default: COSINE_MATCH });
+    if (method === 'GET') return json({ threshold: await faceThreshold(db), default: COSINE_MATCH, auto: await autoTuneOn(db) });
     if (method === 'PUT') {
-      const t = validThreshold(((await readJson(req)) as { threshold?: unknown }).threshold);
-      if (t === null) return json({ error: 'Nível inválido.' }, 400);
-      await db
-        .prepare("INSERT INTO settings (key, value, updated_at) VALUES ('face_threshold', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
-        .bind(String(t), now())
-        .run();
-      return json({ threshold: t, default: COSINE_MATCH });
+      const b = (await readJson(req)) as { threshold?: unknown; auto?: unknown };
+      if (typeof b.auto === 'boolean') await setSetting(db, 'face_auto', b.auto ? '1' : '0');
+      if (b.threshold !== undefined) {
+        const t = validThreshold(b.threshold);
+        if (t === null) return json({ error: 'Nível inválido.' }, 400);
+        await setSetting(db, 'face_threshold', String(t));
+      }
+      return json({ threshold: await faceThreshold(db), default: COSINE_MATCH, auto: await autoTuneOn(db) });
     }
+  }
+
+  // ── Ajuste automático do limiar GERAL com todas as avaliações (chamado ao fim de cada lote) ──
+  if (path === '/api/faces/auto-tune' && method === 'POST') {
+    if (!(await autoTuneOn(db))) return json({ applied: false, reason: 'Ajuste automático desligado.' });
+    const labels = (await db.prepare('SELECT score AS s, answer AS ans FROM face_labels LIMIT 20000').all<{ s: number; ans: 'same' | 'diff' | 'unsure' }>()).results;
+    const current = await faceThreshold(db);
+    const d = autoTuneDecision(labels, current);
+    if (!d.apply) return json({ applied: false, threshold: current, reason: d.reason });
+    const m = d.metrics;
+    await db.batch([
+      db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('face_threshold', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2").bind(String(d.to), now()),
+      db.prepare('INSERT INTO face_threshold_log (id, event_id, old_value, new_value, note, created_at) VALUES (?,?,?,?,?,?)').bind(newId('ft'), '', d.from, d.to, `Ajuste automático · ${d.reason}`.slice(0, 200), now()),
+      db
+        .prepare(
+          `INSERT INTO face_sessions (id, event_id, kind, model, pipeline, threshold, recommended, same, diff, unsure, recall, precision, fpr, set_id, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        )
+        .bind(newId('fs'), '', 'auto', MODEL_VERSION, PIPELINE_VERSION, d.to, d.target, m.same, m.diff, m.unsure, m.recall ?? -1, m.precision ?? -1, m.fpr ?? -1, '', now()),
+    ]);
+    return json({ applied: true, from: d.from, threshold: d.to, target: d.target, reason: d.reason });
   }
 
   const m = /^\/api\/events\/(evt_[a-z0-9]{6,30})\/(?:faces(?:\/(vectors|consent|pilot|pack|public|remove|labels))?|photos\/(ph_[a-z0-9]{6,30})\/faces)$/.exec(path);
