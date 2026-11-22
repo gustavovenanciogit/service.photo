@@ -222,6 +222,32 @@ const SCHEMA = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS coupon_redemptions_coupon ON coupon_redemptions (coupon_id)`,
+  // Validação facial: sessões (fotografia das métricas) e alterações do limiar (com o anterior, para restaurar).
+  `CREATE TABLE IF NOT EXISTS face_sessions (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL,
+    model TEXT NOT NULL,
+    pipeline TEXT NOT NULL,
+    threshold REAL NOT NULL,
+    recommended REAL NOT NULL DEFAULT -1,
+    same INTEGER NOT NULL,
+    diff INTEGER NOT NULL,
+    unsure INTEGER NOT NULL,
+    recall REAL NOT NULL DEFAULT -1,
+    precision REAL NOT NULL DEFAULT -1,
+    fpr REAL NOT NULL DEFAULT -1,
+    set_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS face_threshold_log (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL DEFAULT '',
+    old_value REAL NOT NULL,
+    new_value REAL NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS face_pilot_runs (
     id TEXT PRIMARY KEY,
     event_id TEXT NOT NULL,
@@ -266,6 +292,7 @@ const MIGRATIONS = [
   `ALTER TABLE orders ADD COLUMN subtotal REAL NOT NULL DEFAULT 0`,
   `ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0`,
   `ALTER TABLE orders ADD COLUMN coupon_code TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN face_threshold REAL NOT NULL DEFAULT -1`,
 ];
 
 /**

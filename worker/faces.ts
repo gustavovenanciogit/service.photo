@@ -12,6 +12,10 @@
  *   POST   /api/events/:id/faces/public          → liga/desliga a busca por selfie (exige aviso do evento confirmado)
  *   POST   /api/events/:id/faces/remove          → tira fotos da busca (pedido de exclusão de alguém)
  *   GET/PUT /api/faces/settings                  → nível de exigência da busca pública
+ *   GET/POST /api/faces/sessions                 → histórico de sessões de validação (nunca sobrescreve)
+ *   POST   /api/faces/threshold                  → aplica limiar (geral ou de um evento) e registra o anterior
+ *   POST   /api/faces/threshold/restore          → volta ao limiar anterior (geral ou do evento)
+ *   GET    /api/faces/threshold/history          → alterações registradas
  *   GET    /api/faces/labels                     → respostas do "Treinar IA" (todas, para a calibragem)
  *   POST   /api/events/:id/faces/labels          → grava/troca uma resposta (par de rostos)
  *   DELETE /api/faces/labels/:pair               → desfaz uma resposta
@@ -55,6 +59,67 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
       db.prepare('DELETE FROM face_pilot_runs WHERE consent_id = ?').bind(revoke[1]!),
     ]);
     return json({ ok: true });
+  }
+
+  // ── Sessões de validação ──
+  if (path === '/api/faces/sessions') {
+    if (method === 'GET') return json((await db.prepare('SELECT * FROM face_sessions ORDER BY created_at ASC LIMIT 2000').all()).results);
+    if (method === 'POST') {
+      const b = (await readJson(req)) as Record<string, unknown>;
+      const num = (v: unknown, min: number, max: number, dflt = -1) => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : dflt);
+      const int = (v: unknown) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) < 1e7 ? (v as number) : 0);
+      const ev = typeof b.event_id === 'string' && /^evt_[a-z0-9]{6,30}$/.test(b.event_id) ? b.event_id : '';
+      const t = validThreshold(b.threshold);
+      if (t === null) return json({ error: 'Limiar inválido.' }, 400);
+      const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
+      await db
+        .prepare(
+          `INSERT INTO face_sessions (id, event_id, kind, model, pipeline, threshold, recommended, same, diff, unsure, recall, precision, fpr, set_id, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        )
+        .bind(
+          newId('fs'), ev, b.kind === 'config' ? 'config' : 'treino', str(b.model, 80), str(b.pipeline, 80), t, num(b.recommended, 0, 1), int(b.same), int(b.diff), int(b.unsure),
+          num(b.recall, 0, 1), num(b.precision, 0, 1), num(b.fpr, 0, 1), str(b.set_id, 16), now(),
+        )
+        .run();
+      return json({ ok: true }, 201);
+    }
+  }
+
+  // ── Limiar: geral ou de um evento, com histórico para restaurar ──
+  if (path === '/api/faces/threshold/history' && method === 'GET') {
+    return json((await db.prepare('SELECT * FROM face_threshold_log ORDER BY created_at DESC LIMIT 100').all()).results);
+  }
+  if ((path === '/api/faces/threshold' || path === '/api/faces/threshold/restore') && method === 'POST') {
+    const b = (await readJson(req)) as { event_id?: unknown; threshold?: unknown; note?: unknown };
+    const ev = typeof b.event_id === 'string' && /^evt_[a-z0-9]{6,30}$/.test(b.event_id) ? b.event_id : '';
+    if (ev && !(await db.prepare('SELECT 1 FROM events WHERE id = ?').bind(ev).first())) return json({ error: 'Evento não encontrado.' }, 404);
+    const current = ev
+      ? ((await db.prepare('SELECT face_threshold AS t FROM events WHERE id = ?').bind(ev).first<{ t: number }>())?.t ?? -1)
+      : await faceThreshold(db);
+    let next: number;
+    let note = typeof b.note === 'string' ? b.note.slice(0, 200) : '';
+    if (path.endsWith('/restore')) {
+      const last = await db.prepare('SELECT old_value FROM face_threshold_log WHERE event_id = ? ORDER BY created_at DESC LIMIT 1').bind(ev).first<{ old_value: number }>();
+      if (!last) return json({ error: 'Não há alteração anterior para restaurar.' }, 404);
+      next = last.old_value;
+      note = 'Restaurado';
+    } else {
+      // Evento: -1 volta a usar o limiar geral.
+      const t = ev && b.threshold === -1 ? -1 : validThreshold(b.threshold);
+      if (t === null) return json({ error: 'Limiar inválido.' }, 400);
+      next = t;
+    }
+    const stmts = [
+      db.prepare('INSERT INTO face_threshold_log (id, event_id, old_value, new_value, note, created_at) VALUES (?,?,?,?,?,?)').bind(newId('ft'), ev, current, next, note, now()),
+      ev
+        ? db.prepare('UPDATE events SET face_threshold = ? WHERE id = ?').bind(next, ev)
+        : db
+            .prepare("INSERT INTO settings (key, value, updated_at) VALUES ('face_threshold', ?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2")
+            .bind(String(next), now()),
+    ];
+    await db.batch(stmts);
+    return json({ ok: true, event_id: ev, old: current, threshold: next });
   }
 
   if (path === '/api/faces/labels' && method === 'DELETE') {
@@ -234,7 +299,7 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
  * e o aceite do termo. Registra o aceite (sem dados pessoais), compara com o pacote do evento e
  * devolve as fotos parecidas. A assinatura não é guardada.
  */
-export async function publicFaceSearch(env: Env, event: { id: string; face_search: boolean; face_only?: boolean }, body: unknown, json: Json) {
+export async function publicFaceSearch(env: Env, event: { id: string; face_search: boolean; face_only?: boolean; face_threshold?: number }, body: unknown, json: Json) {
   const b = (body ?? {}) as { vec?: unknown; accept?: unknown; version?: unknown };
   if (!event.face_search) return json({ error: 'A busca por selfie não está disponível neste evento.' }, 404);
   if (b.accept !== true || b.version !== store.faceSearch.termsVersion) return json({ error: 'É preciso aceitar o termo para buscar por selfie.' }, 400);
@@ -245,7 +310,8 @@ export async function publicFaceSearch(env: Env, event: { id: string; face_searc
   const db = env.DB;
   const consentId = newId('fc');
   const [threshold, buf] = await Promise.all([
-    faceThreshold(db),
+    // Limiar do evento (se definido) ou o geral.
+    event.face_threshold !== undefined && event.face_threshold >= 0 ? event.face_threshold : faceThreshold(db),
     obj.arrayBuffer(),
     db.prepare("INSERT INTO face_consents (id, event_id, version, label, created_at) VALUES (?,?,?,'comprador',?)").bind(consentId, event.id, store.faceSearch.termsVersion, now()).run(),
   ]);

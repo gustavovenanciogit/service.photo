@@ -9,6 +9,10 @@ import type { RevenueEntry } from './reports';
 import type { WatermarkSettings } from './watermark-models';
 import type { Coupon, CouponStatus } from './coupons';
 
+export type FaceSession = {
+  id: string; event_id: string; kind: 'treino' | 'config'; model: string; pipeline: string; threshold: number; recommended: number;
+  same: number; diff: number; unsure: number; recall: number; precision: number; fpr: number; set_id: string; created_at: string;
+};
 export type CouponView = Coupon & { uses_confirmed: number; uses_active: number; status: CouponStatus };
 
 export class ApiError extends Error {
@@ -129,6 +133,11 @@ export const api = {
     await Promise.all(Array.from({ length: parallel }, async () => { while (left-- > 0) await send(); }));
     return (blocks * size) / 1_000_000 / ((performance.now() - t0) / 1000);
   },
+  faceSessions: () => request<FaceSession[]>('GET', '/api/faces/sessions'),
+  saveFaceSession: (s: Omit<FaceSession, 'id' | 'created_at'>) => request<{ ok: true }>('POST', '/api/faces/sessions', s),
+  applyThreshold: (threshold: number, eventId = '', note = '') => request<{ ok: true; old: number; threshold: number }>('POST', '/api/faces/threshold', { threshold, event_id: eventId, note }),
+  restoreThreshold: (eventId = '') => request<{ ok: true; old: number; threshold: number }>('POST', '/api/faces/threshold/restore', { event_id: eventId }),
+  thresholdHistory: () => request<{ id: string; event_id: string; old_value: number; new_value: number; note: string; created_at: string }[]>('GET', '/api/faces/threshold/history'),
   faceLabels: () => request<{ e: string; pair: string; s: number; ans: 'same' | 'diff' | 'unsure'; at: string }[]>('GET', '/api/faces/labels'),
   saveFaceLabel: (id: string, a: string, b: string, score: number, answer: 'same' | 'diff' | 'unsure') =>
     request<{ ok: true; pair: string }>('POST', `/api/events/${encodeURIComponent(id)}/faces/labels`, { a, b, score, answer }),

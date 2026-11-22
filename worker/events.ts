@@ -488,5 +488,5 @@ export async function faceSearchEvent(env: EventsEnv, slug: string, admin: boole
   const state = publicState(e);
   if (state === 'oculto' && !admin) return null;
   const open = state === 'aberto' || (admin && state === 'oculto');
-  return { id: e.id, face_search: e.face_search === 1 && !!e.face_pack_at && open, face_only: e.face_only && !admin };
+  return { id: e.id, face_search: e.face_search === 1 && !!e.face_pack_at && open, face_only: e.face_only && !admin, face_threshold: e.face_threshold };
 }
