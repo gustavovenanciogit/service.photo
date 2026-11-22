@@ -295,7 +295,7 @@ const answerBtn = 'flex min-h-14 flex-col items-center justify-center gap-0.5 ro
             `Este evento foi indexado antes do filtro de nitidez (${old} rostos sem medida), por isso os pares viriam com rostos desfocados. Refaça o índice primeiro: `,
           );
           const a = document.createElement('a');
-          a.href = `/painel/rostos/?evento=${encodeURIComponent(eventId)}&refazer=1`;
+          a.href = `/painel/eventos/editar/?id=${encodeURIComponent(eventId)}&refazer=1#reconhecimento`;
           a.className = 'font-semibold text-brand underline';
           a.textContent = 'Refazer índice agora';
           st.append(a);

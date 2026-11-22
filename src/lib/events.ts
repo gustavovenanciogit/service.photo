@@ -65,7 +65,7 @@ export interface EventPhoto {
 
 export type EventInput = Pick<
   EventRecord,
-  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'face_only' | 'cover_photo_id' | 'watermark_model' | 'cover_position'
+  'name' | 'date' | 'location' | 'category' | 'description' | 'price_single' | 'price_pack' | 'sale_days' | 'download_days' | 'status' | 'listed' | 'face_only' | 'face_search' | 'cover_photo_id' | 'watermark_model' | 'cover_position'
 > & { slug: string };
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -114,6 +114,9 @@ export function parseEvent(input: unknown): Result<EventInput> {
       status,
       listed: o.listed === true,
       face_only: o.face_only === true,
+      // Busca por selfie: ligada ao criar/editar o evento (a confirmação do aviso ao público está no próprio texto
+      // da opção). Galeria privada exige a busca ligada.
+      face_search: o.face_search === true || o.face_search === 1 || o.face_only === true ? 1 : 0,
       watermark_model: [1, 2, 3, 4, 5, 6, 7, 8].includes(Number(o.watermark_model)) ? Number(o.watermark_model) : 0,
       cover_position: coverPosition(o.cover_position),
     },

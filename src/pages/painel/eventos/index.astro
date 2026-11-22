@@ -109,8 +109,18 @@ const chip =
         <label class="block"><span class="text-sm font-medium">Local <span class="text-muted">(opcional)</span></span><input name="location" maxlength="160" class={field} placeholder="Ex.: Ponta Negra" /></label>
       </div>
       <label class="flex items-start gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm">
+        <input name="face_search" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
+        <span>
+          <strong>Busca por selfie (reconhecimento facial)</strong>
+          <span class="mt-0.5 block text-xs text-muted">
+            Os rostos são lidos durante o envio das fotos e o cliente encontra as dele com uma selfie, depois de aceitar o termo. Ao marcar, você confirma
+            que o público deste evento foi avisado (regulamento/inscrição ou aviso combinado com o organizador/academia).
+          </span>
+        </span>
+      </label>
+      <label class="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
         <input name="face_only" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
-        <span><strong>Galeria privada</strong> <span class="text-muted">— cada pessoa vê só as próprias fotos, pela busca por selfie.</span></span>
+        <span><strong>Galeria privada</strong> <span class="text-muted">— cada pessoa vê só as próprias fotos, pela busca por selfie (liga a busca junto).</span></span>
       </label>
       <p class="text-xs text-muted">Preços, prazos, capa e fotos você ajusta na próxima tela. O evento começa como rascunho (só você vê).</p>
       <button class="btn btn-primary min-h-12 w-full">Criar e enviar fotos</button>
@@ -454,10 +464,15 @@ const chip =
   $('[data-new-open]').addEventListener('click', () => {
     form.reset();
     (form.elements.namedItem('date') as HTMLInputElement).value = view.day || today;
+    // Busca por selfie: lembra a última escolha (marcada na primeira vez).
+    try { (form.elements.namedItem('face_search') as HTMLInputElement).checked = localStorage.getItem('venart-face-default') !== '0'; } catch { /* ok */ }
     dlg.showModal();
     (form.elements.namedItem('name') as HTMLInputElement).focus();
   });
   $('[data-new-close]').addEventListener('click', () => dlg.close());
+  (form.elements.namedItem('face_only') as HTMLInputElement).addEventListener('change', (e) => {
+    if ((e.target as HTMLInputElement).checked) (form.elements.namedItem('face_search') as HTMLInputElement).checked = true;
+  });
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const raw = Object.fromEntries(new FormData(form)) as Record<string, string>;
@@ -466,7 +481,8 @@ const chip =
     const btn = form.querySelector<HTMLButtonElement>('button:not([type])')!;
     btn.disabled = true;
     try {
-      const e = await api.createEvent({ ...raw, face_only: raw.face_only === 'on' } as unknown as Partial<EventRecord>);
+      try { localStorage.setItem('venart-face-default', raw.face_search === 'on' ? '1' : '0'); } catch { /* ok */ }
+      const e = await api.createEvent({ ...raw, face_only: raw.face_only === 'on', face_search: raw.face_search === 'on' || raw.face_only === 'on' } as unknown as Partial<EventRecord>);
       location.href = `/painel/eventos/editar/?id=${encodeURIComponent(e.id)}`;
     } catch (e) {
       toast((e as Error).message, 'error');

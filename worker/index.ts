@@ -495,7 +495,7 @@ export default {
         const page = withHeaders(await env.ASSETS.fetch(req));
         // Telas que processam fotos (envio e reconhecimento facial): página isolada para o
         // reconhecimento usar vários núcleos do processador (WebAssembly com threads).
-        if (/^\/painel\/(rostos|eventos\/editar)\/?$/.test(path)) {
+        if (/^\/painel\/eventos\/editar\/?$/.test(path)) {
           page.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
           page.headers.set('Cross-Origin-Embedder-Policy', 'credentialless');
         }
