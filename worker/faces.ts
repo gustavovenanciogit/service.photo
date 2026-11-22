@@ -159,7 +159,6 @@ export async function facesApi(req: Request, env: Env, path: string, json: Json,
     const body = (await readJson(req)) as { enabled?: unknown; notice?: unknown };
     const on = body.enabled === true;
     if (on && body.notice !== true) return json({ error: 'Confirme que o público do evento foi avisado sobre o reconhecimento facial.' }, 400);
-    if (on && !ev.face_pack_at) return json({ error: 'Indexe as fotos antes de ligar a busca.' }, 409);
     await db.prepare('UPDATE events SET face_search = ? WHERE id = ?').bind(on ? 1 : 0, eventId).run();
     return json({ ok: true, face_search: on });
   }

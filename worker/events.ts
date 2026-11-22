@@ -326,13 +326,13 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
   const published_at = before?.published_at || (e.status === 'publicado' ? t : '');
   const values = [
     e.slug, e.name, e.date, e.location, e.category, e.description, e.cover_photo_id,
-    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, e.face_only ? 1 : 0, published_at, e.watermark_model, e.cover_position, t,
+    e.price_single, e.price_pack, e.sale_days, e.download_days, e.status, e.listed ? 1 : 0, e.face_only ? 1 : 0, e.face_search, published_at, e.watermark_model, e.cover_position, t,
   ];
   if (before) {
     await db
       .prepare(
         `UPDATE events SET slug=?, name=?, date=?, location=?, category=?, description=?, cover_photo_id=?, price_single=?, price_pack=?,
-         sale_days=?, download_days=?, status=?, listed=?, face_only=?, published_at=?, watermark_model=?, cover_position=?, updated_at=? WHERE id=?`,
+         sale_days=?, download_days=?, status=?, listed=?, face_only=?, face_search=?, published_at=?, watermark_model=?, cover_position=?, updated_at=? WHERE id=?`,
       )
       .bind(...values, id)
       .run();
@@ -340,7 +340,7 @@ async function insertOrUpdate(db: D1Database, id: string, e: EventInput, before:
     await db
       .prepare(
         `INSERT INTO events (slug, name, date, location, category, description, cover_photo_id, price_single, price_pack,
-         sale_days, download_days, status, listed, face_only, published_at, watermark_model, cover_position, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         sale_days, download_days, status, listed, face_only, face_search, published_at, watermark_model, cover_position, updated_at, id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(...values, id, t)
       .run();

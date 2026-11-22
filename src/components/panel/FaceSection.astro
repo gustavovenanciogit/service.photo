@@ -1,0 +1,155 @@
+---
+/**
+ * RECONHECIMENTO FACIAL DO EVENTO — seção da edição do evento (/painel/eventos/editar/?id=…)
+ * Substitui a antiga aba "Reconhecimento facial": a busca é ligada na criação/edição do evento
+ * e os rostos são lidos durante o envio das fotos. Esta seção só aparece com a busca ligada e
+ * só pede ação quando há fotos sem reconhecimento (ex.: enviadas antes de ligar a busca).
+ * Avançado: refazer o reconhecimento e pedidos de remoção.
+ * Escuta "venart:faces-changed" (fim de envio, dados salvos) para se atualizar.
+ */
+const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none';
+---
+
+<section id="reconhecimento" data-faces hidden class="card mt-6 scroll-mt-24 p-5 sm:p-6" aria-labelledby="fs-title">
+  <h2 id="fs-title" class="text-2xl font-bold">Busca por selfie</h2>
+  <p data-fs-status class="mt-1 text-sm text-muted" aria-live="polite">Carregando…</p>
+
+  <div data-fs-pending hidden class="mt-4 rounded-2xl border border-amber-300/40 bg-amber-400/5 p-4">
+    <p data-fs-pending-text class="text-sm text-amber-100"></p>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <button type="button" data-fs-run class="btn btn-primary min-h-10 px-4 text-sm">Reconhecer agora</button>
+      <button type="button" data-fs-pause hidden class="btn btn-outline min-h-10 px-4 text-sm">Pausar</button>
+    </div>
+    <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/10"><div data-fs-bar class="h-full w-0 bg-brand transition-[width]"></div></div>
+    <p data-fs-progress class="mt-1 text-xs text-muted"></p>
+  </div>
+
+  <details class="mt-4 text-sm">
+    <summary class="cursor-pointer text-muted hover:text-ink">Avançado</summary>
+    <div class="mt-3 space-y-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" data-fs-redo class="btn btn-outline min-h-10 px-4 text-sm">Refazer o reconhecimento</button>
+        <span class="text-xs text-muted">Lê todas as fotos de novo com os critérios atuais (rostos pequenos ou desfocados ficam de fora).</span>
+      </div>
+      <div class="grid max-w-2xl gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <label class="block text-sm">
+          <span class="text-muted">Pedido de remoção: tirar estas fotos da busca (números, separados por vírgula)</span>
+          <input data-fs-remove-n class={`${field} mt-1`} placeholder="Ex.: 12, 48" inputmode="numeric" autocomplete="off" />
+        </label>
+        <button type="button" data-fs-remove class="btn btn-outline min-h-10 px-4 text-sm">Tirar da busca</button>
+      </div>
+      <p class="text-xs text-muted">A foto continua na galeria; só deixa de aparecer na busca por selfie (para todas as pessoas dela).</p>
+    </div>
+  </details>
+</section>
+
+<script>
+  import { api, toast } from '@/lib/panel-api';
+  import { indexPhoto, rebuildPack } from '@/lib/face-index';
+
+  const root = document.querySelector<HTMLElement>('[data-faces]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  const eventId = new URLSearchParams(location.search).get('id') ?? '';
+  type Status = Awaited<ReturnType<typeof api.faceStatus>>;
+  let status: Status | null = null;
+  let running = false;
+  let paused = false;
+
+  async function refresh() {
+    if (!/^evt_[a-z0-9]+$/.test(eventId)) return;
+    try {
+      status = await api.faceStatus(eventId);
+    } catch {
+      return;
+    }
+    const s = status;
+    root.hidden = !s.face_search;
+    if (!s.face_search) return;
+    const pend = s.pending.length;
+    $('[data-fs-status]').textContent = !s.total
+      ? 'Ligada. Os rostos são lidos durante o envio das fotos; assim que você publicar, os clientes já podem buscar.'
+      : `Ligada: ${s.indexed} de ${s.total} fotos com reconhecimento · ${s.faces} rosto${s.faces === 1 ? '' : 's'}.${pend ? '' : ' Os clientes já podem buscar (com o evento publicado).'}`;
+    $('[data-fs-pending]').hidden = !pend && !running;
+    if (pend && !running)
+      $('[data-fs-pending-text]').textContent = `${pend} foto${pend === 1 ? '' : 's'} ainda sem reconhecimento (enviada${pend === 1 ? '' : 's'} antes de ligar a busca ou com o envio interrompido). Elas não aparecem na busca até serem lidas.`;
+    // Fotos lidas mas sem pacote da busca (ex.: envio interrompido no fim): monta agora.
+    if (!pend && s.indexed && !s.face_pack_at) await rebuildPack(eventId).catch(() => undefined);
+  }
+
+  /** Lê as fotos que faltam (baixando os originais; as próximas 3 já vêm enquanto a atual é lida). */
+  async function run() {
+    if (running || !status?.pending.length) return;
+    running = true;
+    paused = false;
+    $('[data-fs-run]').hidden = true;
+    $('[data-fs-pause]').hidden = false;
+    const list = status.pending;
+    const out = $('[data-fs-progress]');
+    const downloads = new Map<number, Promise<Blob>>();
+    const fetchAt = (i: number) => { const p = list[i]; if (p && !downloads.has(i)) downloads.set(i, api.originalPhoto(eventId, p.id)); };
+    let done = 0;
+    let faces = 0;
+    const t0 = performance.now();
+    try {
+      out.textContent = 'Preparando o reconhecimento (na primeira vez baixa ~39 MB)…';
+      for (let i = 0; i < list.length && !paused; i++) {
+        for (let k = i; k <= i + 3; k++) fetchAt(k);
+        const blob = await downloads.get(i)!;
+        downloads.delete(i);
+        faces += await indexPhoto(eventId, list[i]!.id, blob);
+        done++;
+        const each = (performance.now() - t0) / done / 1000;
+        const left = Math.round(((list.length - done) * each) / 60);
+        $('[data-fs-bar]').style.width = `${(done / list.length) * 100}%`;
+        out.textContent = `${done} de ${list.length} fotos · ${faces} rostos${left ? ` · faltam ~${left} min` : ''} · mantenha a aba aberta`;
+      }
+      await rebuildPack(eventId);
+      if (!paused) toast('Reconhecimento concluído: a busca por selfie já inclui essas fotos.');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      running = false;
+      $('[data-fs-run]').hidden = false;
+      $('[data-fs-pause]').hidden = true;
+      out.textContent = paused ? 'Pausado. Clique em "Reconhecer agora" para continuar.' : '';
+      $('[data-fs-bar]').style.width = '0';
+      await refresh();
+    }
+  }
+
+  $('[data-fs-run]').addEventListener('click', () => void run());
+  $('[data-fs-pause]').addEventListener('click', () => { paused = true; $('[data-fs-progress]').textContent = 'Pausando depois da foto atual…'; });
+  $('[data-fs-redo]').addEventListener('click', async () => {
+    if (running) return;
+    if (!confirm('Ler todas as fotos de novo com os critérios atuais? Leva alguns minutos (mantenha a aba aberta) e a busca por selfie fica fora do ar até terminar.')) return;
+    // Apagar o índice desliga a busca no servidor; liga de novo em seguida (já confirmado neste evento).
+    await api.deleteFaces(eventId);
+    await api.setFacePublic(eventId, true, true).catch(() => undefined);
+    await refresh();
+    await run();
+  });
+  $('[data-fs-remove]').addEventListener('click', async () => {
+    const nums = $<HTMLInputElement>('[data-fs-remove-n]').value.split(/[,;\s]+/).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+    if (!nums.length) return toast('Informe os números das fotos.', 'error');
+    if (!confirm(`Tirar ${nums.length} foto(s) da busca por selfie?`)) return;
+    try {
+      const r = await api.removeFromFaceSearch(eventId, nums);
+      await rebuildPack(eventId);
+      $<HTMLInputElement>('[data-fs-remove-n]').value = '';
+      toast(`${r.removed} foto(s) fora da busca.`);
+      await refresh();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  });
+  window.addEventListener('venart:faces-changed', () => void refresh());
+  window.addEventListener('beforeunload', (e) => { if (running) e.preventDefault(); });
+
+  void refresh().then(() => {
+    // Vindo do Treinar IA (?refazer=1): oferece refazer o reconhecimento.
+    if (new URLSearchParams(location.search).has('refazer') && status?.face_search) {
+      root.scrollIntoView({ behavior: 'smooth' });
+      $('[data-fs-redo]').click();
+    }
+  });
+</script>
