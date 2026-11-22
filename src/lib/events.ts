@@ -44,6 +44,7 @@ export interface EventRecord {
   cover_position: string; // enquadramento da capa, ex.: "50% 40%"
   face_search: number; // 1 = busca por selfie ligada para compradores (exige aviso do evento confirmado)
   face_pack_at: string; // quando o pacote de busca por rostos foi gerado (vazio = sem pacote)
+  face_threshold: number; // limiar da busca só deste evento (-1 = usa o geral)
   face_only: boolean; // galeria privada: o público só vê as fotos encontradas pela própria selfie
   photo_count: number;
   published_at: string; // ISO
