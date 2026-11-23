@@ -227,8 +227,19 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
   // ── Fotos ──
   if (!photoId) {
     if (method === 'GET') {
-      const rows = (await db.prepare('SELECT * FROM event_photos WHERE event_id = ? ORDER BY seq').bind(eventId).all<PhotoRow>()).results;
-      return json(rows.map(toPhoto));
+      // Com quantas vezes cada foto foi vendida (pedidos pagos; pedidos de teste não contam).
+      const rows = (
+        await db
+          .prepare(
+            `SELECT p.*, COALESCE(s.n, 0) AS sold FROM event_photos p
+             LEFT JOIN (SELECT i.photo_id, COUNT(*) AS n FROM order_items i JOIN orders o ON o.id = i.order_id
+                        WHERE o.event_id = ?1 AND o.status = 'pago' GROUP BY i.photo_id) s ON s.photo_id = p.id
+             WHERE p.event_id = ?1 ORDER BY p.seq`,
+          )
+          .bind(eventId)
+          .all<PhotoRow & { sold: number }>()
+      ).results;
+      return json(rows.map((r) => ({ ...toPhoto(r), sold: r.sold })));
     }
     if (method === 'POST') {
       // Registra até 25 nomes por vez (limite de consultas do D1 no plano gratuito); nomes já registrados devolvem o mesmo id (permite retomar o envio).

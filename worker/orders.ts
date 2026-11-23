@@ -382,7 +382,19 @@ export async function ordersAdminApi(req: Request, env: OrdersEnv, path: string,
   const db = env.DB;
   if (path === '/api/orders' && req.method === 'GET') {
     const rows = (await db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 5000').all<OrderRow>()).results;
-    return json({ configured: mpConfigured(env), payments: paymentStatus(env), orders: rows.map(({ checked_at: _c, preference_id: _p, payment_ref: _r, ...r }) => toOrder(r as OrderRow)) });
+    // Fotos de cada pedido (número e id), para o painel mostrar o que foi comprado.
+    const items = (
+      await db
+        .prepare('SELECT order_id AS o, photo_id AS id, seq AS n FROM order_items WHERE order_id IN (SELECT id FROM orders ORDER BY created_at DESC LIMIT 5000) ORDER BY seq')
+        .all<{ o: string; id: string; n: number }>()
+    ).results;
+    const byOrder = new Map<string, { id: string; n: number }[]>();
+    for (const it of items) byOrder.set(it.o, [...(byOrder.get(it.o) ?? []), { id: it.id, n: it.n }]);
+    return json({
+      configured: mpConfigured(env),
+      payments: paymentStatus(env),
+      orders: rows.map(({ checked_at: _c, preference_id: _p, payment_ref: _r, ...r }) => ({ ...toOrder(r as OrderRow), items: byOrder.get(r.id) ?? [] })),
+    });
   }
   const m = /^\/api\/orders\/(VNA-[A-Z0-9]{6})$/.exec(path);
   if (!m || req.method !== 'PATCH') return json({ error: 'Não encontrado.' }, 404);
