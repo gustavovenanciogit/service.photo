@@ -62,6 +62,7 @@ export interface EventPhoto {
   height: number;
   ready: boolean;
   wm_sig: string; // assinatura da marca d'água aplicada (para saber se precisa refazer)
+  sold?: number; // vezes que foi vendida (pedidos pagos) — só na lista do painel
 }
 
 export type EventInput = Pick<

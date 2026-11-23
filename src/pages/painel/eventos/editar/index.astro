@@ -135,6 +135,14 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
         <ul data-errors class="mt-2 max-h-32 space-y-0.5 overflow-auto text-xs text-red-300"></ul>
       </div>
 
+      <div data-sold-bar hidden class="mt-5 flex flex-wrap items-center gap-3 text-sm">
+        <p data-sold-summary class="font-semibold text-brand"></p>
+        <label class="flex items-center gap-2 text-muted"><input type="checkbox" data-only-sold class="size-4 accent-[var(--color-brand)]" /> Só as vendidas</label>
+        <label class="flex items-center gap-2 text-muted">Ordem
+          <select data-sold-order class="rounded-lg border border-line bg-bg px-2 py-1.5 text-xs text-ink">
+            <option value="seq">Nº da foto</option><option value="sold">Mais vendidas</option>
+          </select></label>
+      </div>
       <ul data-grid class="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8"></ul>
       <button type="button" data-more hidden class="btn btn-outline mt-4 min-h-10 w-full text-sm">Mostrar mais fotos</button>
     </section>
@@ -373,21 +381,39 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     });
     bar.append(coverBtn, del);
     li.append(img, label, bar);
+    if (p.sold) {
+      li.append(h('span', 'absolute top-1 right-1 rounded bg-brand px-1.5 text-[10px] font-bold text-bg shadow-[0_0_8px_var(--color-brand)]', p.sold > 1 ? `Vendida ×${p.sold}` : 'Vendida'));
+      li.classList.add('ring-2', 'ring-brand/70');
+    }
     return li;
   };
 
   const readyPhotos = () => photos.filter((p) => p.ready).sort((a, b) => a.seq - b.seq);
+  /** Filtro e ordem das vendidas (só na grade do painel). */
+  const gridPhotos = () => {
+    let list = readyPhotos();
+    if ($<HTMLInputElement>('[data-only-sold]').checked) list = list.filter((p) => p.sold);
+    if ($<HTMLSelectElement>('[data-sold-order]').value === 'sold') list = [...list].sort((a, b) => (b.sold ?? 0) - (a.sold ?? 0) || a.seq - b.seq);
+    return list;
+  };
   function renderGrid() {
-    const list = readyPhotos();
+    const all = readyPhotos();
+    const soldPhotos = all.filter((p) => p.sold);
+    const copies = soldPhotos.reduce((s, p) => s + (p.sold ?? 0), 0);
+    $('[data-sold-bar]').hidden = !soldPhotos.length;
+    $('[data-sold-summary]').textContent = `${soldPhotos.length} de ${all.length} fotos vendidas${copies > soldPhotos.length ? ` (${copies} vendas no total)` : ''}`;
+    const list = gridPhotos();
     shown = Math.min(Math.max(shown, PAGE), list.length);
     const grid = $('[data-grid]');
-    if (!list.length) grid.replaceChildren(h('li', 'col-span-full rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted', 'Nenhuma foto enviada ainda.'));
+    if (!list.length) grid.replaceChildren(h('li', 'col-span-full rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted', all.length ? 'Nenhuma foto vendida ainda.' : 'Nenhuma foto enviada ainda.'));
     else grid.replaceChildren(...list.slice(0, shown).map(tile));
     const more = $('[data-more]');
     more.hidden = shown >= list.length;
     more.textContent = `Mostrar mais fotos (${list.length - shown} restantes)`;
   }
   $('[data-more]').addEventListener('click', () => { shown += PAGE; renderGrid(); });
+  $('[data-only-sold]').addEventListener('change', () => { shown = PAGE; renderGrid(); });
+  $('[data-sold-order]').addEventListener('change', () => { shown = PAGE; renderGrid(); });
 
   // ───────── Capa opcional ─────────
 

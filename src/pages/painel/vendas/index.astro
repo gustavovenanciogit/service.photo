@@ -76,6 +76,41 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     return b;
   };
 
+  /** Fotos compradas: números + miniaturas (as 8 primeiras), com "ver todas" para o restante. */
+  const label = (n: number) => `#${String(n).padStart(4, '0')}`;
+  function photosBlock(o: Order) {
+    const items = o.items!;
+    const box = h('div', 'mt-3 rounded-xl border border-line bg-bg/40 p-3');
+    box.append(h('p', 'text-xs font-semibold text-muted', `Fotos do pedido (${items.length}): ${items.slice(0, 12).map((i) => label(i.n)).join(', ')}${items.length > 12 ? '…' : ''}`));
+    const thumbs = (list: typeof items) => {
+      const row = h('div', 'mt-2 flex flex-wrap gap-1.5');
+      for (const it of list) {
+        const a = h('a', 'block') as HTMLAnchorElement;
+        a.href = `/f/${o.event_id}/${it.id}/preview.jpg`;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.title = `Foto ${label(it.n)}`;
+        const img = h('img', 'size-14 rounded-lg object-cover ring-1 ring-white/10 hover:ring-brand sm:size-16') as HTMLImageElement;
+        img.src = `/f/${o.event_id}/${it.id}/thumb.jpg`;
+        img.alt = `Foto ${label(it.n)}`;
+        img.loading = 'lazy';
+        // Evento já limpo (fotos apagadas no fim do prazo): mostra só o número.
+        img.onerror = () => a.replaceWith(h('span', 'grid size-14 place-items-center rounded-lg border border-line text-[10px] text-muted sm:size-16', label(it.n)));
+        a.append(img);
+        row.append(a);
+      }
+      return row;
+    };
+    box.append(thumbs(items.slice(0, 8)));
+    if (items.length > 8) {
+      const det = h('details', 'mt-2 text-xs') as HTMLDetailsElement;
+      det.append(h('summary', 'cursor-pointer font-semibold text-brand', `Ver todas as ${items.length} fotos`));
+      det.addEventListener('toggle', () => { if (det.open && det.children.length === 1) det.append(thumbs(items.slice(8))); }, { once: false });
+      box.append(det);
+    }
+    return box;
+  }
+
   function card(o: Order) {
     const li = h('li', 'card p-4 sm:p-5');
     const top = h('div', 'flex flex-wrap items-start justify-between gap-3');
@@ -87,6 +122,7 @@ const field = 'w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm te
     const badge = h('span', `shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${tone[o.status] ?? ''}`, statusLabel(o.status));
     top.append(left, badge);
     li.append(top);
+    if (o.items?.length) li.append(photosBlock(o));
 
     const info: string[] = [];
     info.push(o.provider === 'infinitepay' ? 'InfinitePay (antigo)' : 'Mercado Pago');

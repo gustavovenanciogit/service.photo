@@ -30,6 +30,8 @@ export interface Order {
   subtotal: number; // antes do cupom (0 em pedidos antigos)
   discount: number; // desconto do cupom (R$)
   coupon_code: string;
+  /** Fotos do pedido (só na lista do painel). */
+  items?: { id: string; n: number }[];
   use_pack: boolean;
   photo_count: number;
   status: OrderStatus;
