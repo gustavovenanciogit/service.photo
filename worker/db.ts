@@ -171,6 +171,21 @@ const SCHEMA = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS face_index_event ON face_index (event_id)`,
+  // Aviso de publicação por e-mail (pedido voluntário, com consentimento). Apagado após o envio.
+  `CREATE TABLE IF NOT EXISTS notify_requests (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    token TEXT NOT NULL,
+    consent_version TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error TEXT NOT NULL DEFAULT '',
+    claimed_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS notify_event_email ON notify_requests (event_id, email)`,
+  `CREATE INDEX IF NOT EXISTS notify_token ON notify_requests (token)`,
   `CREATE TABLE IF NOT EXISTS face_consents (
     id TEXT PRIMARY KEY,
     event_id TEXT NOT NULL,
@@ -296,6 +311,7 @@ const MIGRATIONS = [
   // Cartão Digital: página permanente de espera (antes de publicar) e previsão de publicação.
   `ALTER TABLE events ADD COLUMN announced INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE events ADD COLUMN publish_forecast TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN notify_sent INTEGER NOT NULL DEFAULT 0`,
 ];
 
 /**

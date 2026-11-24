@@ -38,9 +38,15 @@
   // O token fica no segredo GITHUB_TOKEN (definido no painel da Cloudflare).
   "vars": {
     "GITHUB_REPO": "gustavovenanciogit/service.photo",
-    "GITHUB_BRANCH": "main"
+    "GITHUB_BRANCH": "main",
+    // Endereço público usado nos links dos e-mails enviados pela tarefa automática.
+    "SITE_URL": "https://venart.gustavovesss.workers.dev"
+    // Aviso de publicação por e-mail (Resend): segredos RESEND_API_KEY e EMAIL_FROM
+    // (ex.: "Venart <avisos@seudominio.com.br>"), definidos no painel da Cloudflare como segredos
+    // (variáveis comuns do painel são apagadas a cada deploy). Sem eles, o formulário não aparece.
   },
   // Tarefa diária (03:17 em Manaus = 07:17 UTC): apaga as fotos de eventos com prazo de download encerrado.
-  "triggers": { "crons": ["17 7 * * *"] },
+  // A cada 10 min: envia avisos por e-mail que ficaram pendentes (só faz algo se houver).
+  "triggers": { "crons": ["17 7 * * *", "*/10 * * * *"] },
   "observability": { "enabled": true }
 }

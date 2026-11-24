@@ -19,6 +19,7 @@ import { publicState, type EventRecord } from '../src/lib/events.ts';
 import { site } from '../src/config/site.ts';
 import { messages, whatsappLink } from '../src/lib/whatsapp.ts';
 import { getBySlug, getEvent, type EventsEnv } from './events.ts';
+import { emailConfigured } from '../src/lib/notify.ts';
 
 type Json = (data: unknown, status?: number, headers?: Record<string, string>) => Response;
 
@@ -86,6 +87,8 @@ export async function eventoPublicApi(env: EventsEnv, slug: string, admin: boole
         face_search: s === 'disponivel' && e.face_search === 1 && !!e.face_pack_at,
         face_only: s === 'disponivel' && e.face_only,
       },
+      // Formulário "Avise-me por e-mail": só antes da publicação e com o envio configurado.
+      notify: s === 'preparando' && emailConfigured(env),
       show_past: cfg.show_past,
       preview: !state, // rascunho visto pelo fotógrafo logado (o público recebe 404)
     },

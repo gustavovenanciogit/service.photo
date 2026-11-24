@@ -9,12 +9,12 @@
  * A previsão de publicação fica no próprio evento (events.publish_forecast), assim o link
  * permanente continua certo mesmo depois que o cartão passar a destacar outro evento.
  *
+ * Aviso por e-mail quando as fotos saírem: ver src/lib/notify.ts (voluntário, com consentimento).
+ *
  * PREPARADO PARA O FUTURO (ainda NÃO implementado, de propósito):
- *  - "Avise-me quando as fotos saírem": cadastro voluntário com consentimento (LGPD) e
- *    aviso por e-mail. Só depois de existir uma integração de envio autorizada.
  *  - Estatísticas por evento (visitas e cliques): os botões já levam data-track="…"
  *    (ver TRACK_EVENTS) e a função track() das páginas hoje não envia nada.
- *  Nenhuma mensagem é disparada automaticamente.
+ *  Nenhuma mensagem sai sem pedido da própria pessoa.
  */
 import { formatManaus, isoToManaus, manausToISO } from './coupons.ts';
 
@@ -46,7 +46,7 @@ export interface CartaoConfig {
 }
 
 /** Ações que poderão ser contadas no futuro (hoje nada é enviado). */
-export const TRACK_EVENTS = ['cartao_view', 'featured_click', 'hire_click', 'work_click', 'past_click', 'event_view', 'gallery_click', 'check_click'] as const;
+export const TRACK_EVENTS = ['cartao_view', 'featured_click', 'hire_click', 'work_click', 'past_click', 'event_view', 'gallery_click', 'check_click', 'notify_signup'] as const;
 
 export const LIMITS = { headline: 80, intro: 160, text: 280, label: 70, buttonLabel: 40, url: 500 } as const;
 

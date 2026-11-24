@@ -26,8 +26,9 @@ import { ORDER_SQL, ORIENTATION_SQL, parseGalleryQuery } from '../src/lib/galler
 import { imageKind } from '../src/lib/site-content.ts';
 import { purgeFaces } from './faces.ts';
 import { verifyPhotoAccess } from './auth.ts';
+import { sendNotices, type NotifyEnv } from './notify.ts';
 
-export interface EventsEnv extends PaymentsEnv {
+export interface EventsEnv extends PaymentsEnv, NotifyEnv {
   DB: D1Database;
   PHOTOS?: R2Bucket;
   ASSETS: Fetcher;
@@ -211,14 +212,20 @@ export async function eventsApi(req: Request, env: EventsEnv, path: string, json
         parsed.value.cover_photo_id = '';
       }
       await insertOrUpdate(db, eventId, parsed.value, event);
-      return json(await getEvent(db, eventId));
+      const after = (await getEvent(db, eventId))!;
+      // Acabou de ficar à venda: avisa por e-mail quem pediu na página de espera (falha não atrapalha a publicação).
+      if (publicState(event) !== 'aberto' && publicState(after) === 'aberto') {
+        const r = await sendNotices(env, eventId, new URL(req.url).origin, 2).catch((e) => (console.error('Aviso por e-mail falhou', e), null));
+        if (r && (r.sent || r.failed || r.pending)) return json({ ...after, notices: r });
+      }
+      return json(after);
     }
     if (method === 'DELETE') {
       if (await db.prepare(`${ACTIVE_SALES} AND o.event_id = ? LIMIT 1`).bind(now(), eventId).first()) {
         return json({ error: 'Há compradores com download ainda válido neste evento. Exclua depois que o prazo de download terminar.' }, 409);
       }
       if (env.PHOTOS) await purgePrefix(env.PHOTOS, `events/${eventId}/`);
-      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), ...purgeFaces(db, eventId), forgetStorage(db), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
+      await db.batch([db.prepare('DELETE FROM event_photos WHERE event_id = ?').bind(eventId), ...purgeFaces(db, eventId), forgetStorage(db), db.prepare('DELETE FROM notify_requests WHERE event_id = ?').bind(eventId), db.prepare('DELETE FROM events WHERE id = ?').bind(eventId)]);
       return json({ ok: true });
     }
     return json({ error: 'Não encontrado.' }, 404);

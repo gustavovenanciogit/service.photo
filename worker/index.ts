@@ -21,6 +21,7 @@ import { facesApi, publicFaceSearch } from './faces.ts';
 import { store } from '../src/config/store.ts';
 import { couponCheckApi, couponsAdminApi } from './coupons.ts';
 import { publicState } from '../src/lib/events.ts';
+import { cleanupNotices, noticesAdminApi, notifyCancel, notifySignup, processNotices } from './notify.ts';
 import { cartaoAdminApi, cartaoPublicApi, eventoPublicApi, eventosListApi, serveEventoPage } from './cartao.ts';
 import { eventsApi, faceSearchEvent, getBySlug, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
 import { createOrder, MpError, orderStatus, payOrder, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
@@ -31,6 +32,8 @@ interface Env extends AuthEnv, GitHubEnv, OrdersEnv {
 }
 
 const MAX_BODY = 200_000;
+/** Tarefa dos avisos por e-mail (wrangler.jsonc → triggers.crons). */
+const NOTICE_CRON = '*/10 * * * *';
 
 const sha256Hex = async (s: string) =>
   [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -121,6 +124,17 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   if (path === '/api/public/eventos' && method === 'GET') {
     await db.ensureSchema(env.DB);
     return eventosListApi(env, json);
+  }
+  const avise = /^\/api\/public\/eventos\/([a-z0-9-]{1,60})\/avise$/.exec(path);
+  if (avise && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+    const ipHash = await sha256Hex(`venart-avise:${ip}`);
+    return notifySignup(env, avise[1]!, (await readJson(req)) as Record<string, unknown> | null, () => db.allowLead(env.DB, ipHash, 10), json);
+  }
+  if (path === '/api/public/avise/cancelar' && method === 'POST') {
+    await db.ensureSchema(env.DB);
+    return notifyCancel(env, (await readJson(req)) as Record<string, unknown> | null, json);
   }
   const pubEvento = /^\/api\/public\/eventos\/([a-z0-9-]{1,60})$/.exec(path);
   if (pubEvento && method === 'GET') {
@@ -375,6 +389,10 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ bytes: n });
   }
   if (path === '/api/coupons' || path.startsWith('/api/coupons/')) return couponsAdminApi(req, env, path, url, json, (r) => readJson(r));
+  if (path === '/api/cartao/notices' || path === '/api/cartao/notify') {
+    const r = await noticesAdminApi(req, env, path, json, (rq) => readJson(rq));
+    if (r) return r;
+  }
   if (path === '/api/cartao' || path.startsWith('/api/cartao/')) return cartaoAdminApi(req, env, path, json, (r) => readJson(r));
   if (path.startsWith('/api/settings/')) return settingsApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/orders' || path.startsWith('/api/orders/')) return ordersAdminApi(req, env, path, json, (r) => readJson(r));
@@ -536,11 +554,22 @@ export default {
   },
 
   // Tarefa diária: limpeza automática dos arquivos de eventos com prazo encerrado.
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    // A cada 10 min: avisos por e-mail que ficaram pendentes (eventos já publicados).
+    if (event.cron === NOTICE_CRON) {
+      ctx.waitUntil(
+        (async () => {
+          await db.ensureSchema(env.DB);
+          await processNotices(env);
+        })().catch((e) => console.error('Avisos por e-mail falharam', e)),
+      );
+      return;
+    }
     ctx.waitUntil(
       (async () => {
         await db.ensureSchema(env.DB);
         await purgeExpired(env);
+        await cleanupNotices(env.DB);
       })().catch((e) => console.error('Limpeza falhou', e)),
     );
   },

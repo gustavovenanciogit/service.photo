@@ -12,6 +12,7 @@
  */
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { site } from '@/config/site';
+import { NOTIFY_CONSENT_TEXT } from '@/lib/notify';
 ---
 
 <BaseLayout title="Fotos do evento" description="Acompanhe a publicação das fotos do evento." bare>
@@ -69,6 +70,29 @@ import { site } from '@/config/site';
             </div>
             <button type="button" data-check data-track="check_click" class="btn btn-primary min-h-13 w-full justify-center">Verificar se as fotos já estão disponíveis</button>
             <p data-check-msg class="text-center text-sm text-muted" aria-live="polite"></p>
+
+            <!-- Aviso por e-mail (voluntário, com consentimento; só aparece com o envio configurado) -->
+            <form data-notify hidden class="space-y-3 rounded-xl border border-line bg-black/20 p-4" novalidate>
+              <p class="text-base font-bold">Quer receber um aviso por e-mail?</p>
+              <p class="text-sm text-muted">Mandamos um único e-mail quando as fotos forem publicadas.</p>
+              <label class="block text-sm">
+                <span class="sr-only">Seu e-mail</span>
+                <input name="email" type="email" inputmode="email" autocomplete="email" required maxlength="254" placeholder="seu@email.com"
+                  class="w-full rounded-xl border border-line bg-bg px-4 py-3 text-base text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none" />
+              </label>
+              <!-- Campo-armadilha contra robôs (invisível para pessoas) -->
+              <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
+              <label class="flex items-start gap-3 text-xs text-ink/85">
+                <input name="consent" type="checkbox" required class="mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]" />
+                <span>{NOTIFY_CONSENT_TEXT} <a href="/privacidade#aviso-email" class="text-brand underline">Privacidade</a></span>
+              </label>
+              <button type="submit" data-track="notify_signup" class="btn btn-outline min-h-12 w-full justify-center">Avise-me por e-mail</button>
+              <p data-notify-msg class="text-sm" aria-live="polite"></p>
+            </form>
+            <div data-notify-done hidden class="rounded-xl border border-brand/40 bg-brand/10 p-4 text-sm">
+              <p class="font-semibold text-brand">Pronto! Você vai receber um e-mail quando as fotos forem publicadas.</p>
+              <button type="button" data-notify-cancel hidden class="mt-2 text-xs text-muted underline hover:text-ink">Cancelar o aviso</button>
+            </div>
           </div>
 
           <!-- Publicado -->
@@ -106,6 +130,7 @@ import { site } from '@/config/site';
     event: { slug: string; name: string; date: string; location: string; state: TeaserState; forecast: string; text: string; cover: string; photo_count: number; face_search: boolean; face_only: boolean };
     show_past: boolean;
     preview: boolean;
+    notify: boolean;
   };
 
   const root = document.querySelector<HTMLElement>('[data-evento]')!;
@@ -179,6 +204,7 @@ import { site } from '@/config/site';
         tick(e.forecast);
         timer = window.setInterval(() => tick(e.forecast), 1000);
       }
+      renderNotify(d.notify);
     } else if (e.state === 'disponivel') {
       $<HTMLAnchorElement>('[data-gallery]').href = `/e/${encodeURIComponent(e.slug)}`;
       const parts = [
@@ -188,6 +214,59 @@ import { site } from '@/config/site';
       $('[data-avail-info]').textContent = parts.filter(Boolean).join(' ');
     }
   }
+
+  // ───────── Aviso por e-mail ─────────
+  const KEY = `venart-aviso:${slug}`;
+  const store = {
+    get: () => { try { return localStorage.getItem(KEY); } catch { return null; } },
+    set: (v: string) => { try { localStorage.setItem(KEY, v); } catch { /* sem armazenamento: tudo bem */ } },
+    del: () => { try { localStorage.removeItem(KEY); } catch { /* idem */ } },
+  };
+  function renderNotify(enabled: boolean) {
+    const asked = store.get();
+    $('[data-notify]').hidden = !enabled || asked !== null;
+    $('[data-notify-done]').hidden = !enabled || asked === null;
+    $('[data-notify-cancel]').hidden = !asked; // só quem pediu neste aparelho tem o código
+  }
+  const nform = $<HTMLFormElement>('[data-notify]');
+  nform.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const msg = $('[data-notify-msg]');
+    const email = (nform.elements.namedItem('email') as HTMLInputElement).value.trim();
+    const consent = (nform.elements.namedItem('consent') as HTMLInputElement).checked;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return void ((msg.textContent = 'Digite um e-mail válido.'), (msg.className = 'text-sm text-red-300'));
+    if (!consent) return void ((msg.textContent = 'Marque a autorização para receber o aviso.'), (msg.className = 'text-sm text-red-300'));
+    const btn = nform.querySelector('button')!;
+    btn.disabled = true;
+    msg.className = 'text-sm text-muted';
+    msg.textContent = 'Enviando…';
+    try {
+      const r = await fetch(`/api/public/eventos/${encodeURIComponent(slug)}/avise`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, consent, website: (nform.elements.namedItem('website') as HTMLInputElement).value }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { error?: string; token?: string; available?: boolean };
+      if (!r.ok) throw new Error(d.error ?? 'Não foi possível registrar agora. Tente de novo.');
+      if (d.available) return void check();
+      store.set(d.token ?? '');
+      msg.textContent = '';
+      renderNotify(true);
+    } catch (err) {
+      msg.className = 'text-sm text-red-300';
+      msg.textContent = (err as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  $('[data-notify-cancel]').addEventListener('click', async () => {
+    const t = store.get();
+    if (!t || !confirm('Cancelar o aviso por e-mail? Seu e-mail é apagado agora.')) return;
+    const r = await fetch('/api/public/avise/cancelar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: t }) }).catch(() => null);
+    if (!r?.ok) return alert('Não foi possível cancelar agora. Tente de novo.');
+    store.del();
+    renderNotify(true);
+  });
 
   async function check(auto = false) {
     const btn = $<HTMLButtonElement>('[data-check]');

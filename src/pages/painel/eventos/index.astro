@@ -304,7 +304,8 @@ const chip =
       const updated = await api.updateEvent(e.id, { ...e, status });
       events = events.map((x) => (x.id === e.id ? { ...x, ...updated } : x));
       renderAll();
-      toast(msg);
+      const n = (updated as EventRecord & { notices?: { sent: number } }).notices;
+      toast(n?.sent ? `${msg} Aviso por e-mail enviado para ${n.sent} pessoa${n.sent === 1 ? '' : 's'}.` : msg);
     } catch (err) { toast((err as Error).message, 'error'); }
   }
   const moreMenu = $('[data-more-menu]');

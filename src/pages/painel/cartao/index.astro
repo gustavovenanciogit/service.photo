@@ -117,6 +117,17 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
         </label>
       </section>
 
+      <!-- ───────── AVISO POR E-MAIL ───────── -->
+      <section class="card space-y-3 p-5 sm:p-6" aria-labelledby="nt-title">
+        <h2 id="nt-title" class="text-xl font-bold">Aviso por e-mail</h2>
+        <p data-nt-status class="text-sm text-muted">Carregando…</p>
+        <ul data-nt-list class="divide-y divide-line"></ul>
+        <p class="text-xs text-muted">
+          Quem pede o aviso na página de espera recebe um único e-mail quando você publica o evento (envio automático ao publicar; o que sobrar sai em até
+          10 minutos). O e-mail é apagado logo depois do envio.
+        </p>
+      </section>
+
       <!-- ───────── PÁGINAS DE ESPERA ───────── -->
       <section data-announced-box hidden class="card space-y-3 p-5 sm:p-6" aria-labelledby="an-title">
         <h2 id="an-title" class="text-xl font-bold">Páginas de espera no ar</h2>
@@ -267,6 +278,65 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
     );
   }
 
+  type Notices = Awaited<ReturnType<typeof api.notices>>;
+  async function renderNotices(n?: Notices) {
+    try {
+      n ??= await api.notices();
+    } catch {
+      $('[data-nt-status]').textContent = 'Não foi possível carregar os avisos.';
+      return;
+    }
+    $('[data-nt-status]').innerHTML = n.configured
+      ? '<span class="font-semibold text-brand">Ligado.</span> A página de espera mostra "Avise-me por e-mail".'
+      : '<span class="font-semibold text-amber-200">Desligado:</span> falta configurar o envio (segredos <code>RESEND_API_KEY</code> e <code>EMAIL_FROM</code> na Cloudflare). Enquanto isso, o formulário não aparece para o público.';
+    const byId = new Map(events.map((e) => [e.id, e]));
+    const sent = new Map(n.sent.map((s) => [s.id, s.notify_sent]));
+    const ids = [...new Set([...n.requests.map((r) => r.event_id), ...sent.keys()])].filter((id) => byId.has(id));
+    $('[data-nt-list]').replaceChildren(
+      ...ids.map((id) => {
+        const e = byId.get(id)!;
+        const r = n.requests.find((x) => x.event_id === id);
+        const li = document.createElement('li');
+        li.className = 'flex flex-wrap items-center justify-between gap-2 py-2 text-sm';
+        const info = document.createElement('span');
+        const parts = [
+          r?.pending ? `${r.pending} aguardando` : '',
+          r?.failed ? `${r.failed} com falha` : '',
+          sent.get(id) ? `${sent.get(id)} enviado${sent.get(id) === 1 ? '' : 's'}` : '',
+        ].filter(Boolean);
+        info.innerHTML = `<span class="font-medium"></span> <span class="text-muted">· ${parts.join(' · ')}</span>`;
+        info.querySelector('span')!.textContent = e.name;
+        li.append(info);
+        if (r?.error) {
+          const er = document.createElement('span');
+          er.className = 'basis-full text-xs text-amber-200';
+          er.textContent = `Última falha do serviço de e-mail: ${r.error}`;
+          li.append(er);
+        }
+        if (n.configured && publicState(e) === 'aberto' && (r?.pending || r?.failed)) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-outline min-h-9 px-3 text-xs';
+          b.textContent = 'Enviar avisos agora';
+          b.addEventListener('click', async () => {
+            b.disabled = true;
+            try {
+              const x = await api.sendNotices(id);
+              toast(`${x.sent} aviso(s) enviado(s)${x.failed ? `, ${x.failed} com falha` : ''}.`, x.failed && !x.sent ? 'error' : 'ok');
+              await renderNotices();
+            } catch (err) {
+              toast((err as Error).message, 'error');
+              b.disabled = false;
+            }
+          });
+          li.append(b);
+        }
+        return li;
+      }),
+    );
+    if (!ids.length) $('[data-nt-list]').innerHTML = '<li class="py-2 text-sm text-muted">Nenhum pedido de aviso ainda.</li>';
+  }
+
   async function load() {
     const [cfg, evs] = await Promise.all([api.cartao(), api.events()]);
     events = evs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created_at.localeCompare(a.created_at));
@@ -280,6 +350,7 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
     fill(cfg.config);
     saved = JSON.stringify(current());
     renderAnnounced();
+    void renderNotices();
     $('[data-loading]').hidden = true;
     $('[data-main]').hidden = false;
     update();
