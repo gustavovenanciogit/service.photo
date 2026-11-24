@@ -55,6 +55,7 @@ const groups: { title: string; items: Item[] }[] = [
   {
     title: 'Ferramentas',
     items: [
+      { href: '/painel/cartao/', label: 'Cartão Digital', icon: 'chat', match: (p) => p.startsWith('/painel/cartao') },
       { href: '/painel/qrcodes/', label: 'QR Codes', icon: 'image', match: (p) => p.startsWith('/painel/qrcodes') },
       { href: '/painel/mensagens/', label: 'Mensagens', icon: 'chat', match: (p) => p.startsWith('/painel/mensagens') },
     ],

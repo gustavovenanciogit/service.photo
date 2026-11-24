@@ -63,7 +63,8 @@ export const paymentTerms = [
 ] as const;
 
 /** Exibe avisos de "pendente de confirmação" (apenas no `npm run dev`). */
-export const showPendingNotices = import.meta.env?.DEV ?? false;
+// (cast: este arquivo também é lido pelo servidor, que não tem import.meta.env)
+export const showPendingNotices = (import.meta as { env?: { DEV?: boolean } }).env?.DEV ?? false;
 
 export const instagramUrl = site.instagramUser
   ? `https://www.instagram.com/${site.instagramUser}/`

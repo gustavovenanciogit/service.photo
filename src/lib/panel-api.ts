@@ -8,6 +8,7 @@ import type { Order } from './orders';
 import type { RevenueEntry } from './reports';
 import type { WatermarkSettings } from './watermark-models';
 import type { Coupon, CouponStatus } from './coupons';
+import type { CartaoConfig } from './cartao';
 
 export type FaceSession = {
   id: string; event_id: string; kind: 'treino' | 'config' | 'auto'; model: string; pipeline: string; threshold: number; recommended: number;
@@ -110,6 +111,9 @@ export const api = {
     return data;
   },
   deleteCover: (id: string) => request<EventRecord>('DELETE', `/api/events/${encodeURIComponent(id)}/cover`),
+  cartao: () => request<{ config: CartaoConfig; defaults: CartaoConfig }>('GET', '/api/cartao'),
+  saveCartao: (c: CartaoConfig & { forecast: string }) => request<{ config: CartaoConfig }>('PUT', '/api/cartao', c),
+  unannounceEvent: (eventId: string) => request<{ ok: true }>('POST', '/api/cartao/unannounce', { event_id: eventId }),
   watermarkSettings: () => request<WatermarkSettings>('GET', '/api/settings/watermark'),
   saveWatermarkSettings: (s: WatermarkSettings) => request<WatermarkSettings>('PUT', '/api/settings/watermark', s),
   async uploadWatermarkLogo(png: Blob) {

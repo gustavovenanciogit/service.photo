@@ -434,7 +434,8 @@ export async function servePhoto(env: EventsEnv, path: string, admin: boolean, u
   const cover = /^\/f\/(evt_[a-z0-9]{6,30})\/cover\.jpg$/.exec(path);
   if (cover && env.PHOTOS) {
     const e = await getEvent(env.DB, cover[1]!);
-    if (!e || !e.cover_image || (publicState(e) === 'oculto' && !admin)) return new Response('Não encontrado', { status: 404 });
+    // Antes da publicação a capa enviada aparece só se o evento foi anunciado (página de espera do Cartão Digital).
+    if (!e || !e.cover_image || (publicState(e) === 'oculto' && !admin && e.announced !== 1)) return new Response('Não encontrado', { status: 404 });
     const obj = await env.PHOTOS.get(`events/${e.id}/cover.jpg`);
     if (!obj) return new Response('Não encontrado', { status: 404 });
     // O endereço muda a cada nova capa (?v=), então pode ficar em cache.

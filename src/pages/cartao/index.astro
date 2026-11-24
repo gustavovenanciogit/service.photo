@@ -1,0 +1,56 @@
+---
+/**
+ * CARTÃO DIGITAL — /cartao
+ * Um único link/QR Code fixo (impresso uma vez). O conteúdo vem do painel (aba "Cartão Digital"),
+ * guardado no banco: muda na hora, sem deploy.
+ * - Botão principal dinâmico: evento em destaque → página permanente /eventos/<endereço>.
+ * - "Contratar fotógrafo" e "Conhecer meu trabalho" (configuráveis) e "Ver outros eventos" (opcional).
+ * Sem JS (ou se o servidor falhar) mostra o cartão padrão, sem destaque.
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { site } from '@/config/site';
+import { defaultCartao } from '@/lib/cartao';
+import { renderCartao, type CartaoPublic } from '@/lib/cartao-view';
+import { messages, whatsappLink } from '@/lib/whatsapp';
+
+const d = defaultCartao(whatsappLink(site.whatsappNumber, messages.quote()), '/');
+const initial: CartaoPublic = { name: site.shortName, tagline: site.tagline, headline: d.headline, intro: d.intro, show_past: false, hire: d.hire, work: d.work, featured: null };
+---
+
+<BaseLayout title="Cartão digital" description={`${site.name}: fotos dos eventos, contratação e portfólio.`} bare>
+  <section class="min-h-dvh bg-[radial-gradient(ellipse_at_top,rgba(139,224,122,0.10),transparent_60%)] px-4 py-8 sm:py-12">
+    <div data-cartao class="transition-opacity duration-200 [.js_&]:opacity-0" set:html={renderCartao(initial)} />
+  </section>
+</BaseLayout>
+
+<script>
+  import { renderCartao, type CartaoPublic } from '@/lib/cartao-view';
+
+  const box = document.querySelector<HTMLElement>('[data-cartao]')!;
+  const show = () => box.classList.remove('[.js_&]:opacity-0');
+  // Se o servidor demorar, mostra o cartão padrão em vez de uma tela vazia.
+  const timer = setTimeout(show, 2500);
+
+  /**
+   * Estatísticas (FUTURO): hoje não envia nada. Quando houver contagem de visitas/cliques por evento,
+   * é aqui que entra o envio (sem dados pessoais).
+   */
+  function track(_name: string, _slug = '') {}
+
+  fetch('/api/public/cartao', { headers: { Accept: 'application/json' } })
+    .then((r) => (r.ok ? (r.json() as Promise<CartaoPublic>) : Promise.reject()))
+    .then((d) => {
+      box.innerHTML = renderCartao(d);
+      track('cartao_view', d.featured?.slug);
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      clearTimeout(timer);
+      show();
+    });
+
+  box.addEventListener('click', (e) => {
+    const a = (e.target as HTMLElement).closest<HTMLElement>('[data-track]');
+    if (a) track(a.dataset.track!);
+  });
+</script>

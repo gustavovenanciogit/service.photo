@@ -1,0 +1,351 @@
+---
+/**
+ * CARTÃO DIGITAL — /painel/cartao/
+ * Configura o cartão público (/cartao), um link/QR Code fixo:
+ * - Evento em destaque: evento existente, previsão de publicação (horário de Manaus), texto,
+ *   ligar/desligar. O evento escolhido ganha a página permanente /eventos/<endereço>, que mostra a
+ *   espera (sem fotos) até o evento ser publicado de verdade.
+ * - Botões "Contratar fotógrafo" e "Conhecer meu trabalho" (texto e link) e "Ver outros eventos".
+ * - Prévia de celular com o mesmo desenho da página pública.
+ * Salvo no banco: vale na hora, sem deploy.
+ */
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import { LIMITS } from '@/lib/cartao';
+const field = 'mt-1 w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
+const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
+---
+
+<PanelLayout title="Cartão Digital">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="eyebrow">Divulgação</p>
+      <h1 class="mt-1 text-4xl font-extrabold sm:text-5xl">Cartão <span class="text-brand">Digital</span></h1>
+      <p class="mt-2 max-w-2xl text-muted">
+        Um link fixo (<a href="/cartao" target="_blank" rel="noopener" class="text-brand underline">/cartao</a>) para o QR Code impresso. O evento em destaque
+        muda daqui, sem imprimir de novo e sem deploy.
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="/cartao" target="_blank" rel="noopener" class="btn btn-outline min-h-10 px-4 text-sm">Abrir o cartão</a>
+      <a href="/painel/qrcodes/?preset=cartao" class="btn btn-outline min-h-10 px-4 text-sm">QR Code do cartão</a>
+    </div>
+  </div>
+
+  <p data-loading class="mt-8 text-muted">Carregando…</p>
+
+  <div data-main hidden class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+    <form data-form class="space-y-6" novalidate>
+      <!-- ───────── EVENTO EM DESTAQUE ───────── -->
+      <section class="card space-y-4 p-5 sm:p-6" aria-labelledby="ft-title">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="ft-title" class="text-2xl font-bold">Evento em destaque</h2>
+            <p class="text-sm text-muted">O primeiro botão do cartão leva à página permanente do evento.</p>
+          </div>
+          <label class="flex items-center gap-2 rounded-full border border-line bg-bg-2 px-3 py-1.5 text-sm font-semibold">
+            <input name="active" type="checkbox" class={toggle} /> Destaque ativo
+          </label>
+        </div>
+
+        <label class="block text-sm">
+          <span class="font-medium">Evento</span>
+          <select name="event_id" class={field}>
+            <option value="">Escolha um evento…</option>
+          </select>
+        </label>
+        <p data-ev-info class="rounded-xl border border-line bg-bg-2 px-3 py-2 text-xs text-muted" hidden></p>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block text-sm">
+            <span class="font-medium">Previsão de publicação das fotos</span>
+            <input name="forecast" type="datetime-local" class={field} />
+            <span class="mt-1 block text-xs text-muted">Horário de Manaus. Vazio = sem previsão (sem contagem regressiva).</span>
+          </label>
+          <label class="block text-sm">
+            <span class="font-medium">Texto do botão <span class="text-muted">(opcional)</span></span>
+            <input name="label" maxlength={LIMITS.label} class={field} placeholder="Automático: Acompanhe as fotos da …" />
+            <span class="mt-1 block text-xs text-muted">Depois de publicado vira "Encontre suas fotos da …".</span>
+          </label>
+        </div>
+
+        <label class="block text-sm">
+          <span class="font-medium">Texto de apresentação <span class="text-muted">(opcional)</span></span>
+          <textarea name="text" rows="3" maxlength={LIMITS.text} class={field} placeholder="Ex.: Obrigado por correr com a gente! As fotos saem em breve."></textarea>
+          <span data-count="text" class="mt-1 block text-right text-xs text-muted"></span>
+        </label>
+
+        <div data-link-box hidden class="rounded-xl border border-line bg-bg-2 p-3 text-sm">
+          <p class="text-xs text-muted">Link permanente do evento (não muda quando o cartão destacar outro evento):</p>
+          <div class="mt-1 flex flex-wrap items-center gap-2">
+            <code data-link class="min-w-0 flex-1 truncate text-brand"></code>
+            <button type="button" data-copy class="btn btn-outline min-h-9 px-3 text-xs">Copiar</button>
+            <a data-open target="_blank" rel="noopener" class="btn btn-outline min-h-9 px-3 text-xs">Abrir</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───────── TOPO E BOTÕES ───────── -->
+      <section class="card space-y-4 p-5 sm:p-6" aria-labelledby="bt-title">
+        <h2 id="bt-title" class="text-2xl font-bold">Topo e botões</h2>
+        <label class="block text-sm">
+          <span class="font-medium">Frase principal</span>
+          <input name="headline" maxlength={LIMITS.headline} class={field} />
+        </label>
+        <label class="block text-sm">
+          <span class="font-medium">Linha de apoio <span class="text-muted">(opcional)</span></span>
+          <input name="intro" maxlength={LIMITS.intro} class={field} />
+        </label>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <fieldset class="space-y-2 rounded-xl border border-line p-3">
+            <legend class="px-1 text-sm font-semibold">Botão 2</legend>
+            <label class="block text-xs text-muted">Texto<input name="hire_label" maxlength={LIMITS.buttonLabel} class={field} /></label>
+            <label class="block text-xs text-muted">Link<input name="hire_url" maxlength={LIMITS.url} class={field} placeholder="https://… ou /servicos" /></label>
+          </fieldset>
+          <fieldset class="space-y-2 rounded-xl border border-line p-3">
+            <legend class="px-1 text-sm font-semibold">Botão 3</legend>
+            <label class="block text-xs text-muted">Texto<input name="work_label" maxlength={LIMITS.buttonLabel} class={field} /></label>
+            <label class="block text-xs text-muted">Link<input name="work_url" maxlength={LIMITS.url} class={field} placeholder="https://… ou /" /></label>
+          </fieldset>
+        </div>
+        <p class="text-xs text-muted">Link vazio esconde o botão. Aceita https://… (ex.: WhatsApp, Instagram) ou um endereço do site começando com /.</p>
+        <label class="flex items-start gap-3 rounded-xl border border-line bg-bg-2 p-3 text-sm">
+          <input name="show_past" type="checkbox" class={toggle} />
+          <span>
+            Mostrar "Ver outros eventos"
+            <span data-listed class="block text-xs text-muted"></span>
+          </span>
+        </label>
+      </section>
+
+      <!-- ───────── PÁGINAS DE ESPERA ───────── -->
+      <section data-announced-box hidden class="card space-y-3 p-5 sm:p-6" aria-labelledby="an-title">
+        <h2 id="an-title" class="text-xl font-bold">Páginas de espera no ar</h2>
+        <p class="text-sm text-muted">Eventos ainda não publicados com página pública de espera (sem fotos). Retire a que não fizer mais sentido.</p>
+        <ul data-announced class="divide-y divide-line"></ul>
+      </section>
+
+      <div class="sticky bottom-3 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-bg/95 p-3 backdrop-blur">
+        <button type="submit" data-save class="btn btn-primary min-h-11 px-6">Salvar</button>
+        <span data-status class="text-sm text-muted" aria-live="polite"></span>
+      </div>
+    </form>
+
+    <!-- ───────── PRÉVIA DE CELULAR ───────── -->
+    <aside class="lg:sticky lg:top-24" aria-label="Prévia no celular">
+      <p class="mb-2 text-sm font-semibold text-muted">Prévia no celular</p>
+      <div class="mx-auto w-full max-w-[340px] rounded-[2.2rem] border-[6px] border-zinc-800 bg-bg p-1 shadow-2xl shadow-black/50">
+        <div class="mx-auto mt-1 mb-2 h-1.5 w-20 rounded-full bg-zinc-800"></div>
+        <div data-preview class="h-[620px] overflow-y-auto rounded-[1.6rem] bg-[radial-gradient(ellipse_at_top,rgba(139,224,122,0.10),transparent_60%)] px-3 py-5"></div>
+      </div>
+      <p class="mt-2 text-center text-xs text-muted">Mesmo desenho da página pública. Os links não abrem na prévia.</p>
+    </aside>
+  </div>
+</PanelLayout>
+
+<script>
+  import { api, toast } from '@/lib/panel-api';
+  import { featuredLabel, formatDay, isoToManaus, manausToISO, teaserState, type CartaoConfig } from '@/lib/cartao';
+  import { renderCartao, type CartaoPublic } from '@/lib/cartao-view';
+  import { publicState, type EventRecord } from '@/lib/events';
+
+  const form = document.querySelector<HTMLFormElement>('[data-form]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const f = <T extends HTMLElement = HTMLInputElement>(n: string) => form.elements.namedItem(n) as unknown as T;
+  const val = (n: string) => f(n).value;
+  const checked = (n: string) => f(n).checked;
+  let events: EventRecord[] = [];
+  let saved = '';
+  /** Previsões já digitadas por evento (para trocar de evento no seletor sem perder). */
+  const forecasts = new Map<string, string>();
+
+  const STATUS: Record<string, string> = { rascunho: 'rascunho', publicado: 'publicado', encerrado: 'encerrado' };
+
+  function current(): CartaoConfig & { forecast: string } {
+    return {
+      headline: val('headline'), intro: val('intro'), show_past: checked('show_past'),
+      featured: { active: checked('active'), event_id: val('event_id'), text: f<HTMLTextAreaElement>('text').value, label: val('label') },
+      hire: { label: val('hire_label'), url: val('hire_url') },
+      work: { label: val('work_label'), url: val('work_url') },
+      forecast: val('forecast'),
+    };
+  }
+
+  function fill(c: CartaoConfig) {
+    f('headline').value = c.headline;
+    f('intro').value = c.intro;
+    f('show_past').checked = c.show_past;
+    f('active').checked = c.featured.active;
+    f<HTMLSelectElement>('event_id').value = c.featured.event_id;
+    f<HTMLTextAreaElement>('text').value = c.featured.text;
+    f('label').value = c.featured.label;
+    f('hire_label').value = c.hire.label;
+    f('hire_url').value = c.hire.url;
+    f('work_label').value = c.work.label;
+    f('work_url').value = c.work.url;
+    const e = events.find((x) => x.id === c.featured.event_id);
+    f('forecast').value = e ? isoToManaus(e.publish_forecast ?? '') : '';
+  }
+
+  const selected = () => events.find((x) => x.id === val('event_id')) ?? null;
+
+  function update() {
+    const c = current();
+    const e = selected();
+    // Info do evento escolhido + link permanente.
+    const info = $('[data-ev-info]');
+    info.hidden = !e;
+    $('[data-link-box]').hidden = !e;
+    if (e) {
+      const st = publicState(e);
+      info.textContent =
+        st === 'aberto'
+          ? 'Publicado: o cartão mostra "Fotografias disponíveis" e o botão leva à galeria. A previsão não aparece mais.'
+          : st === 'encerrado'
+            ? 'Venda encerrada: o cartão mostra "Vendas encerradas". Considere destacar outro evento.'
+            : 'Ainda não publicado: o público vê a página de espera (nome, data, local, capa enviada e previsão), sem nenhuma foto. A galeria só abre quando você publicar o evento.';
+      const link = `${location.origin}/eventos/${e.slug}`;
+      $('[data-link]').textContent = link;
+      $<HTMLAnchorElement>('[data-open]').href = link;
+      f('forecast').disabled = st !== 'oculto';
+    } else f('forecast').disabled = false;
+    $('[data-count="text"]').textContent = `${c.featured.text.length}/${f<HTMLTextAreaElement>('text').maxLength}`;
+    f('label').placeholder = e ? `Automático: ${featuredLabel(e.name, 'preparando')}` : 'Automático: Acompanhe as fotos da …';
+    const listed = events.filter((x) => x.listed && (x.status !== 'rascunho' || x.announced === 1 || x.id === c.featured.event_id)).length;
+    $('[data-listed]').textContent = `Lista em /eventos os eventos marcados "Mostrar este evento em Outros eventos" na edição do evento (${listed} hoje).`;
+    renderPreview(c, e);
+    const dirty = JSON.stringify(c) !== saved;
+    $('[data-status]').textContent = dirty ? 'Alterações não salvas' : $('[data-status]').dataset.saved ?? '';
+  }
+
+  function renderPreview(c: ReturnType<typeof current>, e: EventRecord | null) {
+    const st = e ? (teaserState(publicState(e), true) ?? 'preparando') : null;
+    const cover = e?.cover_image ? `/f/${e.id}/cover.jpg?v=${encodeURIComponent(e.cover_image)}` : e && st === 'disponivel' && e.cover_photo_id ? `/f/${e.id}/${e.cover_photo_id}/preview.jpg` : '';
+    const d: CartaoPublic = {
+      name: 'VENART', tagline: 'Fotografia esportiva & comercial',
+      headline: c.headline || 'Seus momentos merecem ser encontrados', intro: c.intro, show_past: c.show_past,
+      hire: { label: c.hire.label || 'Contratar fotógrafo', url: c.hire.url }, work: { label: c.work.label || 'Conhecer meu trabalho', url: c.work.url },
+      featured: c.featured.active && e && st
+        ? { slug: e.slug, name: e.name, date: e.date, location: e.location, state: st, forecast: st === 'preparando' ? manausToISO(c.forecast) : '', text: c.featured.text.trim(), label: c.featured.label.trim(), cover }
+        : null,
+    };
+    $('[data-preview]').innerHTML = renderCartao(d);
+  }
+
+  function renderAnnounced() {
+    const list = events.filter((e) => e.announced === 1 && publicState(e) === 'oculto');
+    $('[data-announced-box]').hidden = !list.length;
+    const ul = $('[data-announced]');
+    ul.replaceChildren(
+      ...list.map((e) => {
+        const li = document.createElement('li');
+        li.className = 'flex flex-wrap items-center justify-between gap-2 py-2 text-sm';
+        const a = document.createElement('a');
+        a.href = `/eventos/${e.slug}`;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.className = 'font-medium hover:text-brand';
+        a.textContent = `${e.name} · ${formatDay(e.date)}`;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-outline min-h-9 px-3 text-xs';
+        b.textContent = 'Retirar página de espera';
+        b.addEventListener('click', async () => {
+          if (!confirm(`Retirar a página de espera de "${e.name}"? O link /eventos/${e.slug} passa a dar "não encontrado" até você publicar o evento.`)) return;
+          try {
+            await api.unannounceEvent(e.id);
+            e.announced = 0;
+            e.publish_forecast = '';
+            renderAnnounced();
+            toast('Página de espera retirada.');
+          } catch (err) {
+            toast((err as Error).message, 'error');
+          }
+        });
+        li.append(a, b);
+        return li;
+      }),
+    );
+  }
+
+  async function load() {
+    const [cfg, evs] = await Promise.all([api.cartao(), api.events()]);
+    events = evs.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created_at.localeCompare(a.created_at));
+    const sel = f<HTMLSelectElement>('event_id');
+    for (const e of events) {
+      const o = document.createElement('option');
+      o.value = e.id;
+      o.textContent = `${e.name} — ${formatDay(e.date) || 'sem data'} (${STATUS[e.status] ?? e.status})`;
+      sel.append(o);
+    }
+    fill(cfg.config);
+    saved = JSON.stringify(current());
+    renderAnnounced();
+    $('[data-loading]').hidden = true;
+    $('[data-main]').hidden = false;
+    update();
+  }
+
+  let prevEvent = '';
+  form.addEventListener('focusin', (e) => {
+    if ((e.target as HTMLElement).getAttribute('name') === 'event_id') prevEvent = val('event_id');
+  });
+  form.addEventListener('input', (e) => {
+    const t = e.target as HTMLElement;
+    if (t.getAttribute('name') === 'event_id') {
+      // Guarda a previsão digitada do evento anterior e mostra a do novo.
+      if (prevEvent) forecasts.set(prevEvent, val('forecast'));
+      const ev = selected();
+      f('forecast').value = ev ? (forecasts.get(ev.id) ?? isoToManaus(ev.publish_forecast ?? '')) : '';
+      prevEvent = val('event_id');
+      if (ev && !checked('active')) f('active').checked = true;
+    }
+    update();
+  });
+  // Links da prévia não navegam.
+  $('[data-preview]').addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('a')) e.preventDefault();
+  });
+  $('[data-copy]').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('[data-link]').textContent ?? '');
+      toast('Link copiado.');
+    } catch {
+      toast('Não foi possível copiar. Selecione o link e copie.', 'error');
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const c = current();
+    if (c.featured.active && !c.featured.event_id) return toast('Escolha o evento em destaque (ou desative o destaque).', 'error');
+    const btn = $<HTMLButtonElement>('[data-save]');
+    btn.disabled = true;
+    try {
+      const r = await api.saveCartao(c);
+      // O evento escolhido passa a ter página de espera e a previsão salva.
+      const ev = events.find((x) => x.id === r.config.featured.event_id);
+      if (ev) {
+        ev.announced = 1;
+        ev.publish_forecast = manausToISO(c.forecast);
+      }
+      fill(r.config);
+      saved = JSON.stringify(current());
+      const t = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      $('[data-status]').dataset.saved = `Salvo às ${t}: já está no ar.`;
+      renderAnnounced();
+      update();
+      toast('Cartão salvo. Já está no ar.');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  window.addEventListener('beforeunload', (e) => {
+    if (saved && JSON.stringify(current()) !== saved) e.preventDefault();
+  });
+
+  load().catch((e) => {
+    $('[data-loading]').textContent = (e as Error).message || 'Não foi possível carregar.';
+  });
+</script>

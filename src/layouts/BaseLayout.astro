@@ -20,6 +20,8 @@ interface Props {
   /** Mensagem padrão do botão flutuante do WhatsApp nesta página. */
   waMessage?: string;
   noindex?: boolean;
+  /** Página enxuta (Cartão Digital): sem menu, rodapé e botões flutuantes. */
+  bare?: boolean;
 }
 
 const {
@@ -28,6 +30,7 @@ const {
   ogImage = site.seo.ogImage,
   waMessage = messages.general(),
   noindex = false,
+  bare = false,
 } = Astro.props;
 
 const fullTitle = title ? `${title} | ${site.name}` : `${site.seo.defaultTitle} | ${site.name}`;
@@ -92,13 +95,13 @@ const jsonLd = {
     >
       Pular para o conteúdo
     </a>
-    <Header />
+    {!bare && <Header />}
     <main id="conteudo" tabindex="-1" class="flex-1 outline-none">
       <slot />
     </main>
-    <Footer />
-    <WhatsAppButton message={waMessage} />
-    <BackToTop />
+    {!bare && <Footer />}
+    {!bare && <WhatsAppButton message={waMessage} />}
+    {!bare && <BackToTop />}
 
     <script>
       // Animação discreta ao rolar: elementos com [data-reveal] aparecem ao entrar na tela.

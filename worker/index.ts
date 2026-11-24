@@ -21,6 +21,7 @@ import { facesApi, publicFaceSearch } from './faces.ts';
 import { store } from '../src/config/store.ts';
 import { couponCheckApi, couponsAdminApi } from './coupons.ts';
 import { publicState } from '../src/lib/events.ts';
+import { cartaoAdminApi, cartaoPublicApi, eventoPublicApi, eventosListApi, serveEventoPage } from './cartao.ts';
 import { eventsApi, faceSearchEvent, getBySlug, publicEventApi, purgeExpired, serveEventPage, servePhoto } from './events.ts';
 import { createOrder, MpError, orderStatus, payOrder, ordersAdminApi, serveDownload, serveOrderPage, webhook, type OrdersEnv } from './orders.ts';
 import { applyPricingEdits, imageKind, MAX_PHOTO_BYTES, PHOTO_PATH, validatePortfolio } from '../src/lib/site-content.ts';
@@ -110,6 +111,21 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     if (!parsed.ok) return json({ error: parsed.error }, 400);
     await db.insertLead(env.DB, newId('ped'), parsed.value);
     return json({ ok: true }, 201);
+  }
+
+  // ── Público: Cartão Digital e página permanente dos eventos ──
+  if (path === '/api/public/cartao' && method === 'GET') {
+    await db.ensureSchema(env.DB);
+    return cartaoPublicApi(env, json);
+  }
+  if (path === '/api/public/eventos' && method === 'GET') {
+    await db.ensureSchema(env.DB);
+    return eventosListApi(env, json);
+  }
+  const pubEvento = /^\/api\/public\/eventos\/([a-z0-9-]{1,60})$/.exec(path);
+  if (pubEvento && method === 'GET') {
+    await db.ensureSchema(env.DB);
+    return eventoPublicApi(env, pubEvento[1]!, await isLoggedIn(req, env), json);
   }
 
   // ── Público: galeria de um evento ──
@@ -359,6 +375,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ bytes: n });
   }
   if (path === '/api/coupons' || path.startsWith('/api/coupons/')) return couponsAdminApi(req, env, path, url, json, (r) => readJson(r));
+  if (path === '/api/cartao' || path.startsWith('/api/cartao/')) return cartaoAdminApi(req, env, path, json, (r) => readJson(r));
   if (path.startsWith('/api/settings/')) return settingsApi(req, env, path, json, (r) => readJson(r));
   if (path === '/api/orders' || path.startsWith('/api/orders/')) return ordersAdminApi(req, env, path, json, (r) => readJson(r));
   // Reconhecimento facial (piloto do painel)
@@ -479,6 +496,14 @@ export default {
       if (eventPage) {
         await db.ensureSchema(env.DB);
         return await serveEventPage(req, env, url, eventPage[1]!.toLowerCase(), await isLoggedIn(req, env));
+      }
+
+      // Página permanente do evento (Cartão Digital). /eventos/ (lista) é a página estática.
+      if (path === '/eventos/' || path === '/eventos/index.html') return await env.ASSETS.fetch(req);
+      const eventoPage = /^\/eventos\/([^/]+)\/?$/.exec(path);
+      if (eventoPage) {
+        await db.ensureSchema(env.DB);
+        return await serveEventoPage(req, env, url, eventoPage[1]!.toLowerCase(), await isLoggedIn(req, env));
       }
 
       // Endereço antigo do gerador.

@@ -46,6 +46,8 @@ export interface EventRecord {
   face_pack_at: string; // quando o pacote de busca por rostos foi gerado (vazio = sem pacote)
   face_threshold: number; // limiar da busca só deste evento (-1 = usa o geral)
   face_only: boolean; // galeria privada: o público só vê as fotos encontradas pela própria selfie
+  announced?: number; // 1 = página permanente (/eventos/…) visível antes da publicação, sem fotos (Cartão Digital)
+  publish_forecast?: string; // previsão de publicação (ISO UTC; '' = sem previsão)
   photo_count: number;
   published_at: string; // ISO
   purged_at: string; // quando os arquivos foram apagados automaticamente (vazio = ainda guardados)

@@ -293,6 +293,9 @@ const MIGRATIONS = [
   `ALTER TABLE orders ADD COLUMN discount REAL NOT NULL DEFAULT 0`,
   `ALTER TABLE orders ADD COLUMN coupon_code TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE events ADD COLUMN face_threshold REAL NOT NULL DEFAULT -1`,
+  // Cartão Digital: página permanente de espera (antes de publicar) e previsão de publicação.
+  `ALTER TABLE events ADD COLUMN announced INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE events ADD COLUMN publish_forecast TEXT NOT NULL DEFAULT ''`,
 ];
 
 /**
