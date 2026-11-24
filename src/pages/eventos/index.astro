@@ -1,0 +1,63 @@
+---
+/**
+ * OUTROS EVENTOS — /eventos/
+ * Só funciona com "Ver outros eventos" ligado no Cartão Digital. Lista apenas os eventos marcados
+ * "Mostrar este evento em Outros eventos" (publicados, encerrados ou anunciados), cada um levando à
+ * página permanente /eventos/<endereço>. Nenhuma foto de evento não publicado.
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { site } from '@/config/site';
+---
+
+<BaseLayout title="Eventos" description={`Eventos fotografados por ${site.name}. Encontre as suas fotos.`} bare>
+  <section class="min-h-dvh px-4 py-6 sm:py-10">
+    <div class="mx-auto w-full max-w-md" data-list>
+      <nav class="flex items-center justify-between">
+        <a href="/cartao" class="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Voltar ao cartão
+        </a>
+        <span class="font-display text-xl font-extrabold tracking-wide text-ink">{site.shortName}<span class="text-brand">.</span></span>
+      </nav>
+      <h1 class="mt-6 font-display text-3xl font-extrabold">Eventos</h1>
+      <p class="mt-1 text-sm text-muted">Escolha o evento para encontrar as suas fotos.</p>
+      <p data-msg class="py-12 text-center text-muted">Carregando…</p>
+      <ul data-items class="mt-5 space-y-3"></ul>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  import { formatDay, type TeaserState } from '@/lib/cartao';
+  import { esc } from '@/lib/cartao-view';
+
+  type Item = { slug: string; name: string; date: string; location: string; state: TeaserState; cover: string };
+  const msg = document.querySelector<HTMLElement>('[data-msg]')!;
+  const ul = document.querySelector<HTMLElement>('[data-items]')!;
+  const badge: Record<TeaserState, string> = {
+    preparando: '<span class="rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">Em preparação</span>',
+    disponivel: '<span class="rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand">Fotos disponíveis</span>',
+    encerrado: '<span class="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-muted">Vendas encerradas</span>',
+  };
+
+  fetch('/api/public/eventos', { headers: { Accept: 'application/json' } })
+    .then((r) => (r.ok ? (r.json() as Promise<{ events: Item[]; enabled: boolean }>) : Promise.reject()))
+    .then((d) => {
+      if (!d.enabled) return void (msg.textContent = 'A lista de eventos não está disponível no momento.');
+      if (!d.events.length) return void (msg.textContent = 'Nenhum evento para mostrar ainda.');
+      msg.hidden = true;
+      ul.innerHTML = d.events
+        .map(
+          (e) => `<li><a href="/eventos/${esc(e.slug)}" class="flex items-center gap-3 rounded-2xl border border-line bg-bg-2 p-3 hover:border-brand/60">
+            ${e.cover ? `<img src="${esc(e.cover)}" alt="" loading="lazy" class="size-16 shrink-0 rounded-xl object-cover" />` : '<span aria-hidden="true" class="size-16 shrink-0 rounded-xl bg-white/5"></span>'}
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-semibold text-ink">${esc(e.name)}</span>
+              <span class="block truncate text-xs text-muted">${esc([formatDay(e.date), e.location].filter(Boolean).join(' · '))}</span>
+              <span class="mt-1 inline-block">${badge[e.state]}</span>
+            </span>
+          </a></li>`,
+        )
+        .join('');
+    })
+    .catch(() => (msg.textContent = 'Não foi possível carregar os eventos. Tente de novo em instantes.'));
+</script>

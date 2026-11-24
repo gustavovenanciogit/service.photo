@@ -10,6 +10,7 @@ import { messages, whatsappLink } from '@/lib/whatsapp';
 const base = (Astro.site?.toString() ?? '').replace(/\/$/, '');
 const presets = [
   { id: 'site', label: 'Site (página inicial)', url: `${base}/`, caption: 'Conheça meu trabalho' },
+  { id: 'cartao', label: 'Cartão digital (link fixo)', url: `${base}/cartao`, caption: 'Fotos, contratação e portfólio' },
   { id: 'precos', label: 'Tabela de preços', url: `${base}/precos`, caption: 'Tabela de preços' },
   { id: 'simulador', label: 'Simulador de orçamento', url: `${base}/simulador`, caption: 'Simule seu orçamento' },
   { id: 'portfolio', label: 'Portfólio', url: `${base}/#portfolio`, caption: 'Veja o portfólio' },
@@ -165,7 +166,10 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
   });
   form.addEventListener('submit', (e) => e.preventDefault());
 
-  f('caption').value = presets[0]!.caption;
+  // ?preset=cartao (vindo do Cartão Digital) já abre com o link escolhido.
+  const asked = presets.find((p) => p.id === new URLSearchParams(location.search).get('preset'));
+  if (asked) f('preset').value = asked.id;
+  f('caption').value = (asked ?? presets[0]!).caption;
   document.fonts?.ready.then(draw);
   draw();
 </script>

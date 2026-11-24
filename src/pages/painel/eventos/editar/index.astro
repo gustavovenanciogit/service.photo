@@ -185,7 +185,7 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
 
       <label class="flex items-start gap-3 border-t border-line pt-5 text-sm">
         <input name="listed" type="checkbox" class="mt-1 size-4 accent-[var(--color-brand)]" />
-        <span>Mostrar este evento na área de eventos do site <span class="text-muted">(quando ela estiver pronta). Sem marcar, só quem tem o link encontra.</span></span>
+        <span>Mostrar este evento em "Outros eventos" <span class="text-muted">(página /eventos, aberta pelo Cartão Digital quando "Ver outros eventos" estiver ligado). Sem marcar, só quem tem o link encontra.</span></span>
       </label>
 
       <label class="flex items-start gap-3 rounded-xl border border-brand/30 bg-brand/5 p-4 text-sm">
@@ -320,6 +320,10 @@ const field = 'mt-1.5 w-full rounded-xl border border-line bg-bg px-4 py-3 text-
     try {
       ev = await api.updateEvent(id, data);
       fill(); renderHead(); toast(msg);
+      // Publicou: avisos por e-mail de quem pediu na página de espera (Cartão Digital).
+      const n = (ev as EventRecord & { notices?: { sent: number; failed: number; pending: number } }).notices;
+      if (n?.sent) setTimeout(() => toast(`Aviso por e-mail enviado para ${n.sent} pessoa${n.sent === 1 ? '' : 's'}${n.pending ? ` (${n.pending} na fila, saem em até 10 min)` : ''}.`), 1500);
+      else if (n?.failed) setTimeout(() => toast('Os avisos por e-mail não saíram agora; o sistema tenta de novo em até 10 min.', 'error'), 1500);
     } catch (e) { toast((e as Error).message, 'error'); }
   }
 
