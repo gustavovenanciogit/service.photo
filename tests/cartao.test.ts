@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  countdown, defaultCartao, featuredHint, featuredLabel, forecastLabel, forecastStatus, loadCartao, parseCartao, parseForecast, safeUrl, teaserState,
+  countdown, defaultCartao, parseHandle, featuredHint, featuredLabel, forecastLabel, forecastStatus, loadCartao, parseCartao, parseForecast, safeUrl, teaserState,
 } from '../src/lib/cartao.ts';
-import { esc, renderCartao, type CartaoPublic } from '../src/lib/cartao-view.ts';
+import { esc, renderCartao, resolveShowcase, type CartaoPublic, type ShowcasePhoto } from '../src/lib/cartao-view.ts';
 
 const fb = defaultCartao('https://wa.me/5592000000000', '/');
 
@@ -86,6 +86,8 @@ test('cartão renderizado: escapa textos, link permanente, sem foto antes de pub
     name: 'VENART', tagline: 't', headline: '<b>oi</b>', intro: '', show_past: false,
     hire: { label: 'Contratar fotógrafo', url: 'https://wa.me/1' }, work: { label: 'Conhecer meu trabalho', url: '' },
     featured: { slug: 'manaus-run', name: 'Manaus "Run"', date: '2026-11-22', location: 'Ponta Negra', state: 'preparando', forecast: '2026-11-30T12:00:00Z', text: '', label: '', cover: '' },
+    showcase: { title: 'Últimos trabalhos', always: false, photos: [{ key: 'esportes/a.jpg', url: '/_astro/a.webp', alt: 'Corrida', label: 'Esportes' }] },
+    social: { instagram: '', tiktok: '' },
   };
   const html = renderCartao(d, now);
   assert.ok(html.includes('&lt;b&gt;oi&lt;/b&gt;'));
@@ -102,4 +104,51 @@ test('cartão renderizado: escapa textos, link permanente, sem foto antes de pub
   const passed = renderCartao({ ...d, featured: { ...d.featured!, forecast: '2026-11-01T12:00:00Z' } }, now);
   assert.ok(passed.includes('ainda estão sendo preparadas'));
   assert.ok(!passed.includes('Previsão de publicação'));
+});
+
+const cat: ShowcasePhoto[] = ['a', 'b', 'c'].map((k) => ({ key: `esportes/${k}.jpg`, url: `/_astro/${k}.webp`, alt: k.toUpperCase(), label: 'Esportes' }));
+
+test('redes: aceita @, usuário ou link; recusa inválido', () => {
+  assert.equal(parseHandle('@venart_mid', 'instagram'), 'venart_mid');
+  assert.equal(parseHandle('https://www.instagram.com/venart_mid/?hl=pt', 'instagram'), 'venart_mid');
+  assert.equal(parseHandle('https://www.tiktok.com/@venart.foto?lang=pt', 'tiktok'), 'venart.foto');
+  assert.equal(parseHandle('', 'tiktok'), '');
+  assert.equal(parseHandle('nome com espaço', 'instagram'), null);
+  assert.equal(parseHandle('<script>', 'tiktok'), null);
+  const r = parseCartao({ social: { instagram: '@ok', tiktok: 'x y' } }, fb);
+  assert.equal(r.ok, false);
+  const ok = parseCartao({ social: { instagram: '@ok', tiktok: '@tk' }, showcase: { title: ' Trabalhos ', photos: ['esportes/a.jpg', 'esportes/a.jpg', '../x.jpg'], always: true } }, fb);
+  assert.ok(ok.ok);
+  if (ok.ok) {
+    assert.deepEqual(ok.value.social, { instagram: 'ok', tiktok: 'tk' });
+    assert.deepEqual(ok.value.showcase, { title: 'Trabalhos', photos: ['esportes/a.jpg'], always: true });
+  }
+});
+
+test('vitrine: escolhidas na ordem; sem escolha (ou só fotos removidas) usa todas', () => {
+  assert.deepEqual(resolveShowcase(['esportes/c.jpg', 'esportes/a.jpg'], cat).map((p) => p.key), ['esportes/c.jpg', 'esportes/a.jpg']);
+  assert.equal(resolveShowcase([], cat).length, 3);
+  assert.equal(resolveShowcase(['esportes/sumiu.jpg'], cat).length, 3);
+  assert.equal(resolveShowcase([], cat, 2).length, 2);
+});
+
+test('sem evento em destaque: carrossel e cartões das redes; com destaque: só ícones', () => {
+  const base: CartaoPublic = {
+    name: 'VENART', tagline: 't', headline: 'h', intro: '', show_past: false, hire: { label: 'C', url: '/x' }, work: { label: 'T', url: '/' },
+    featured: null, showcase: { title: 'Últimos trabalhos', always: false, photos: cat }, social: { instagram: 'venart_mid', tiktok: 'venart' },
+  };
+  const empty = renderCartao(base);
+  assert.ok(empty.includes('data-carousel'));
+  assert.equal((empty.match(/<figure/g) ?? []).length, 3);
+  assert.equal((empty.match(/data-dot=/g) ?? []).length, 3);
+  assert.ok(empty.includes('https://www.instagram.com/venart_mid/'));
+  assert.ok(empty.includes('https://www.tiktok.com/@venart'));
+  assert.ok(empty.includes('Seguir'));
+  const featured = renderCartao({ ...base, featured: { slug: 's', name: 'N', date: '', location: '', state: 'disponivel', forecast: '', text: '', label: '', cover: '' } });
+  assert.ok(!featured.includes('data-carousel'));
+  assert.ok(!featured.includes('Seguir'));
+  assert.ok(featured.includes('aria-label="Instagram @venart_mid"'));
+  assert.ok(renderCartao({ ...base, featured: { slug: 's', name: 'N', date: '', location: '', state: 'disponivel', forecast: '', text: '', label: '', cover: '' }, showcase: { ...base.showcase, always: true } }).includes('data-carousel'));
+  // Sem redes preenchidas: nenhum cartão.
+  assert.ok(!renderCartao({ ...base, social: { instagram: '', tiktok: '' } }).includes('Redes sociais'));
 });
