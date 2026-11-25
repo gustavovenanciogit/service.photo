@@ -14,7 +14,7 @@
  * Nenhuma foto do evento, nenhum download: só o status real "publicado" libera a galeria (/e/…).
  */
 import { defaultCartao, loadCartao, parseCartao, parseForecast, teaserState, type CartaoConfig } from '../src/lib/cartao.ts';
-import type { CartaoFeatured, CartaoPublic } from '../src/lib/cartao-view.ts';
+import type { CartaoApi, CartaoFeatured } from '../src/lib/cartao-view.ts';
 import { publicState, type EventRecord } from '../src/lib/events.ts';
 import { site } from '../src/config/site.ts';
 import { messages, whatsappLink } from '../src/lib/whatsapp.ts';
@@ -23,7 +23,7 @@ import { emailConfigured } from '../src/lib/notify.ts';
 
 type Json = (data: unknown, status?: number, headers?: Record<string, string>) => Response;
 
-const fallback = () => defaultCartao(whatsappLink(site.whatsappNumber, messages.quote()), '/');
+const fallback = () => defaultCartao(whatsappLink(site.whatsappNumber, messages.quote()), '/', site.instagramUser);
 
 export async function getCartao(db: D1Database): Promise<CartaoConfig> {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'cartao'").first<{ value: string }>();
@@ -61,9 +61,12 @@ function featuredOf(e: Teaser, cfg: CartaoConfig, admin: boolean): CartaoFeature
 export async function cartaoPublicApi(env: EventsEnv, json: Json) {
   const cfg = await getCartao(env.DB);
   const e = cfg.featured.active && cfg.featured.event_id ? await getEvent(env.DB, cfg.featured.event_id) : null;
-  const out: CartaoPublic = {
+  const out: CartaoApi = {
     name: site.shortName, tagline: site.tagline, headline: cfg.headline, intro: cfg.intro, show_past: cfg.show_past,
     hire: cfg.hire, work: cfg.work, featured: e ? featuredOf(e as Teaser, cfg, false) : null,
+    // As fotos da vitrine são do portfólio do site: a página converte as chaves em endereços.
+    showcase: { title: cfg.showcase.title, always: cfg.showcase.always, files: cfg.showcase.photos },
+    social: cfg.social,
   };
   return json(out, 200, { 'Cache-Control': 'no-cache' });
 }

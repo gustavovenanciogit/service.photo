@@ -43,14 +43,24 @@ export interface CartaoConfig {
   show_past: boolean;
   hire: CartaoButton;
   work: CartaoButton;
+  /** Vitrine: carrossel de fotos do portfólio (aparece quando não há evento em destaque). */
+  showcase: {
+    title: string;
+    /** Fotos escolhidas ("pasta/arquivo.jpg"), na ordem; vazio = todas as fotos visíveis do portfólio. */
+    photos: string[];
+    /** Mostrar também quando houver evento em destaque (abaixo dos botões). */
+    always: boolean;
+  };
+  /** Perfis nas redes (usuário sem @; vazio = não aparece). */
+  social: { instagram: string; tiktok: string };
 }
 
 /** Ações que poderão ser contadas no futuro (hoje nada é enviado). */
-export const TRACK_EVENTS = ['cartao_view', 'featured_click', 'hire_click', 'work_click', 'past_click', 'event_view', 'gallery_click', 'check_click', 'notify_signup'] as const;
+export const TRACK_EVENTS = ['cartao_view', 'featured_click', 'hire_click', 'work_click', 'past_click', 'event_view', 'gallery_click', 'check_click', 'notify_signup', 'instagram_click', 'tiktok_click'] as const;
 
-export const LIMITS = { headline: 80, intro: 160, text: 280, label: 70, buttonLabel: 40, url: 500 } as const;
+export const LIMITS = { headline: 80, intro: 160, text: 280, label: 70, buttonLabel: 40, url: 500, showcaseTitle: 40, showcasePhotos: 12 } as const;
 
-export function defaultCartao(hireUrl = '', workUrl = '/'): CartaoConfig {
+export function defaultCartao(hireUrl = '', workUrl = '/', instagram = ''): CartaoConfig {
   return {
     headline: 'Seus momentos merecem ser encontrados',
     intro: '',
@@ -58,8 +68,24 @@ export function defaultCartao(hireUrl = '', workUrl = '/'): CartaoConfig {
     show_past: false,
     hire: { label: 'Contratar fotógrafo', url: hireUrl },
     work: { label: 'Conhecer meu trabalho', url: workUrl },
+    showcase: { title: 'Últimos trabalhos', photos: [], always: false },
+    social: { instagram, tiktok: '' },
   };
 }
+
+/** Usuário de rede social: aceita "@nome", "nome" ou o link do perfil. '' = vazio; null = inválido. */
+export function parseHandle(v: unknown, net: 'instagram' | 'tiktok') {
+  let s = String(v ?? '').trim();
+  if (!s) return '';
+  const m = net === 'instagram' ? /instagram\.com\/([^/?#]+)/i.exec(s) : /tiktok\.com\/@?([^/?#]+)/i.exec(s);
+  if (m) s = m[1]!;
+  s = s.replace(/^@+/, '');
+  const max = net === 'instagram' ? 30 : 24;
+  return new RegExp(`^[A-Za-z0-9._]{1,${max}}$`).test(s) ? s : null;
+}
+
+export const instagramProfile = (u: string) => `https://www.instagram.com/${encodeURIComponent(u)}/`;
+export const tiktokProfile = (u: string) => `https://www.tiktok.com/@${encodeURIComponent(u)}`;
 
 /** Link aceito nos botões: https://, http://, wa.me ou um endereço do próprio site ("/…"). Nunca javascript: etc. */
 export function safeUrl(v: unknown) {
@@ -108,6 +134,15 @@ export function parseCartao(input: unknown, fallback = defaultCartao()): Result<
   if (!hire.ok) return hire;
   const work = btn(o.work, 'Conhecer meu trabalho', fallback.work);
   if (!work.ok) return work;
+  const sc = (o.showcase && typeof o.showcase === 'object' ? o.showcase : fallback.showcase) as Record<string, unknown>;
+  const photos = (Array.isArray(sc.photos) ? sc.photos : [])
+    .map(String)
+    .filter((k) => /^[a-z0-9-]{1,40}\/[\w.-]{1,120}\.(jpe?g|png|webp|avif)$/i.test(k));
+  const so = (o.social && typeof o.social === 'object' ? o.social : fallback.social) as Record<string, unknown>;
+  const instagram = parseHandle(so.instagram, 'instagram');
+  if (instagram === null) return { ok: false, error: 'Usuário do Instagram inválido.' };
+  const tiktok = parseHandle(so.tiktok, 'tiktok');
+  if (tiktok === null) return { ok: false, error: 'Usuário do TikTok inválido.' };
   return {
     ok: true,
     value: {
@@ -117,6 +152,12 @@ export function parseCartao(input: unknown, fallback = defaultCartao()): Result<
       show_past: o.show_past === true,
       hire: hire.value,
       work: work.value,
+      showcase: {
+        title: text(sc.title, LIMITS.showcaseTitle) || fallback.showcase.title,
+        photos: [...new Set(photos)].slice(0, LIMITS.showcasePhotos),
+        always: sc.always === true,
+      },
+      social: { instagram, tiktok },
     },
   };
 }

@@ -5,6 +5,20 @@
 2. Em **Evento em destaque**, escolha o evento, a previsão de publicação (horário de Manaus) e, se quiser, um texto. Marque **Destaque ativo** e clique em **Salvar**. Vale na hora, sem deploy.
 3. Gere o QR Code uma única vez em **QR Codes → Cartão digital (link fixo)**. Ele aponta para `/cartao` e nunca muda.
 
+## Sem evento em destaque: vitrine e redes sociais
+Quando o destaque está desligado, o cartão mostra:
+- Um **carrossel** com fotos do seu portfólio. Ele passa sozinho a cada 4 segundos, aceita arrastar com o dedo e fica parado para quem configurou o celular com menos movimento.
+- Os cartões **Instagram** e **TikTok** com o botão "Seguir".
+
+No painel (Cartão Digital → **Vitrine e redes sociais**) você escolhe:
+- quais fotos entram, até 12, na ordem do toque; sem escolha, entram todas;
+- o título do carrossel;
+- se ele também aparece quando houver evento em destaque.
+
+As fotos vêm do portfólio do site (Site → Fotos). Com evento em destaque, as redes aparecem só como ícones.
+
+O cartão não carrega o feed do Instagram ou do TikTok. Isso exigiria scripts dessas empresas, que colocam cookies de rastreamento, ou a API do Instagram, com chave renovada a cada 60 dias. Por isso a vitrine usa as suas próprias fotos e os botões levam aos perfis.
+
 ## Endereços
 | Endereço | O que é |
 |---|---|

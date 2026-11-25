@@ -3,33 +3,42 @@
  * CARTÃO DIGITAL — /cartao
  * Um único link/QR Code fixo (impresso uma vez). O conteúdo vem do painel (aba "Cartão Digital"),
  * guardado no banco: muda na hora, sem deploy.
- * - Botão principal dinâmico: evento em destaque → página permanente /eventos/<endereço>.
+ * - Com evento em destaque: botão principal dinâmico → página permanente /eventos/<endereço>.
+ * - Sem destaque: vitrine (carrossel com fotos do portfólio) e cartões do Instagram e do TikTok.
  * - "Contratar fotógrafo" e "Conhecer meu trabalho" (configuráveis) e "Ver outros eventos" (opcional).
- * Sem JS (ou se o servidor falhar) mostra o cartão padrão, sem destaque.
+ * Sem JS (ou se o servidor falhar) mostra o cartão padrão, com a vitrine.
  */
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { site } from '@/config/site';
 import { defaultCartao } from '@/lib/cartao';
-import { renderCartao, type CartaoPublic } from '@/lib/cartao-view';
+import { renderCartao, resolveShowcase, type CartaoPublic } from '@/lib/cartao-view';
+import { showcaseCatalog } from '@/lib/showcase-catalog';
 import { messages, whatsappLink } from '@/lib/whatsapp';
 
-const d = defaultCartao(whatsappLink(site.whatsappNumber, messages.quote()), '/');
-const initial: CartaoPublic = { name: site.shortName, tagline: site.tagline, headline: d.headline, intro: d.intro, show_past: false, hire: d.hire, work: d.work, featured: null };
+const catalog = await showcaseCatalog();
+const d = defaultCartao(whatsappLink(site.whatsappNumber, messages.quote()), '/', site.instagramUser);
+const initial: CartaoPublic = {
+  name: site.shortName, tagline: site.tagline, headline: d.headline, intro: d.intro, show_past: false, hire: d.hire, work: d.work, featured: null,
+  showcase: { title: d.showcase.title, always: false, photos: resolveShowcase([], catalog) }, social: d.social,
+};
 ---
 
-<BaseLayout title="Cartão digital" description={`${site.name}: fotos dos eventos, contratação e portfólio.`} bare>
+<BaseLayout title="Cartão digital" description={`${site.name}: fotos dos eventos, contratação e portfólio.`} ogImage={catalog[0]?.url} bare>
   <section class="min-h-dvh bg-[radial-gradient(ellipse_at_top,rgba(139,224,122,0.10),transparent_60%)] px-4 py-8 sm:py-12">
     <div data-cartao class="transition-opacity duration-200 [.js_&]:opacity-0" set:html={renderCartao(initial)} />
   </section>
+  <script type="application/json" id="showcase-catalog" set:html={JSON.stringify(catalog)} />
 </BaseLayout>
 
 <script>
-  import { renderCartao, type CartaoPublic } from '@/lib/cartao-view';
+  import { fromApi, renderCartao, type CartaoApi, type ShowcasePhoto } from '@/lib/cartao-view';
+  import { startCarousels } from '@/lib/cartao-carousel';
 
   const box = document.querySelector<HTMLElement>('[data-cartao]')!;
+  const catalog = JSON.parse(document.getElementById('showcase-catalog')!.textContent!) as ShowcasePhoto[];
   const show = () => box.classList.remove('[.js_&]:opacity-0');
   // Se o servidor demorar, mostra o cartão padrão em vez de uma tela vazia.
-  const timer = setTimeout(show, 2500);
+  const timer = setTimeout(() => (show(), startCarousels(box)), 2500);
 
   /**
    * Estatísticas (FUTURO): hoje não envia nada. Quando houver contagem de visitas/cliques por evento,
@@ -38,15 +47,16 @@ const initial: CartaoPublic = { name: site.shortName, tagline: site.tagline, hea
   function track(_name: string, _slug = '') {}
 
   fetch('/api/public/cartao', { headers: { Accept: 'application/json' } })
-    .then((r) => (r.ok ? (r.json() as Promise<CartaoPublic>) : Promise.reject()))
+    .then((r) => (r.ok ? (r.json() as Promise<CartaoApi>) : Promise.reject()))
     .then((d) => {
-      box.innerHTML = renderCartao(d);
+      box.innerHTML = renderCartao(fromApi(d, catalog));
       track('cartao_view', d.featured?.slug);
     })
     .catch(() => undefined)
     .finally(() => {
       clearTimeout(timer);
       show();
+      startCarousels(box);
     });
 
   box.addEventListener('click', (e) => {

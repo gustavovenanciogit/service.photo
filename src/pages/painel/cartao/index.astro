@@ -11,6 +11,8 @@
  */
 import PanelLayout from '@/layouts/PanelLayout.astro';
 import { LIMITS } from '@/lib/cartao';
+import { showcaseCatalog } from '@/lib/showcase-catalog';
+const catalog = await showcaseCatalog();
 const field = 'mt-1 w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none';
 const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
 ---
@@ -117,6 +119,47 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
         </label>
       </section>
 
+      <!-- ───────── VITRINE E REDES ───────── -->
+      <section class="card space-y-4 p-5 sm:p-6" aria-labelledby="vt-title">
+        <div>
+          <h2 id="vt-title" class="text-2xl font-bold">Vitrine e redes sociais</h2>
+          <p class="text-sm text-muted">Sem evento em destaque, o cartão mostra um carrossel com fotos do seu portfólio e os seus perfis.</p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block text-sm">
+            <span class="font-medium">Instagram</span>
+            <input name="instagram" class={field} placeholder="usuario (sem @)" autocomplete="off" />
+          </label>
+          <label class="block text-sm">
+            <span class="font-medium">TikTok</span>
+            <input name="tiktok" class={field} placeholder="usuario (sem @)" autocomplete="off" />
+          </label>
+        </div>
+        <p class="-mt-2 text-xs text-muted">Pode colar o link do perfil. Vazio esconde o cartão daquela rede.</p>
+        <label class="block text-sm">
+          <span class="font-medium">Título do carrossel</span>
+          <input name="sc_title" maxlength={LIMITS.showcaseTitle} class={field} />
+        </label>
+        <fieldset>
+          <legend class="text-sm font-medium">Fotos do carrossel <span data-sc-count class="text-muted"></span></legend>
+          <p class="text-xs text-muted">Toque para escolher (até {LIMITS.showcasePhotos}, na ordem em que tocar). Nenhuma marcada = todas as fotos do portfólio. As fotos vêm de Site → Fotos.</p>
+          <div data-sc-grid class="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {catalog.map((p) => (
+              <button type="button" data-sc={p.key} aria-pressed="false" title={p.alt}
+                class="group relative aspect-[4/5] overflow-hidden rounded-lg border-2 border-transparent aria-pressed:border-brand">
+                <img src={p.url} alt={p.alt} loading="lazy" class="size-full object-cover opacity-60 group-aria-pressed:opacity-100" />
+                <span data-sc-n class="absolute top-1 right-1 hidden size-5 place-items-center rounded-full bg-brand text-[11px] font-bold text-bg group-aria-pressed:grid"></span>
+              </button>
+            ))}
+          </div>
+          {!catalog.length && <p class="mt-2 text-sm text-amber-200">Nenhuma foto no portfólio ainda (Site → Fotos).</p>}
+        </fieldset>
+        <label class="flex items-start gap-3 rounded-xl border border-line bg-bg-2 p-3 text-sm">
+          <input name="sc_always" type="checkbox" class={toggle} />
+          <span>Mostrar o carrossel também quando houver evento em destaque <span class="block text-xs text-muted">Aparece abaixo dos botões.</span></span>
+        </label>
+      </section>
+
       <!-- ───────── AVISO POR E-MAIL ───────── -->
       <section class="card space-y-3 p-5 sm:p-6" aria-labelledby="nt-title">
         <h2 id="nt-title" class="text-xl font-bold">Aviso por e-mail</h2>
@@ -150,13 +193,18 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
       </div>
       <p class="mt-2 text-center text-xs text-muted">Mesmo desenho da página pública. Os links não abrem na prévia.</p>
     </aside>
+    <script type="application/json" id="showcase-catalog" set:html={JSON.stringify(catalog)} />
   </div>
 </PanelLayout>
 
 <script>
   import { api, toast } from '@/lib/panel-api';
   import { featuredLabel, formatDay, isoToManaus, manausToISO, teaserState, type CartaoConfig } from '@/lib/cartao';
-  import { renderCartao, type CartaoPublic } from '@/lib/cartao-view';
+  import { renderCartao, resolveShowcase, type CartaoPublic, type ShowcasePhoto } from '@/lib/cartao-view';
+  import { startCarousels } from '@/lib/cartao-carousel';
+  const catalog = JSON.parse(document.getElementById('showcase-catalog')!.textContent!) as ShowcasePhoto[];
+  /** Fotos escolhidas para o carrossel, na ordem do toque. */
+  let picked: string[] = [];
   import { publicState, type EventRecord } from '@/lib/events';
 
   const form = document.querySelector<HTMLFormElement>('[data-form]')!;
@@ -177,6 +225,8 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
       featured: { active: checked('active'), event_id: val('event_id'), text: f<HTMLTextAreaElement>('text').value, label: val('label') },
       hire: { label: val('hire_label'), url: val('hire_url') },
       work: { label: val('work_label'), url: val('work_url') },
+      showcase: { title: val('sc_title'), photos: [...picked], always: checked('sc_always') },
+      social: { instagram: val('instagram'), tiktok: val('tiktok') },
       forecast: val('forecast'),
     };
   }
@@ -193,6 +243,12 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
     f('hire_url').value = c.hire.url;
     f('work_label').value = c.work.label;
     f('work_url').value = c.work.url;
+    f('sc_title').value = c.showcase.title;
+    f('sc_always').checked = c.showcase.always;
+    f('instagram').value = c.social.instagram;
+    f('tiktok').value = c.social.tiktok;
+    picked = c.showcase.photos.filter((k) => catalog.some((p) => p.key === k));
+    renderPicks();
     const e = events.find((x) => x.id === c.featured.event_id);
     f('forecast').value = e ? isoToManaus(e.publish_forecast ?? '') : '';
   }
@@ -228,6 +284,32 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
     $('[data-status]').textContent = dirty ? 'Alterações não salvas' : $('[data-status]').dataset.saved ?? '';
   }
 
+  function renderPicks() {
+    document.querySelectorAll<HTMLButtonElement>('[data-sc]').forEach((b) => {
+      const i = picked.indexOf(b.dataset.sc!);
+      b.setAttribute('aria-pressed', String(i >= 0));
+      b.querySelector('[data-sc-n]')!.textContent = i >= 0 ? String(i + 1) : '';
+    });
+    $('[data-sc-count]').textContent = picked.length ? `(${picked.length} escolhida${picked.length === 1 ? '' : 's'})` : '(todas)';
+  }
+  document.querySelectorAll<HTMLButtonElement>('[data-sc]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const k = b.dataset.sc!;
+      if (picked.includes(k)) picked = picked.filter((x) => x !== k);
+      else if (picked.length >= 12) return toast('Máximo de 12 fotos no carrossel.', 'error');
+      else picked.push(k);
+      renderPicks();
+      update();
+    }),
+  );
+
+  /** Usuário digitado → como vai aparecer (aceita @ e link do perfil). */
+  const handle = (v: string, net: 'instagram' | 'tiktok') => {
+    const s = v.trim();
+    const m = net === 'instagram' ? /instagram\.com\/([^/?#]+)/i.exec(s) : /tiktok\.com\/@?([^/?#]+)/i.exec(s);
+    return (m ? m[1]! : s).replace(/^@+/, '').replace(/[^A-Za-z0-9._]/g, '');
+  };
+
   function renderPreview(c: ReturnType<typeof current>, e: EventRecord | null) {
     const st = e ? (teaserState(publicState(e), true) ?? 'preparando') : null;
     const cover = e?.cover_image ? `/f/${e.id}/cover.jpg?v=${encodeURIComponent(e.cover_image)}` : e && st === 'disponivel' && e.cover_photo_id ? `/f/${e.id}/${e.cover_photo_id}/preview.jpg` : '';
@@ -238,8 +320,16 @@ const toggle = 'mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]';
       featured: c.featured.active && e && st
         ? { slug: e.slug, name: e.name, date: e.date, location: e.location, state: st, forecast: st === 'preparando' ? manausToISO(c.forecast) : '', text: c.featured.text.trim(), label: c.featured.label.trim(), cover }
         : null,
+      showcase: { title: c.showcase.title || 'Últimos trabalhos', always: c.showcase.always, photos: resolveShowcase(c.showcase.photos, catalog) },
+      social: { instagram: handle(c.social.instagram, 'instagram'), tiktok: handle(c.social.tiktok, 'tiktok') },
     };
-    $('[data-preview]').innerHTML = renderCartao(d);
+    const pv = $('[data-preview]');
+    // Mantém a foto atual do carrossel ao redesenhar (digitar não faz o carrossel voltar ao início).
+    const pos = pv.querySelector<HTMLElement>('[data-slides]')?.scrollLeft ?? 0;
+    pv.innerHTML = renderCartao(d);
+    const sl = pv.querySelector<HTMLElement>('[data-slides]');
+    if (sl) sl.scrollLeft = pos;
+    startCarousels(pv);
   }
 
   function renderAnnounced() {
